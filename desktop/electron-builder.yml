@@ -1,0 +1,26 @@
+appId: app.ieltspilot.desktop
+productName: IELTS Pilot
+directories:
+  output: release
+files:
+  - dist/**/*
+  - ui/**/*
+  - package.json
+asar: true
+npmRebuild: false
+extraResources:
+  - from: ../backend/dist/ielts_pilot_backend
+    to: backend
+    filter: ["**/*"]
+win:
+  target:
+    - target: nsis
+      arch: [x64]
+  artifactName: IELTS-Pilot-Setup-${version}.${ext}
+nsis:
+  oneClick: true
+  perMachine: false
+  runAfterFinish: false
+  deleteAppDataOnUninstall: false
+linux:
+  target: dir

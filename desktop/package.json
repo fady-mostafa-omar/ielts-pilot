@@ -1,0 +1,23 @@
+{
+  "name": "ielts-pilot",
+  "productName": "IELTS Pilot",
+  "version": "0.0.1",
+  "description": "IELTS Pilot — personal English and IELTS Academic study app",
+  "author": "Amr",
+  "private": true,
+  "main": "dist/main.js",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "copy-ui": "node scripts/copy-ui.mjs",
+    "start": "npm run build && electron .",
+    "dist:win": "npm run build && npm run copy-ui && electron-builder --win nsis --x64 --publish never",
+    "dist:linux-dir": "npm run build && npm run copy-ui && electron-builder --linux dir --publish never"
+  },
+  "devDependencies": {
+    "@types/node": "24.19.2",
+    "electron": "45.2.1",
+    "electron-builder": "26.18.0",
+    "typescript": "7.0.2"
+  }
+}

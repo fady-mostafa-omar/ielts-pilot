@@ -1,0 +1,25 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+.ruff_cache/
+backend/build/
+backend/dist/
+
+# Node
+node_modules/
+frontend/dist/
+desktop/dist/
+desktop/ui/
+desktop/release/
+
+# Third-party study material never goes in the repo (docs/CONTENT_POLICY.md §2)
+library/
+*.pdf
+
+# OS / editors
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
