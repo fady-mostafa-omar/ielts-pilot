@@ -33,6 +33,19 @@ Default split by phase. These are the master spec's design starting points, **no
 2. Otherwise by mean current level across the four skills: < 5.5 → Foundation; 5.5 to < 6.5 → Development; ≥ 6.5 → Exam preparation.
 3. Any skill level missing → Development, and the plan is flagged "low confidence".
 
+## 2a. Interim daily split (Sprint 1b, D-019)
+
+Until the planner exists, Home splits the daily hours like this:
+
+1. Phase by rule P above → development share *d* (75%, 60% or 35%).
+2. Development time *D* = daily minutes × *d*, split the way Abdulrahman Hegazy describes a development hour (as given by the owner): 30/60 listening, 20/60 reading, 10/60 writing and speaking.
+3. The rest is exam time: techniques videos and practice tests.
+4. Minutes are rounded to 5; exam time takes the remainder.
+
+Example: 3 h/day in the development phase → 108 min development → listening 55, reading 35, writing and speaking 20, exam 70.
+
+Sessions count toward a part by their skill: listening → listening; reading → reading; writing/speaking → writing and speaking; techniques, practice tests and placement tests → exam; grammar, vocabulary and general → shown separately. Sprint 2 checks this against Dalilk's routine PDFs and turns it into tasks.
+
 ## 3. Activity types
 
 | Code | Skill | Track | Typical block | Suggested resources |

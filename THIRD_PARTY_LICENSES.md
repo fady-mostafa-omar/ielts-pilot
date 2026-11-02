@@ -17,6 +17,7 @@ nothing of unknown licence ships inside the installer.
 | react | 19.3.1 | MIT |
 | react-dom | 19.3.1 | MIT |
 | scheduler | 0.28.0 | MIT |
+| @fontsource/ibm-plex-sans-arabic (IBM Plex Sans Arabic font files, © IBM Corp.) | 5.3.0 | OFL-1.1 |
 
 ### Backend (bundled by PyInstaller)
 | Package | Version | Licence |

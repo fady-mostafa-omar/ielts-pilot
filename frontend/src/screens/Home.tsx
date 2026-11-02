@@ -1,126 +1,560 @@
-// Home (v0.1 Sprint 1a): goals, current levels with their sources, exam countdown.
-// The "Today" task screen replaces the bottom card in Sprint 2.
+// Home (Sprint 1b): today's goal in hours, overall level over time, this week's hours,
+// where you stopped, your skills with their sources, and today's time split.
 
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { api, ApiError } from "../api";
+import { Donut, Hourglass, LevelChart, SkillBar, WeekBars, type DayBar } from "../charts";
 import { useI18n } from "../i18n";
-import { SKILLS, type Levels, type Profile } from "../types";
-import { todayIso } from "../forms";
+import { Icon, SKILL_STYLE, SkillBadge } from "../icons";
+import {
+  CATEGORY_COLOR,
+  addDays,
+  categoryOf,
+  counted,
+  dailySplit,
+  dayKey,
+  daysUntil,
+  formatHM,
+  hoursLabel,
+  minutesOf,
+  overallHistory,
+  startOfDay,
+  startOfWeek,
+  type Category,
+} from "../plan";
+import {
+  RESOURCE_SKILLS,
+  SKILLS,
+  type Levels,
+  type Placement,
+  type Profile,
+  type Resource,
+  type ResourceSkill,
+  type StudySession,
+} from "../types";
+import { studyTargetFor } from "./Library";
+import type { StudyTarget } from "./Study";
 
-function daysUntil(isoDate: string): number {
-  const [y, m, d] = isoDate.split("-").map(Number);
-  const [ty, tm, td] = todayIso().split("-").map(Number);
-  return Math.round((Date.UTC(y, m - 1, d) - Date.UTC(ty, tm - 1, td)) / 86_400_000);
+interface HomeData {
+  sessions: StudySession[];
+  open: StudySession[];
+  placements: Placement[];
+  resources: Resource[];
 }
+
+const SPLIT_ROWS = ["listening", "reading", "output", "exam"] as const;
+const SPLIT_ICON = {
+  listening: "headphones",
+  reading: "book",
+  output: "pen",
+  exam: "target",
+} as const;
 
 export function HomeScreen(props: {
   profile: Profile;
   levels: Levels | null;
-  onOpenSettings: () => void;
+  onStudy: (target: StudyTarget) => void;
+  onOpenLibrary: (skill?: ResourceSkill) => void;
+  onOpenSettings: (tab?: "levels") => void;
 }) {
-  const { t, formatBand, formatDate } = useI18n();
+  const { t, lang, formatBand, formatDate, formatShortDate, formatHours, formatDays } = useI18n();
   const { profile, levels } = props;
-  const lowConfidence = SKILLS.some((s) => {
-    const level = levels?.current[s];
-    return !level || level.source_type === "self_estimate";
+  const [data, setData] = useState<HomeData | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [manualOpen, setManualOpen] = useState(false);
+
+  const weekStart = useMemo(() => startOfWeek(new Date()), []);
+
+  const load = useCallback(async () => {
+    try {
+      const [sessions, open, placements, resources] = await Promise.all([
+        api.sessions(weekStart),
+        api.openSessions(),
+        api.placements(),
+        api.resources(),
+      ]);
+      setData({ sessions, open, placements, resources });
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : String(e));
+    }
+  }, [weekStart]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  const split = useMemo(() => dailySplit(profile, levels), [profile, levels]);
+  const now = new Date();
+  const todayKey = dayKey(now);
+  const sessions = counted(data?.sessions ?? []);
+  const todaySessions = sessions.filter((s) => dayKey(new Date(s.started_at)) === todayKey);
+  const doneToday = minutesOf(todaySessions);
+  const target = profile.study_minutes_per_day;
+  const left = Math.max(0, target - doneToday);
+  const byCategory = (cat: Category) =>
+    minutesOf(todaySessions.filter((s) => categoryOf(s.skill, s.activity_code) === cat));
+
+  const dayNames = t("week_days").split(",");
+  const days: DayBar[] = Array.from({ length: 7 }, (_, i) => {
+    const day = addDays(weekStart, i);
+    const key = dayKey(day);
+    return {
+      label: dayNames[i],
+      minutes: minutesOf(sessions.filter((s) => dayKey(new Date(s.started_at)) === key)),
+      state: key === todayKey ? "today" : day < startOfDay(now) ? "past" : "future",
+    };
   });
+  const weekDone = days.reduce((a, d) => a + d.minutes, 0);
+  const elapsedDays = days.filter((d) => d.state !== "future");
+  const metDays = elapsedDays.filter((d) => d.minutes >= target).length;
+
+  const points = overallHistory(levels, data?.placements ?? []);
+  const latest = points.at(-1) ?? null;
+  const first = points[0] ?? null;
   const examDays = profile.exam_date ? daysUntil(profile.exam_date) : null;
 
+  const lastOpened = [...(data?.resources ?? [])]
+    .filter((r) => r.last_opened_at)
+    .sort((a, b) => (b.last_opened_at ?? "").localeCompare(a.last_opened_at ?? ""))[0];
+
+  const greetingKey = now.getHours() < 12 ? "greet_morning" : "greet_evening";
+  const weekdayFmt = new Intl.DateTimeFormat(lang === "ar" ? "ar-EG-u-nu-latn" : "en-GB", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+  });
+
   return (
-    <div className="page stack-lg">
-      <header>
-        <h1>
-          {profile.display_name
-            ? t("home_hello", { name: profile.display_name })
-            : t("home_hello_anon")}
-        </h1>
+    <div className="page wide stack-lg">
+      <header className="page-head">
+        <div className="stack-xs">
+          <h1>
+            {t(greetingKey)}
+            {profile.display_name ? ` ${t("greet_name", { name: profile.display_name })}` : ""}
+          </h1>
+          <p className="muted row">
+            <Icon name="flag" color="#1D4ED8" />
+            {examDays === null ? (
+              <span>{t("home_no_exam")}</span>
+            ) : examDays === 0 ? (
+              <strong>{t("home_exam_today")}</strong>
+            ) : (
+              <span>
+                {t("home_exam_in")} <strong className="ink">{formatDays(examDays)}</strong>{" "}
+                · {formatDate(profile.exam_date)}
+              </span>
+            )}
+          </p>
+        </div>
+        <p className="muted small">{weekdayFmt.format(now)}</p>
       </header>
 
-      <div className="grid-2">
-        <section className="card">
-          <h2>{t("home_exam")}</h2>
-          {examDays === null ? (
-            <p className="big muted">{t("home_no_exam")}</p>
+      {error && (
+        <p className="error-box" role="alert">
+          {error}
+        </p>
+      )}
+
+      {data && data.open.some((s) => s.state === "unconfirmed") && (
+        <OpenSessions sessions={data.open} resources={data.resources} onChanged={load} />
+      )}
+
+      <section className="cards-3">
+        {/* today's goal */}
+        <article className="card">
+          <div className="card-head">
+            <h2>{t("home_today")}</h2>
+            <span className={`pill ${left === 0 ? "pill-ok" : "pill-warn"}`}>
+              {left === 0
+                ? t("home_goal_met")
+                : t("home_left", { hm: formatHM(left) })}
+            </span>
+          </div>
+          <div className="row gap-lg">
+            <Hourglass
+              fraction={target ? doneToday / target : 0}
+              label={t("home_hourglass_label", { pct: Math.round((doneToday / target) * 100) })}
+            />
+            <div className="stack-xs">
+              <div className="big-number" dir="ltr">
+                {formatHM(doneToday)} <span className="of">/ {formatHM(target)}</span>
+              </div>
+              <span className="muted">{t("home_today_sub")}</span>
+            </div>
+          </div>
+          <div className="meter meter-warn" aria-hidden="true">
+            <span style={{ width: `${Math.min(100, (doneToday / Math.max(1, target)) * 100)}%` }} />
+          </div>
+          <ul className="split-list">
+            {SPLIT_ROWS.map((cat) => (
+              <li key={cat}>
+                <Icon name={SPLIT_ICON[cat]} color={CATEGORY_COLOR[cat]} />
+                <span className="grow">{t(`cat_${cat}`)}</span>
+                <span dir="ltr" className="muted">
+                  {formatHM(byCategory(cat))} / {formatHM(split.minutes[cat])}
+                </span>
+              </li>
+            ))}
+            {byCategory("support") > 0 && (
+              <li>
+                <Icon name="grammar" color={CATEGORY_COLOR.support} />
+                <span className="grow">{t("cat_support")}</span>
+                <span dir="ltr" className="muted">
+                  {formatHM(byCategory("support"))}
+                </span>
+              </li>
+            )}
+          </ul>
+          <button className="btn subtle small self-start" onClick={() => setManualOpen(!manualOpen)}>
+            <Icon name="plus" size={14} /> {t("home_log_manual")}
+          </button>
+          {manualOpen && (
+            <ManualLog
+              onDone={() => {
+                setManualOpen(false);
+                void load();
+              }}
+            />
+          )}
+        </article>
+
+        {/* overall level */}
+        <article className="card">
+          <div className="card-head">
+            <h2>{t("home_overall_title")}</h2>
+            {latest && first && latest !== first && latest.band !== first.band && (
+              <span className={`pill ${latest.band > first.band ? "pill-ok" : "pill-warn"}`}>
+                <bdi dir="ltr">
+                  {latest.band > first.band ? "+" : ""}
+                  {(latest.band - first.band).toFixed(1)}
+                </bdi>{" "}
+                {t("home_since_first")}
+              </span>
+            )}
+          </div>
+          {latest ? (
+            <>
+              <div className="row baseline">
+                <span className="huge teal">{formatBand(latest.band)}</span>
+                <span className="muted small">
+                  {t(latest.kind === "official" ? "home_from_official" : "home_from_estimate")} ·{" "}
+                  {t("home_target")} <strong className="ink">{formatBand(profile.target_overall)}</strong>
+                </span>
+              </div>
+              <LevelChart
+                points={points}
+                target={profile.target_overall}
+                label={t("home_chart_label")}
+                targetLabel={t("home_target_line", { b: formatBand(profile.target_overall) })}
+                formatDate={formatShortDate}
+              />
+              <div className="legend">
+                <span>
+                  <i className="dot hollow" /> {t("legend_estimate")}
+                </span>
+                <span>
+                  <i className="dot solid" /> {t("legend_official")}
+                </span>
+              </div>
+            </>
+          ) : (
+            <div className="stack empty-state">
+              <Icon name="trend" size={36} color="#94A3B8" />
+              <p>{t("home_no_level")}</p>
+              <button className="btn primary self-start" onClick={() => props.onOpenSettings("levels")}>
+                {t("home_take_test")}
+              </button>
+            </div>
+          )}
+          <p className="info-strip">
+            <Icon name="info" size={16} /> {t("home_level_moves")}
+          </p>
+        </article>
+
+        {/* this week */}
+        <article className="card">
+          <div className="card-head">
+            <h2 className="row">
+              <Icon name="calendar" color="#1D4ED8" /> {t("home_week_title")}
+            </h2>
+            <span className="muted small" dir="ltr">
+              {formatHM(weekDone)} / {formatHM(target * profile.study_days_per_week)}
+            </span>
+          </div>
+          <WeekBars
+            days={days}
+            targetMinutes={target}
+            targetLabel={t("home_week_target", { hours: formatHours(target) })}
+            label={t("home_week_label")}
+            rtl={lang === "ar"}
+          />
+          <div className="row wrap">
+            <span className={`pill ${metDays > 0 ? "pill-ok" : ""}`}>
+              {metDays > 0 && <Icon name="check" size={14} />}
+              {t("home_met_days", { n: metDays, of: elapsedDays.length })}
+            </span>
+            <span className="muted small">
+              {t("home_week_plan", {
+                days: formatDays(profile.study_days_per_week),
+                hours: formatHours(target),
+              })}
+            </span>
+          </div>
+        </article>
+      </section>
+
+      <section className="cards-3">
+        {/* continue / start */}
+        <article className="card span-2 stack">
+          {lastOpened ? (
+            <>
+              <div className="row gap-md">
+                <SkillBadge skill={lastOpened.skill} size={22} />
+                <div className="stack-xs grow">
+                  <span className="muted small">
+                    {t("home_continue")} · {t(`rskill_${lastOpened.skill}`)}
+                  </span>
+                  <h2 className="title-lg">{lastOpened.title}</h2>
+                  {lastOpened.progress_position && (
+                    <span className="small">
+                      {t("lib_progress")} {lastOpened.progress_position}
+                    </span>
+                  )}
+                </div>
+              </div>
+              <div className="row wrap">
+                <button
+                  className="btn primary big-btn"
+                  onClick={() => props.onStudy(studyTargetFor(lastOpened))}
+                >
+                  <Icon name="play" size={16} /> {t("home_continue_btn")}
+                </button>
+                <button className="btn big-btn" onClick={() => props.onOpenLibrary()}>
+                  {t("home_pick_other")}
+                </button>
+              </div>
+            </>
           ) : (
             <>
-              <p className="big">
-                {examDays === 0 ? t("home_exam_today") : t("home_days_left", { n: examDays })}
-              </p>
-              <p className="muted">{formatDate(profile.exam_date)}</p>
+              <h2 className="title-lg">{t("home_start_title")}</h2>
+              <p className="muted">{t("home_start_body")}</p>
             </>
           )}
-        </section>
-        <section className="card">
-          <h2>{t("home_week")}</h2>
-          <p className="big">
-            {t("weekly_minutes", { m: profile.study_days_per_week * profile.study_minutes_per_day })}
-          </p>
-          <p className="muted">
-            {t("home_week_detail", {
-              d: profile.study_days_per_week,
-              m: profile.study_minutes_per_day,
-            })}
-          </p>
-        </section>
-      </div>
+          <div className="quick-skills">
+            {(["listening", "reading", "writing", "speaking", "techniques"] as const).map((s) => (
+              <button key={s} className="quick-skill" onClick={() => props.onOpenLibrary(s)}>
+                <Icon name={SKILL_STYLE[s].icon} color={SKILL_STYLE[s].color} />
+                {t(`rskill_${s}`)}
+              </button>
+            ))}
+            <button
+              className="quick-skill"
+              onClick={() =>
+                props.onStudy({
+                  title: t("home_timer_only"),
+                  target: null,
+                  resource: null,
+                  skill: "general",
+                  activityCode: null,
+                  timer: true,
+                })
+              }
+            >
+              <Icon name="clock" color="#475569" />
+              {t("home_timer_only")}
+            </button>
+          </div>
+          <p className="muted small">{t("home_plan_soon")}</p>
+        </article>
 
-      <section className="card">
+        {/* time split */}
+        <article className="card stack">
+          <h2>{t("home_split_title")}</h2>
+          <div className="row gap-lg">
+            <Donut
+              segments={SPLIT_ROWS.map((c) => ({
+                value: split.minutes[c],
+                color: CATEGORY_COLOR[c],
+                label: `${t(`cat_${c}`)} ${formatHM(split.minutes[c])}`,
+              }))}
+              center={hoursLabel(target)}
+              sub={
+                lang === "en" || (target % 60 === 0 && target >= 180 && target <= 600)
+                  ? t("hours_word")
+                  : t("hour_word")
+              }
+              label={t("home_split_label", { hours: formatHours(target) })}
+            />
+            <ul className="split-list grow">
+              {SPLIT_ROWS.map((c) => (
+                <li key={c}>
+                  <i className="swatch" style={{ background: CATEGORY_COLOR[c] }} />
+                  <span className="grow">{t(`cat_${c}`)}</span>
+                  <span dir="ltr">{formatHM(split.minutes[c])}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+          <p className="info-strip">{t(`home_split_rule_${split.phase}`)}</p>
+        </article>
+      </section>
+
+      {/* skills */}
+      <section className="card stack">
         <div className="card-head">
-          <h2>{t("home_levels")}</h2>
-          <span className="muted">
-            {t("home_targets")}: {t("home_overall")} {formatBand(profile.target_overall)} ·{" "}
-            {t("home_minimum", { min: formatBand(profile.minimum_per_skill) })}
-          </span>
+          <h2>{t("home_skills")}</h2>
+          <span className="muted small">{t("home_skills_scale")}</span>
         </div>
-        <table className="skills-table">
-          <tbody>
-            {SKILLS.map((s) => {
-              const level = levels?.current[s] ?? null;
-              const target = profile[`target_${s}`];
-              const gap = level ? Math.max(target - level.band, 0) : null;
-              return (
-                <tr key={s}>
-                  <th scope="row">{t(`skill_${s}`)}</th>
-                  <td>
-                    <span className="band">{formatBand(level?.band)}</span>
-                    {level && (
-                      <span
-                        className={`tag ${level.source_type === "self_estimate" ? "tag-warn" : ""}`}
-                        title={level.source_note}
-                      >
-                        {level.source_type === "self_estimate"
-                          ? t("home_self_tag")
-                          : t(`source_${level.source_type}`)}
-                      </span>
-                    )}
-                    {!level && <span className="muted"> {t("not_set")}</span>}
-                  </td>
-                  <td className="arrow" aria-hidden="true">
-                    →
-                  </td>
-                  <td>
-                    <span className="band">{formatBand(target)}</span>
-                  </td>
-                  <td className="gap">
-                    {gap === null
-                      ? ""
-                      : gap === 0
-                        ? t("home_reached")
-                        : `${t("home_gap")} ${formatBand(gap)}`}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-        {lowConfidence && <p className="note">{t("home_low_confidence")}</p>}
+        <div className="skills-grid">
+          {SKILLS.map((s) => {
+            const level = levels?.current[s] ?? null;
+            const tgt = profile[`target_${s}`];
+            const estimate = !!level && !["official_practice", "external_marker"].includes(level.source_type);
+            return (
+              <div className="skills-row" key={s}>
+                <span className="row strong">
+                  <Icon name={SKILL_STYLE[s].icon} color={SKILL_STYLE[s].color} />
+                  {t(`skill_${s}`)}
+                </span>
+                <SkillBar
+                  band={level?.band ?? null}
+                  target={tgt}
+                  color={SKILL_STYLE[s].color}
+                  estimate={estimate}
+                  label={t("home_skill_label", {
+                    skill: t(`skill_${s}`),
+                    b: formatBand(level?.band),
+                    t: formatBand(tgt),
+                  })}
+                />
+                {level ? (
+                  <span dir="ltr">
+                    <strong>{formatBand(level.band)}</strong> → {formatBand(tgt)}
+                  </span>
+                ) : (
+                  <span className="warn-text small">{t("home_not_measured")}</span>
+                )}
+                <span className="muted small skills-source">
+                  {level
+                    ? `${t(`source_${level.source_type}`)}${level.source_note ? ` · ${level.source_note}` : ""}`
+                    : ""}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+        <div className="row wrap">
+          <span className="muted small">{t("home_skills_note")}</span>
+          <span className="spacer" />
+          <button className="btn small" onClick={() => props.onOpenSettings("levels")}>
+            {t("home_record_level")}
+          </button>
+        </div>
       </section>
+    </div>
+  );
+}
 
-      <section className="card card-soft">
-        <h2>{t("home_next_title")}</h2>
-        <p>{t("home_next_body")}</p>
-        <button className="btn" onClick={props.onOpenSettings}>
-          {t("edit_in_settings")}
+function OpenSessions(props: {
+  sessions: StudySession[];
+  resources: Resource[];
+  onChanged: () => Promise<void>;
+}) {
+  const { t, formatDate } = useI18n();
+  const [busy, setBusy] = useState(false);
+  const act = async (fn: () => Promise<unknown>) => {
+    setBusy(true);
+    try {
+      await fn();
+      await props.onChanged();
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <section className="card notice stack">
+      <h2 className="row">
+        <Icon name="clock" color="#B45309" /> {t("open_title")}
+      </h2>
+      <p className="muted small">{t("open_body")}</p>
+      {props.sessions
+        .filter((s) => s.state === "unconfirmed")
+        .map((s) => {
+          const res = props.resources.find((r) => r.id === s.resource_id);
+          return (
+            <div key={s.id} className="row wrap open-row">
+              <span className="grow">
+                <strong dir="ltr">{formatHM(s.active_seconds / 60)}</strong> ·{" "}
+                {t(`rskill_${s.skill}`)}
+                {res ? ` · ${res.title}` : ""} · {formatDate(s.started_at)}
+              </span>
+              <button
+                className="btn small primary"
+                disabled={busy}
+                onClick={() => void act(() => api.patchSession(s.id, { state: "confirmed" }))}
+              >
+                {t("open_confirm")}
+              </button>
+              <button
+                className="btn small subtle"
+                disabled={busy}
+                onClick={() => void act(() => api.patchSession(s.id, { state: "discarded" }))}
+              >
+                {t("open_discard")}
+              </button>
+            </div>
+          );
+        })}
+    </section>
+  );
+}
+
+function ManualLog(props: { onDone: () => void }) {
+  const { t } = useI18n();
+  const [skill, setSkill] = useState<ResourceSkill>("reading");
+  const [minutes, setMinutes] = useState(30);
+  const [notes, setNotes] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  async function save() {
+    setError(null);
+    try {
+      const start = new Date(Date.now() - minutes * 60_000);
+      await api.logManual(skill, start, minutes, notes);
+      props.onDone();
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : String(e));
+    }
+  }
+  return (
+    <div className="stack manual-log">
+      <p className="muted small">{t("manual_hint")}</p>
+      <div className="row wrap">
+        <select value={skill} onChange={(e) => setSkill(e.target.value as ResourceSkill)}>
+          {RESOURCE_SKILLS.map((s) => (
+            <option key={s} value={s}>
+              {t(`rskill_${s}`)}
+            </option>
+          ))}
+        </select>
+        <select value={minutes} onChange={(e) => setMinutes(Number(e.target.value))}>
+          {[10, 15, 20, 30, 45, 60, 90, 120, 180].map((m) => (
+            <option key={m} value={m}>
+              {t("n_minutes", { n: m })}
+            </option>
+          ))}
+        </select>
+        <input
+          className="grow"
+          placeholder={t("manual_notes_ph")}
+          value={notes}
+          maxLength={2000}
+          onChange={(e) => setNotes(e.target.value)}
+        />
+        <button className="btn primary small" onClick={() => void save()}>
+          {t("save")}
         </button>
-      </section>
+      </div>
+      {error && <p className="field-message">{error}</p>}
     </div>
   );
 }

@@ -2,6 +2,8 @@
 
 import { useId, type ReactNode } from "react";
 import { useI18n, type T } from "./i18n";
+import { Icon } from "./icons";
+import { todayIso } from "./plan";
 import {
   SKILLS,
   type ExplanationLang,
@@ -18,16 +20,21 @@ export function bands(min: number, max: number): number[] {
   return out;
 }
 
-export function todayIso(): string {
-  const d = new Date();
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-}
+export { todayIso };
 
-export function Field(props: { label: string; hint?: string; error?: string; children: ReactNode }) {
+export function Field(props: {
+  label: string;
+  hint?: string;
+  error?: string;
+  icon?: ReactNode;
+  children: ReactNode;
+}) {
   return (
     <div className={`field${props.error ? " field-error" : ""}`}>
-      <span className="field-label">{props.label}</span>
+      <span className="field-label row">
+        {props.icon}
+        {props.label}
+      </span>
       {props.children}
       {props.hint && <span className="field-hint">{props.hint}</span>}
       {props.error && (
@@ -201,19 +208,17 @@ export function timeDefault(): TimeDraft {
   return { study_days_per_week: 5, study_minutes_per_day: 60, explanation_language: "balanced" };
 }
 
-const MINUTES = [15, 20, 30, 45, 60, 75, 90, 120, 150, 180, 240];
+// Daily study time is chosen in hours: ½ h to 14 h in half-hour steps.
+const DAY_MINUTES = Array.from({ length: 28 }, (_, i) => (i + 1) * 30);
 
 export function TimeFields(props: { value: TimeDraft; onChange: (d: TimeDraft) => void }) {
-  const { t } = useI18n();
+  const { t, formatHours } = useI18n();
   const d = props.value;
   const set = (patch: Partial<TimeDraft>) => props.onChange({ ...d, ...patch });
-  const minuteOptions = MINUTES.includes(d.study_minutes_per_day)
-    ? MINUTES
-    : [...MINUTES, d.study_minutes_per_day].sort((a, b) => a - b);
   return (
     <div className="stack">
       <div className="grid-2">
-        <Field label={t("field_days")}>
+        <Field label={t("field_days")} icon={<Icon name="calendar" color="#1D4ED8" />}>
           <select
             value={d.study_days_per_week}
             onChange={(e) => set({ study_days_per_week: Number(e.target.value) })}
@@ -225,14 +230,14 @@ export function TimeFields(props: { value: TimeDraft; onChange: (d: TimeDraft) =
             ))}
           </select>
         </Field>
-        <Field label={t("field_minutes")}>
+        <Field label={t("field_hours")} icon={<Icon name="clock" color="#B45309" />}>
           <select
             value={d.study_minutes_per_day}
             onChange={(e) => set({ study_minutes_per_day: Number(e.target.value) })}
           >
-            {minuteOptions.map((n) => (
+            {DAY_MINUTES.map((n) => (
               <option key={n} value={n}>
-                {n}
+                {formatHours(n)}
               </option>
             ))}
           </select>
@@ -255,7 +260,7 @@ export function TimeFields(props: { value: TimeDraft; onChange: (d: TimeDraft) =
         </div>
       </Field>
       <p className="muted">
-        {t("weekly_minutes", { m: d.study_days_per_week * d.study_minutes_per_day })}
+        {t("weekly_hours", { hours: formatHours(d.study_days_per_week * d.study_minutes_per_day) })}
       </p>
     </div>
   );

@@ -1,7 +1,22 @@
 // All calls go to app://ui/api/..., which the Electron main process forwards to the
 // local backend and signs with the launch token (D-014). The renderer never sees the token.
 
-import type { BackupInfo, LevelEntry, Levels, Profile, ProfileInput, SystemInfo } from "./types";
+import type {
+  AppSettings,
+  BackupInfo,
+  LevelEntry,
+  Levels,
+  Placement,
+  PlacementInput,
+  Profile,
+  ProfileInput,
+  Resource,
+  ResourceInput,
+  ResourcePatch,
+  ResourceSkill,
+  StudySession,
+  SystemInfo,
+} from "./types";
 
 export class ApiError extends Error {
   constructor(
@@ -77,4 +92,46 @@ export const api = {
     request<{ deleted: string }>(`backups/${encodeURIComponent(name)}`, { method: "DELETE" }),
   deleteAll: () =>
     request<{ safety_backup: string }>("data/delete-all", json("POST", { confirm: "DELETE" })),
+
+  settings: () => request<AppSettings>("settings"),
+  saveSettings: (patch: Partial<AppSettings>) => request<AppSettings>("settings", json("PUT", patch)),
+
+  placements: () => request<Placement[]>("placements"),
+  addPlacement: (input: PlacementInput) => request<Placement>("placements", json("POST", input)),
+
+  resources: (includeArchived = false) =>
+    request<Resource[]>(`resources${includeArchived ? "?include_archived=true" : ""}`),
+  addResource: (input: ResourceInput) => request<Resource>("resources", json("POST", input)),
+  patchResource: (id: number, patch: ResourcePatch) =>
+    request<Resource>(`resources/${id}`, json("PATCH", patch)),
+  resourceOpened: (id: number) => request<Resource>(`resources/${id}/opened`, { method: "POST" }),
+  deleteResource: (id: number) => request<null>(`resources/${id}`, { method: "DELETE" }),
+
+  sessions: (since: Date, until?: Date) => {
+    const q = new URLSearchParams({ since: since.toISOString() });
+    if (until) q.set("until", until.toISOString());
+    return request<StudySession[]>(`sessions?${q.toString()}`);
+  },
+  openSessions: () => request<StudySession[]>("sessions/open"),
+  startSession: (skill: ResourceSkill, resourceId: number | null, activityCode: string | null) =>
+    request<StudySession>(
+      "sessions/start",
+      json("POST", { skill, resource_id: resourceId, activity_code: activityCode }),
+    ),
+  heartbeat: (id: number, activeDeltaSeconds: number) =>
+    request<StudySession>(
+      `sessions/${id}/heartbeat`,
+      json("POST", { active_delta_seconds: activeDeltaSeconds }),
+    ),
+  stopSession: (id: number, notes = "") =>
+    request<StudySession>(`sessions/${id}/stop`, json("POST", { notes })),
+  patchSession: (
+    id: number,
+    patch: { state?: "confirmed" | "discarded"; active_seconds?: number; notes?: string },
+  ) => request<StudySession>(`sessions/${id}`, json("PATCH", patch)),
+  logManual: (skill: ResourceSkill, startedAt: Date, minutes: number, notes: string) =>
+    request<StudySession>(
+      "sessions/manual",
+      json("POST", { skill, started_at: startedAt.toISOString(), minutes, notes }),
+    ),
 };

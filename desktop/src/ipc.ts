@@ -1,8 +1,16 @@
 // IPC handlers behind the preload bridge. Every handler checks the caller is our UI.
 
-import { BrowserWindow, dialog, ipcMain, shell, type IpcMainInvokeEvent } from "electron";
+import {
+  BrowserWindow,
+  dialog,
+  ipcMain,
+  powerMonitor,
+  shell,
+  type IpcMainInvokeEvent,
+} from "electron";
 import { copyFile, mkdir } from "node:fs/promises";
-import { basename, join } from "node:path";
+import { basename, extname, join } from "node:path";
+import { clearWebData, type Bounds, type PanelTarget, type StudyPanel } from "./panel";
 import { APP_ORIGIN } from "./protocol";
 
 const BACKUP_NAME = /^ielts-pilot-[A-Za-z0-9._-]+\.zip$/;
@@ -11,6 +19,43 @@ export interface IpcDeps {
   dataDir: () => string;
   restartBackend: () => Promise<string>;
   documentsDir: () => string;
+  panel: () => StudyPanel | null;
+}
+
+// Files the panel can show with Chromium's own viewers.
+const LIBRARY_FORMATS: Record<string, string> = {
+  ".pdf": "pdf",
+  ".mp3": "audio",
+  ".m4a": "audio",
+  ".wav": "audio",
+  ".ogg": "audio",
+  ".mp4": "video",
+  ".webm": "video",
+  ".txt": "text",
+};
+
+function safeFileName(original: string): string {
+  const ext = extname(original).toLowerCase();
+  const stem = basename(original, extname(original))
+    .replace(/[^A-Za-z0-9._ ()-]+/g, "_")
+    .replace(/^[^A-Za-z0-9]+/, "")
+    .slice(0, 100);
+  return `${stamp()}-${stem || "file"}${ext}`;
+}
+
+function parseTarget(value: unknown): PanelTarget {
+  if (typeof value === "object" && value !== null) {
+    const v = value as Record<string, unknown>;
+    if (typeof v.url === "string") return { url: v.url };
+    if (typeof v.library === "string") return { library: v.library };
+  }
+  throw new Error("invalid panel target");
+}
+
+function parseBounds(value: unknown): Bounds {
+  const v = (typeof value === "object" && value !== null ? value : {}) as Record<string, unknown>;
+  const num = (n: unknown) => (typeof n === "number" ? n : 0);
+  return { x: num(v.x), y: num(v.y), width: num(v.width), height: num(v.height) };
 }
 
 function fromOurUi(event: IpcMainInvokeEvent): boolean {
@@ -32,6 +77,69 @@ function stamp(): string {
 
 export function registerIpc(deps: IpcDeps): void {
   const backupsDir = () => join(deps.dataDir(), "backups");
+  const libraryDir = () => join(deps.dataDir(), "library");
+  const panel = (): StudyPanel => {
+    const p = deps.panel();
+    if (!p) throw new Error("no window");
+    return p;
+  };
+
+  ipcMain.handle(
+    "ip:panel-open",
+    guard(async (_event, target: unknown, keepSignIn: unknown) =>
+      panel().open(parseTarget(target), keepSignIn === true),
+    ),
+  );
+  ipcMain.handle(
+    "ip:panel-bounds",
+    guard(async (_event, bounds: unknown) => panel().setBounds(parseBounds(bounds))),
+  );
+  ipcMain.handle(
+    "ip:panel-visible",
+    guard(async (_event, visible: unknown) => panel().setVisible(visible === true)),
+  );
+  ipcMain.handle("ip:panel-nav", guard(async (_event, action: unknown) => panel().navigate(action)));
+  ipcMain.handle("ip:panel-close", guard(async () => panel().close()));
+  ipcMain.handle("ip:panel-external", guard(async () => panel().openExternally()));
+  ipcMain.handle("ip:panel-state", guard(async () => panel().state()));
+  // Study timer: idle seconds of keyboard/mouse, and whether the panel is playing sound
+  // (listening practice is "active" even with no input).
+  ipcMain.handle(
+    "ip:activity",
+    guard(async () => ({
+      idleSeconds: powerMonitor.getSystemIdleTime(),
+      audible: deps.panel()?.isAudible() ?? false,
+    })),
+  );
+  ipcMain.handle("ip:clear-web-data", guard(async () => clearWebData()));
+
+  ipcMain.handle(
+    "ip:add-library-file",
+    guard(async (event) => {
+      const win = BrowserWindow.fromWebContents(event.sender) ?? undefined;
+      const options = {
+        title: "IELTS Pilot",
+        filters: [
+          {
+            name: "PDF, audio, video, text",
+            extensions: Object.keys(LIBRARY_FORMATS).map((e) => e.slice(1)),
+          },
+        ],
+        properties: ["openFile" as const],
+      };
+      const result = win
+        ? await dialog.showOpenDialog(win, options)
+        : await dialog.showOpenDialog(options);
+      if (result.canceled || result.filePaths.length === 0) return null;
+      const source = result.filePaths[0];
+      const format = LIBRARY_FORMATS[extname(source).toLowerCase()];
+      if (!format) return null;
+      await mkdir(libraryDir(), { recursive: true });
+      const fileName = safeFileName(basename(source));
+      await copyFile(source, join(libraryDir(), fileName));
+      return { fileName, title: basename(source, extname(source)), format };
+    }),
+  );
 
   ipcMain.handle("ip:restart-backend", guard(async () => deps.restartBackend()));
 

@@ -18,16 +18,18 @@ import {
   type TimeDraft,
 } from "../forms";
 import { useI18n } from "../i18n";
-import { SKILLS, type Lang, type Profile } from "../types";
+import { Icon } from "../icons";
+import { SKILLS, type Lang, type Placement, type PlacementTest, type Profile } from "../types";
+import { PlacementCards, PlacementTestView } from "./Placement";
 
-const STEPS = ["welcome", "goals", "levels", "time", "review"] as const;
+const STEPS = ["welcome", "tests", "goals", "levels", "time", "review"] as const;
 
 export function SetupScreen(props: {
   lang: Lang;
   onLangChange: (lang: Lang) => void;
   onDone: (profile: Profile) => void;
 }) {
-  const { t, formatBand } = useI18n();
+  const { t, formatBand, formatDays, formatHours } = useI18n();
   const [step, setStep] = useState(0);
   const [name, setName] = useState("");
   const [goals, setGoals] = useState<GoalsDraft>(goalsDefault);
@@ -36,6 +38,9 @@ export function SetupScreen(props: {
   const [showErrors, setShowErrors] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [keepSignIn, setKeepSignIn] = useState(false);
+  const [placements, setPlacements] = useState<Placement[]>([]);
+  const [testOpen, setTestOpen] = useState<PlacementTest | null>(null);
 
   const goalErrors = validateGoals(goals, t);
   const levelErrors = validateLevels(levels, t);
@@ -65,12 +70,25 @@ export function SetupScreen(props: {
       );
       const entries = levelsToEntries(levels);
       if (entries.length > 0) await api.addLevels(entries);
+      await api.saveSettings({ web_keep_signin: keepSignIn });
       props.onDone(profile);
     } catch (e) {
       setError(t("err_generic", { msg: e instanceof ApiError ? e.message : String(e) }));
     } finally {
       setSaving(false);
     }
+  }
+
+  if (testOpen) {
+    return (
+      <PlacementTestView
+        test={testOpen}
+        keepSignIn={keepSignIn}
+        existing={placements}
+        onSaved={(p) => setPlacements((list) => [p, ...list])}
+        onBack={() => setTestOpen(null)}
+      />
+    );
   }
 
   return (
@@ -108,6 +126,28 @@ export function SetupScreen(props: {
               </span>
               <input value={name} maxLength={60} onChange={(e) => setName(e.target.value)} />
             </label>
+            <div className="consent">
+              <label className="check">
+                <input
+                  type="checkbox"
+                  checked={keepSignIn}
+                  onChange={(e) => setKeepSignIn(e.target.checked)}
+                />
+                <strong>{t("consent_label")}</strong>
+              </label>
+              <p className="muted small">{t("consent_body")}</p>
+            </div>
+          </section>
+        )}
+
+        {current === "tests" && (
+          <section className="stack">
+            <h1>{t("tests_title")}</h1>
+            <p>{t("tests_body")}</p>
+            <PlacementCards placements={placements} onOpen={setTestOpen} />
+            <p className="muted small row">
+              <Icon name="info" size={16} /> {t("tests_skip")}
+            </p>
           </section>
         )}
 
@@ -121,6 +161,9 @@ export function SetupScreen(props: {
         {current === "levels" && (
           <section className="stack">
             <h1>{t("levels_title")}</h1>
+            {placements.some((p) => p.approx_band !== null) && (
+              <p className="ok-box small">{t("levels_from_tests")}</p>
+            )}
             <p className="muted">{t("levels_hint")}</p>
             <LevelsFields
               value={levels}
@@ -154,6 +197,7 @@ export function SetupScreen(props: {
               <dd>{formatBand(goals.minimum_per_skill)}</dd>
               <dt>{t("field_exam_date")}</dt>
               <dd>{goals.exam_date || t("not_set")}</dd>
+              {SKILLS.some((s) => levels[s].band !== null) && (<>
               <dt>{t("levels_title")}</dt>
               <dd>
                 {SKILLS.map((s) => (
@@ -165,13 +209,29 @@ export function SetupScreen(props: {
                   </span>
                 ))}
               </dd>
+              </>)}
+              {placements.length > 0 && (
+                <>
+                  <dt>{t("tests_title")}</dt>
+                  <dd>
+                    {placements.map((p) => (
+                      <span key={p.id} className="chip">
+                        {t(`pl_${p.test}_name`)}: <bdi>{p.level_label}</bdi>
+                        {p.approx_band !== null && ` · ≈${formatBand(p.approx_band)}`}
+                      </span>
+                    ))}
+                  </dd>
+                </>
+              )}
               <dt>{t("time_title")}</dt>
               <dd>
-                {t("home_week_detail", {
-                  d: time.study_days_per_week,
-                  m: time.study_minutes_per_day,
+                {t("home_week_plan", {
+                  days: formatDays(time.study_days_per_week),
+                  hours: formatHours(time.study_minutes_per_day),
                 })}
               </dd>
+              <dt>{t("consent_short")}</dt>
+              <dd>{keepSignIn ? t("yes") : t("no")}</dd>
             </dl>
             {error && (
               <p className="error-box" role="alert">

@@ -45,6 +45,8 @@ def test_update_keeps_created_at(client: TestClient) -> None:
         {"study_days_per_week": 0},
         {"study_days_per_week": 8},
         {"study_minutes_per_day": 5},
+        {"study_minutes_per_day": 45},  # half hours only
+        {"study_minutes_per_day": 870},  # above 14 h
         {"interface_language": "fr"},
         {"target_writing": 6.0},  # below minimum_per_skill 6.5
         {"exam_date": (date.today() - timedelta(days=1)).isoformat()},
@@ -55,6 +57,13 @@ def test_update_keeps_created_at(client: TestClient) -> None:
 def test_invalid_profiles_rejected(client: TestClient, change: dict) -> None:
     res = client.put("/api/v1/profile", json={**VALID_PROFILE, **change})
     assert res.status_code == 422, change
+
+
+@pytest.mark.parametrize("minutes", [30, 90, 840])
+def test_study_time_half_hours_up_to_14h(client: TestClient, minutes: int) -> None:
+    res = client.put("/api/v1/profile", json={**VALID_PROFILE, "study_minutes_per_day": minutes})
+    assert res.status_code == 200, res.text
+    assert res.json()["study_minutes_per_day"] == minutes
 
 
 def test_exam_date_today_allowed(client: TestClient) -> None:

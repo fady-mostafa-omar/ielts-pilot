@@ -7,6 +7,7 @@ from app.config import MIN_FREE_BYTES
 from app.context import Ctx
 from app.migrate import current_revision
 from app.schemas import BackupInfo, DeleteAllIn, DeleteAllOut, RestoreOut, SystemInfo
+from app.startup import prepare_data
 
 router = APIRouter(prefix="/api/v1")
 
@@ -58,6 +59,7 @@ def create_backup(ctx: Ctx) -> BackupInfo:
 @router.post("/backups/{name}/restore", response_model=RestoreOut)
 def restore_backup(name: str, ctx: Ctx) -> RestoreOut:
     restored, safety = backup.restore(ctx.settings, ctx.engine, name, __version__)
+    prepare_data(ctx)
     return RestoreOut(restored=restored, safety_backup=safety)
 
 
@@ -70,4 +72,6 @@ def delete_backup(name: str, ctx: Ctx) -> dict:
 @router.post("/data/delete-all", response_model=DeleteAllOut)
 def delete_all(body: DeleteAllIn, ctx: Ctx) -> DeleteAllOut:
     del body  # the literal "DELETE" confirmation is enforced by the schema
-    return DeleteAllOut(safety_backup=backup.delete_all(ctx.settings, ctx.engine, __version__))
+    safety = backup.delete_all(ctx.settings, ctx.engine, __version__)
+    prepare_data(ctx)
+    return DeleteAllOut(safety_backup=safety)

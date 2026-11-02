@@ -3,7 +3,7 @@
 // Startup order: window first (shows a loading state), backend second. The UI polls
 // app://ui/api/v1/health and gets 503 "backend_starting" until the backend is ready.
 
-import { app, BrowserWindow, dialog, protocol, session } from "electron";
+import { app, BrowserWindow, dialog, protocol, screen, session } from "electron";
 import { appendFileSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import {
@@ -13,6 +13,7 @@ import {
   type BackendState,
 } from "./backend";
 import { registerIpc } from "./ipc";
+import { StudyPanel } from "./panel";
 import { APP_ORIGIN, makeHandler } from "./protocol";
 
 protocol.registerSchemesAsPrivileged([
@@ -33,6 +34,7 @@ app.once("ready", () => {
 let state: BackendState = { status: "starting" };
 let booting: Promise<void> | null = null;
 let shuttingDown = false;
+let panel: StudyPanel | null = null;
 
 function dataDir(): string {
   return app.getPath("userData"); // %APPDATA%\IELTS Pilot on Windows
@@ -99,11 +101,12 @@ async function restartBackend(): Promise<string> {
 }
 
 function createWindow(hidden: boolean): { win: BrowserWindow; loaded: Promise<void> } {
+  const area = screen.getPrimaryDisplay().workAreaSize;
   const win = new BrowserWindow({
-    width: 1100,
-    height: 780,
-    minWidth: 760,
-    minHeight: 560,
+    width: Math.min(1320, area.width),
+    height: Math.min(860, area.height),
+    minWidth: 900,
+    minHeight: 580,
     show: false,
     backgroundColor: "#f6f7f9",
     title: "IELTS Pilot",
@@ -120,6 +123,10 @@ function createWindow(hidden: boolean): { win: BrowserWindow; loaded: Promise<vo
     },
   });
   if (!hidden) win.once("ready-to-show", () => win.show());
+  panel = new StudyPanel(win, () => join(dataDir(), "library"));
+  win.on("closed", () => {
+    panel = null;
+  });
   win.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
   win.webContents.on("will-navigate", (event, url) => {
     if (!url.startsWith(`${APP_ORIGIN}/`)) event.preventDefault();
@@ -158,6 +165,29 @@ const SMOKE_PROBE = `(async () => {
   const backupName = backup.ok ? (await backup.json()).name : null;
   const listed = await (await fetch('api/v1/backups')).json();
   const shutdown = await fetch('api/v1/shutdown', { method: 'POST' });
+  const resources = await (await fetch('api/v1/resources')).json();
+  const started = await fetch('api/v1/sessions/start', {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ skill: 'listening' }),
+  });
+  const sessionId = started.ok ? (await started.json()).id : null;
+  const stopped = sessionId === null ? null : await fetch('api/v1/sessions/' + sessionId + '/stop', {
+    method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}',
+  });
+  let panelUrl = null;
+  if (window.ipBridge && window.ipBridge.panel) {
+    await window.ipBridge.panel.setBounds({ x: 0, y: 0, width: 400, height: 300 });
+    await window.ipBridge.panel.open({ library: 'smoke-panel.txt' }, false);
+    for (let i = 0; i < 100; i++) {
+      const s = await window.ipBridge.panel.state();
+      if (s.open && !s.loading && s.url) { panelUrl = s.url; break; }
+      await new Promise((r) => setTimeout(r, 100));
+    }
+    await window.ipBridge.panel.close();
+  }
+  let rejected = false;
+  try { await window.ipBridge.panel.open({ url: 'file:///C:/Windows/win.ini' }, false); }
+  catch { rejected = true; }
   return {
     uiState,
     previousValue,
@@ -167,6 +197,10 @@ const SMOKE_PROBE = `(async () => {
     backupCreated: !!backupName && listed.some((b) => b.name === backupName && b.valid),
     shutdownBlockedFromRenderer: shutdown.status === 403,
     bridgePresent: typeof window.ipBridge === 'object',
+    catalogResources: Array.isArray(resources) ? resources.length : 0,
+    sessionRecorded: !!stopped && stopped.ok,
+    panelShowedLibraryFile: !!panelUrl && panelUrl.endsWith('smoke-panel.txt'),
+    panelRejectsFileUrl: rejected,
   };
 })()`;
 
@@ -174,6 +208,8 @@ async function runSmoke(outFile: string): Promise<number> {
   const result: Record<string, unknown> = { ok: false, platform: process.platform };
   try {
     result.dataDir = dataDir();
+    mkdirSync(join(dataDir(), "library"), { recursive: true });
+    writeFileSync(join(dataDir(), "library", "smoke-panel.txt"), "IELTS Pilot panel smoke\n");
     const { win, loaded } = createWindow(true);
     await Promise.all([loaded, boot()]);
     if (state.status !== "ready") throw new Error(`backend ${state.status}`);
@@ -189,7 +225,12 @@ async function runSmoke(outFile: string): Promise<number> {
       probe.roundTrip === true &&
       probe.backupCreated === true &&
       probe.shutdownBlockedFromRenderer === true &&
-      probe.bridgePresent === true;
+      probe.bridgePresent === true &&
+      typeof probe.catalogResources === "number" &&
+      probe.catalogResources > 0 &&
+      probe.sessionRecorded === true &&
+      probe.panelShowedLibraryFile === true &&
+      probe.panelRejectsFileUrl === true;
   } catch (err) {
     result.error = err instanceof Error ? err.message : String(err);
   }
@@ -212,6 +253,7 @@ async function main(): Promise<void> {
     dataDir,
     restartBackend,
     documentsDir: () => app.getPath("documents"),
+    panel: () => panel,
   });
   log(`starting ${app.getName()} ${app.getVersion()} packaged=${app.isPackaged}`);
 

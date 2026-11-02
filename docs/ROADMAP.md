@@ -48,10 +48,20 @@ Status: **draft for approval** · 2026-11-02
 - [x] F12 backup / restore / import / export / delete-all, with safety backups
 - [x] Arabic (RTL) and English (LTR)
 - [x] Spellchecker off — no outbound network at startup (verified with Chromium's network log)
-- [ ] Windows CI build green; owner acceptance on the baseline laptop
+- [x] Windows CI build green; owner acceptance on the baseline laptop (2026-11-02)
 
-### Sprint 1b — Resource library and study sessions
-F4 resource library with the Dalilk catalogue and owner-added resources, in-app PDF / YouTube / web panel, F5 sessions. Close O-2 (official practice links) and O-3 (format facts).
+### Sprint 1b — Library, study panel, hours, Dalilk tests · v0.0.3
+- [x] New look from the approved Home mockup: bundled Arabic font, icons, hourglass / level / week / split charts
+- [x] Dalilk placement tests (13English, 3-minute speaking) in setup and Settings → Level: open the test in the app, type the result, optionally use it as the starting level (`placement_quiz`)
+- [x] Daily study time in hours (½ h to 14 h); migration 0003 rounds old values
+- [x] Home: today's goal in hours (done / target, met or not), overall level over time (moves only with a new result), this week day by day, continue where you stopped, skills with sources, today's split (D-019)
+- [x] F4 library: Dalilk catalogue + free official practice + engnovate, owner links and files (PDF, audio, video, text), archive, progress, notes
+- [x] Study panel inside the window (D-018) with back / forward / reload / open in browser; built-in PDF viewer
+- [x] F5 sessions: automatic timer with pause, idle detection, finish and lower-only correction, unconfirmed sessions after a crash, hand-logged time (D-020)
+- [x] Settings → Accounts: consent to keep sign-ins, sites list, sign out of all sites
+- [x] Backend stops when the app is gone (D-021); app icon
+- [x] O-2 closed (official practice links in the catalogue); O-3 partly (format facts from ielts.org)
+- [ ] Windows CI build green; owner acceptance on the baseline laptop
 
 **Exit (Sprint 1):** the owner can open any resource inside the app and every use is logged.
 

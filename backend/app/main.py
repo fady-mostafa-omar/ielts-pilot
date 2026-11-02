@@ -12,12 +12,13 @@ from app import (
     backup,
     models,  # noqa: F401  (registers tables)
 )
-from app.api import data, profile
+from app.api import data, placements, profile, resources, sessions
 from app.config import Settings
 from app.context import AppContext
 from app.db import make_engine
 from app.migrate import current_revision, head_revision, is_known_revision, upgrade_to_head
 from app.security import LocalGuardMiddleware
+from app.startup import prepare_data
 
 log = logging.getLogger("ielts_pilot")
 
@@ -64,6 +65,7 @@ def create_app(settings: Settings, engine: Engine | None = None) -> FastAPI:
         session_factory=sessionmaker(engine, expire_on_commit=False),
         schema_revision=schema_revision,
     )
+    prepare_data(app.state.ctx)
     app.add_middleware(LocalGuardMiddleware, token=settings.token, port=settings.port)
 
     @app.exception_handler(backup.BackupError)
@@ -72,6 +74,6 @@ def create_app(settings: Settings, engine: Engine | None = None) -> FastAPI:
             {"detail": {"error": exc.code, "message": exc.message}}, status_code=exc.status
         )
 
-    app.include_router(data.router)
-    app.include_router(profile.router)
+    for module in (data, profile, placements, resources, sessions):
+        app.include_router(module.router)
     return app

@@ -10,6 +10,7 @@ import uvicorn
 from app import __version__
 from app.config import Settings
 from app.main import StartupError, create_app
+from app.watchdog import watch_parent
 
 
 def _setup_logging(log_dir: Path) -> None:
@@ -64,5 +65,6 @@ def main() -> None:
     )
     server = uvicorn.Server(config)
     app.state.ctx.request_shutdown = lambda: setattr(server, "should_exit", True)
+    watch_parent(app.state.ctx.request_shutdown)
     server.run()
     log.info("backend stopped")

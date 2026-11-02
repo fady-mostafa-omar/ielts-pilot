@@ -54,7 +54,13 @@ export async function startBackend(launch: BackendLaunch, dataDir: string): Prom
   // Secrets go through the environment, never the command line.
   const child = spawn(launch.command, launch.args, {
     cwd: launch.cwd,
-    env: { ...process.env, IP_PORT: String(port), IP_TOKEN: token, IP_DATA_DIR: dataDir },
+    env: {
+      ...process.env,
+      IP_PORT: String(port),
+      IP_TOKEN: token,
+      IP_DATA_DIR: dataDir,
+      IP_PARENT_PID: String(process.pid), // backend stops itself if the app dies
+    },
     windowsHide: true,
     stdio: ["ignore", "pipe", "pipe"],
   });

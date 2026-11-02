@@ -9,7 +9,15 @@ from app.models import SKILLS
 
 Band = Annotated[float, Field(ge=0, le=9, multiple_of=0.5)]
 Skill = Literal["listening", "reading", "writing", "speaking"]
-SourceType = Literal["official_practice", "external_marker", "self_estimate"]
+SourceType = Literal["official_practice", "external_marker", "placement_quiz", "self_estimate"]
+ResourceSkill = Literal[
+    "listening", "reading", "writing", "speaking", "grammar", "vocabulary", "techniques", "general"
+]
+PlacementTest = Literal["dalilk_13english", "dalilk_3min"]
+
+# Daily study time is chosen in half hours, from 0.5 h to 14 h.
+MIN_DAY_MINUTES = 30
+MAX_DAY_MINUTES = 14 * 60
 
 
 class ProfileIn(BaseModel):
@@ -27,7 +35,9 @@ class ProfileIn(BaseModel):
     minimum_per_skill: Band
     exam_date: date | None = None
     study_days_per_week: int = Field(ge=1, le=7)
-    study_minutes_per_day: int = Field(ge=10, le=600)
+    study_minutes_per_day: int = Field(
+        ge=MIN_DAY_MINUTES, le=MAX_DAY_MINUTES, multiple_of=30
+    )
 
     @field_validator("display_name")
     @classmethod
@@ -151,3 +161,185 @@ class SystemInfo(BaseModel):
     db_size_bytes: int
     free_bytes: int
     low_disk: bool
+
+
+class SettingsIO(BaseModel):
+    """Owner preferences kept in app_settings. Every field is optional on write."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    # Owner's consent to keep sites' sign-in cookies on this computer (Accounts tab).
+    web_keep_signin: bool | None = None
+
+
+# --- placement tests -------------------------------------------------------------
+
+
+def _not_future(value: date) -> date:
+    if value > date.today():
+        raise ValueError("date is in the future")
+    return value
+
+
+class PlacementIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    test: PlacementTest
+    level_label: str = Field(min_length=1, max_length=40)
+    approx_band: Band | None = None
+    taken_on: date
+    notes: str = Field(default="", max_length=300)
+    # Also record approx_band as the current level of these skills (source: placement_quiz).
+    apply_to_skills: list[Skill] = Field(default_factory=list, max_length=4)
+
+    _check_date = field_validator("taken_on")(_not_future)
+
+    @model_validator(mode="after")
+    def _check(self) -> "PlacementIn":
+        self.level_label = self.level_label.strip()
+        self.notes = self.notes.strip()
+        if not self.level_label:
+            raise ValueError("level_label is empty")
+        if self.apply_to_skills and self.approx_band is None:
+            raise ValueError("apply_to_skills needs approx_band")
+        if len(set(self.apply_to_skills)) != len(self.apply_to_skills):
+            raise ValueError("each skill may appear only once")
+        return self
+
+
+class PlacementOut(BaseModel):
+    id: int
+    test: str
+    level_label: str
+    approx_band: float | None
+    taken_on: date
+    notes: str
+    created_at: datetime
+
+
+# --- resources --------------------------------------------------------------------
+
+LOCAL_NAME = r"^[A-Za-z0-9][A-Za-z0-9._ ()\-]{0,200}$"
+
+
+class ResourceIn(BaseModel):
+    """A resource the owner adds by hand (a link, or a file already copied into library/)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    title: str = Field(min_length=1, max_length=200)
+    skill: ResourceSkill
+    url: str | None = Field(default=None, max_length=500, pattern=r"^https://\S+$")
+    local_path: str | None = Field(default=None, pattern=LOCAL_NAME)
+    resource_type: str = Field(default="other", max_length=20)
+    format: str = Field(default="web", max_length=10)
+    notes: str = Field(default="", max_length=5000)
+
+    @model_validator(mode="after")
+    def _one_location(self) -> "ResourceIn":
+        self.title = self.title.strip()
+        if not self.title:
+            raise ValueError("title is empty")
+        if (self.url is None) == (self.local_path is None):
+            raise ValueError("give exactly one of url or local_path")
+        return self
+
+
+class ResourcePatch(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    notes: str | None = Field(default=None, max_length=5000)
+    progress_position: str | None = Field(default=None, max_length=100)
+    status: Literal["active", "archived"] | None = None
+    completed: bool | None = None
+
+
+class ResourceOut(BaseModel):
+    id: int
+    catalog_id: str | None
+    title: str
+    provider: str
+    track: str
+    skill: str
+    activity_codes: str
+    resource_type: str
+    format: str
+    url: str | None
+    local_path: str | None
+    needs_internet: bool
+    relevance: str
+    licence_note: str
+    description: str
+    notes: str
+    progress_position: str | None
+    status: str
+    completed_at: datetime | None
+    last_opened_at: datetime | None
+    created_at: datetime
+    updated_at: datetime
+
+
+# --- study sessions ---------------------------------------------------------------
+
+
+def _aware(value: datetime) -> datetime:
+    if value.tzinfo is None:
+        raise ValueError("datetime must include a UTC offset")
+    return value
+
+
+class SessionStartIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    skill: ResourceSkill
+    activity_code: str | None = Field(default=None, max_length=20)
+    resource_id: int | None = None
+
+
+class HeartbeatIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    # Seconds of real activity since the previous heartbeat (the app sends one every
+    # 30 s and leaves out time the computer was idle).
+    active_delta_seconds: int = Field(ge=0, le=120)
+
+
+class SessionStopIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    notes: str = Field(default="", max_length=2000)
+
+
+class SessionPatch(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    state: Literal["confirmed", "discarded"] | None = None
+    active_seconds: int | None = Field(default=None, ge=0)
+    notes: str | None = Field(default=None, max_length=2000)
+
+
+class ManualSessionIn(BaseModel):
+    """Study done away from the app (a paper book, a class) logged by hand."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    skill: ResourceSkill
+    started_at: datetime
+    minutes: int = Field(ge=1, le=MAX_DAY_MINUTES)
+    notes: str = Field(default="", max_length=2000)
+
+    _check_start = field_validator("started_at")(_aware)
+
+
+class SessionOut(BaseModel):
+    id: int
+    started_at: datetime
+    ended_at: datetime | None
+    last_heartbeat_at: datetime
+    active_seconds: int
+    skill: str
+    activity_code: str | None
+    resource_id: int | None
+    state: str
+    origin: str
+    notes: str

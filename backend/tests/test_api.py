@@ -66,3 +66,26 @@ def test_settings_from_env_validation(monkeypatch: pytest.MonkeyPatch, tmp_path:
 def test_backend_and_desktop_versions_match() -> None:
     package = Path(__file__).resolve().parents[2] / "desktop" / "package.json"
     assert json.loads(package.read_text(encoding="utf-8"))["version"] == __version__
+
+
+def test_watchdog_fires_when_parent_exits() -> None:
+    import subprocess
+    import sys
+    import threading
+
+    from app.watchdog import watch_parent
+
+    child = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(0.5)"])
+    fired = threading.Event()
+    # On POSIX the watchdog also checks os.getppid(); watch a non-parent PID here,
+    # so only the liveness poll matters.
+    import app.watchdog as wd
+
+    original = wd.os.getppid
+    wd.os.getppid = lambda: child.pid  # type: ignore[assignment]
+    try:
+        watch_parent(fired.set, pid=child.pid)
+        child.wait()
+        assert fired.wait(timeout=5)
+    finally:
+        wd.os.getppid = original  # type: ignore[assignment]

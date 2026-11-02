@@ -2,6 +2,7 @@ appId: app.ieltspilot.desktop
 productName: IELTS Pilot
 directories:
   output: release
+  buildResources: build
 files:
   - dist/**/*
   - ui/**/*
@@ -13,6 +14,7 @@ extraResources:
     to: backend
     filter: ["**/*"]
 win:
+  icon: build/icon.ico
   target:
     - target: nsis
       arch: [x64]

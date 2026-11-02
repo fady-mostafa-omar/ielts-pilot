@@ -1,14 +1,28 @@
-"""ORM models (docs/DATABASE.md). Sprint 1a: profile, skill levels, settings."""
+"""ORM models (docs/DATABASE.md)."""
 
 from datetime import date, datetime
 
-from sqlalchemy import CheckConstraint, Date, Float, Index, Integer, String, Text
+from sqlalchemy import (
+    Boolean,
+    CheckConstraint,
+    Date,
+    Float,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    Text,
+)
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import Base, UTCDateTime
 
 SKILLS = ("listening", "reading", "writing", "speaking")
-LEVEL_SOURCES = ("official_practice", "external_marker", "self_estimate")
+LEVEL_SOURCES = ("official_practice", "external_marker", "placement_quiz", "self_estimate")
+RESOURCE_SKILLS = (*SKILLS, "grammar", "vocabulary", "techniques", "general")
+PLACEMENT_TESTS = ("dalilk_13english", "dalilk_3min")
+SESSION_STATES = ("running", "confirmed", "unconfirmed", "discarded")
+SESSION_ORIGINS = ("timer", "manual")
 
 
 def _band_check(column: str) -> str:
@@ -32,7 +46,10 @@ class LearnerProfile(Base):
         CheckConstraint(_band_check("target_speaking"), name="target_speaking_band"),
         CheckConstraint(_band_check("minimum_per_skill"), name="minimum_per_skill_band"),
         CheckConstraint("study_days_per_week BETWEEN 1 AND 7", name="study_days"),
-        CheckConstraint("study_minutes_per_day BETWEEN 10 AND 600", name="study_minutes"),
+        CheckConstraint(
+            "study_minutes_per_day BETWEEN 30 AND 840 AND study_minutes_per_day % 30 = 0",
+            name="study_minutes",
+        ),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, default=1)
@@ -60,7 +77,8 @@ class SkillLevel(Base):
         ),
         CheckConstraint(_band_check("band"), name="band"),
         CheckConstraint(
-            "source_type IN ('official_practice', 'external_marker', 'self_estimate')",
+            "source_type IN "
+            "('official_practice', 'external_marker', 'placement_quiz', 'self_estimate')",
             name="source_type",
         ),
         Index("ix_skill_levels_skill_recorded", "skill", "recorded_at"),
@@ -80,3 +98,93 @@ class AppSetting(Base):
     key: Mapped[str] = mapped_column(String(100), primary_key=True)
     value_json: Mapped[str] = mapped_column(Text)
     updated_at: Mapped[datetime] = mapped_column(UTCDateTime)
+
+
+class PlacementResult(Base):
+    """A result from one of Dalilk's placement tests, as the owner read it off the page."""
+
+    __tablename__ = "placement_results"
+    __table_args__ = (
+        CheckConstraint("test IN ('dalilk_13english', 'dalilk_3min')", name="test"),
+        CheckConstraint(
+            f"approx_band IS NULL OR ({_band_check('approx_band')})", name="approx_band"
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    test: Mapped[str] = mapped_column(String(20))
+    level_label: Mapped[str] = mapped_column(String(40))
+    approx_band: Mapped[float | None] = mapped_column(Float)
+    taken_on: Mapped[date] = mapped_column(Date)
+    notes: Mapped[str] = mapped_column(String(300), default="")
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime)
+
+
+class Resource(Base):
+    __tablename__ = "resources"
+    __table_args__ = (
+        CheckConstraint(
+            "skill IN ('listening', 'reading', 'writing', 'speaking', 'grammar', "
+            "'vocabulary', 'techniques', 'general')",
+            name="skill",
+        ),
+        CheckConstraint("status IN ('active', 'archived')", name="status"),
+        CheckConstraint("url IS NOT NULL OR local_path IS NOT NULL", name="has_location"),
+        Index("ix_resources_skill_status", "skill", "status"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    catalog_id: Mapped[str | None] = mapped_column(String(20), unique=True)
+    title: Mapped[str] = mapped_column(String(200))
+    provider: Mapped[str] = mapped_column(String(40))
+    # Dalilk track: foundation / fluency / ielts ("" for the owner's own resources)
+    track: Mapped[str] = mapped_column(String(12), default="")
+    skill: Mapped[str] = mapped_column(String(12))
+    activity_codes: Mapped[str] = mapped_column(String(100), default="")
+    resource_type: Mapped[str] = mapped_column(String(20))
+    format: Mapped[str] = mapped_column(String(10))
+    url: Mapped[str | None] = mapped_column(String(500))
+    local_path: Mapped[str | None] = mapped_column(String(300))
+    needs_internet: Mapped[bool] = mapped_column(Boolean, default=True)
+    relevance: Mapped[str] = mapped_column(String(10), default="")
+    licence_note: Mapped[str] = mapped_column(String(300), default="")
+    description: Mapped[str] = mapped_column(String(500), default="")
+    notes: Mapped[str] = mapped_column(Text, default="")
+    progress_position: Mapped[str | None] = mapped_column(String(100))
+    status: Mapped[str] = mapped_column(String(10), default="active")
+    completed_at: Mapped[datetime | None] = mapped_column(UTCDateTime)
+    last_opened_at: Mapped[datetime | None] = mapped_column(UTCDateTime)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime)
+    updated_at: Mapped[datetime] = mapped_column(UTCDateTime)
+
+
+class StudySession(Base):
+    __tablename__ = "study_sessions"
+    __table_args__ = (
+        CheckConstraint(
+            "skill IN ('listening', 'reading', 'writing', 'speaking', 'grammar', "
+            "'vocabulary', 'techniques', 'general')",
+            name="skill",
+        ),
+        CheckConstraint(
+            "state IN ('running', 'confirmed', 'unconfirmed', 'discarded')", name="state"
+        ),
+        CheckConstraint("active_seconds >= 0", name="active_seconds"),
+        CheckConstraint("origin IN ('timer', 'manual')", name="origin"),
+        Index("ix_study_sessions_started", "started_at"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    started_at: Mapped[datetime] = mapped_column(UTCDateTime)
+    ended_at: Mapped[datetime | None] = mapped_column(UTCDateTime)
+    last_heartbeat_at: Mapped[datetime] = mapped_column(UTCDateTime)
+    active_seconds: Mapped[int] = mapped_column(Integer, default=0)
+    skill: Mapped[str] = mapped_column(String(12))
+    activity_code: Mapped[str | None] = mapped_column(String(20))
+    resource_id: Mapped[int | None] = mapped_column(
+        ForeignKey("resources.id", ondelete="SET NULL")
+    )
+    state: Mapped[str] = mapped_column(String(12), default="running")
+    # timer = measured by the app; manual = hours the owner logged by hand (shown as such)
+    origin: Mapped[str] = mapped_column(String(8), default="timer")
+    notes: Mapped[str] = mapped_column(Text, default="")

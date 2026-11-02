@@ -18,16 +18,32 @@ import {
   type TimeDraft,
 } from "../forms";
 import { useI18n } from "../i18n";
+import { Icon } from "../icons";
 import {
   SKILLS,
+  type AppSettings,
   type BackupInfo,
   type Lang,
   type Levels,
+  type Placement,
+  type PlacementTest,
   type Profile,
+  type SourceType,
   type SystemInfo,
 } from "../types";
+import { PlacementCards } from "./Placement";
+import type { StudyTarget } from "./Study";
 
-type Tab = "profile" | "levels" | "data";
+export type SettingsTab = "profile" | "levels" | "accounts" | "data";
+
+// Sites the owner may want to stay signed in to inside the study panel.
+const SITES = [
+  { id: "dalilk", name: "Dalilk", url: "https://dalilk.com/", use: "acc_use_dalilk" },
+  { id: "engnovate", name: "engnovate", url: "https://engnovate.com/", use: "acc_use_engnovate" },
+  { id: "chatgpt", name: "ChatGPT", url: "https://chatgpt.com/", use: "acc_use_ai" },
+  { id: "claude", name: "Claude", url: "https://claude.ai/", use: "acc_use_ai" },
+  { id: "gemini", name: "Gemini", url: "https://gemini.google.com/", use: "acc_use_ai" },
+] as const;
 
 function errorText(e: unknown): string {
   return e instanceof ApiError ? e.message : String(e);
@@ -42,17 +58,22 @@ function formatBytes(n: number): string {
 export function SettingsScreen(props: {
   profile: Profile;
   levels: Levels | null;
+  settings: AppSettings;
+  initialTab?: SettingsTab;
   onProfileSaved: (p: Profile) => void;
   onLevelsChanged: (l: Levels) => void;
+  onSettingsChanged: (s: AppSettings) => void;
   onDataReplaced: () => Promise<void>;
+  onOpenTest: (test: PlacementTest) => void;
+  onOpenSite: (target: StudyTarget) => void;
 }) {
   const { t } = useI18n();
-  const [tab, setTab] = useState<Tab>("profile");
+  const [tab, setTab] = useState<SettingsTab>(props.initialTab ?? "profile");
   return (
     <div className="page stack-lg">
       <h1>{t("settings_title")}</h1>
       <div className="tabs" role="tablist">
-        {(["profile", "levels", "data"] as const).map((k) => (
+        {(["profile", "levels", "accounts", "data"] as const).map((k) => (
           <button
             key={k}
             role="tab"
@@ -68,7 +89,18 @@ export function SettingsScreen(props: {
         <ProfileTab profile={props.profile} onSaved={props.onProfileSaved} />
       )}
       {tab === "levels" && (
-        <LevelsTab levels={props.levels} onChanged={props.onLevelsChanged} />
+        <LevelsTab
+          levels={props.levels}
+          onChanged={props.onLevelsChanged}
+          onOpenTest={props.onOpenTest}
+        />
+      )}
+      {tab === "accounts" && (
+        <AccountsTab
+          settings={props.settings}
+          onChanged={props.onSettingsChanged}
+          onOpenSite={props.onOpenSite}
+        />
       )}
       {tab === "data" && <DataTab onDataReplaced={props.onDataReplaced} />}
     </div>
@@ -148,8 +180,16 @@ function ProfileTab(props: { profile: Profile; onSaved: (p: Profile) => void }) 
   );
 }
 
-function LevelsTab(props: { levels: Levels | null; onChanged: (l: Levels) => void }) {
+function LevelsTab(props: {
+  levels: Levels | null;
+  onChanged: (l: Levels) => void;
+  onOpenTest: (test: PlacementTest) => void;
+}) {
   const { t, formatBand, formatDate } = useI18n();
+  const [placements, setPlacements] = useState<Placement[]>([]);
+  useEffect(() => {
+    void api.placements().then(setPlacements);
+  }, []);
   const [draft, setDraft] = useState<LevelsDraft>(levelsDefault);
   const [showErrors, setShowErrors] = useState(false);
   const [status, setStatus] = useState<"idle" | "saving" | "saved">("idle");
@@ -179,11 +219,15 @@ function LevelsTab(props: { levels: Levels | null; onChanged: (l: Levels) => voi
     }
   }
 
-  const sourceLabel = (s: string) =>
-    t(`source_${s as "official_practice" | "external_marker" | "self_estimate"}`);
+  const sourceLabel = (s: SourceType) => t(`source_${s}`);
 
   return (
     <div className="stack-lg">
+      <section className="card stack">
+        <h2>{t("tests_title")}</h2>
+        <p className="muted">{t("tests_body")}</p>
+        <PlacementCards placements={placements} onOpen={props.onOpenTest} />
+      </section>
       <section className="card">
         <h2>{t("levels_current")}</h2>
         <table className="skills-table">
@@ -457,6 +501,109 @@ function DataTab(props: { onDataReplaced: () => Promise<void> }) {
             }
           >
             {t("danger_button")}
+          </button>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function AccountsTab(props: {
+  settings: AppSettings;
+  onChanged: (s: AppSettings) => void;
+  onOpenSite: (target: StudyTarget) => void;
+}) {
+  const { t } = useI18n();
+  const bridge = window.ipBridge;
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+  const keep = props.settings.web_keep_signin === true;
+
+  async function setKeep(value: boolean) {
+    setBusy(true);
+    try {
+      props.onChanged(await api.saveSettings({ web_keep_signin: value }));
+      if (!value && bridge) await bridge.clearWebData();
+      setMessage(value ? t("acc_keep_on") : t("acc_keep_off"));
+    } catch (e) {
+      setMessage(t("err_generic", { msg: errorText(e) }));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="stack-lg">
+      <section className="card stack">
+        <h2 className="row">
+          <Icon name="key" color="#1D4ED8" /> {t("acc_title")}
+        </h2>
+        <label className="check">
+          <input
+            type="checkbox"
+            checked={keep}
+            disabled={busy}
+            onChange={(e) => void setKeep(e.target.checked)}
+          />
+          <strong>{t("consent_label")}</strong>
+        </label>
+        <p className="muted small">{t("consent_body")}</p>
+        {message && <p className="ok small">{message}</p>}
+      </section>
+
+      <section className="card stack">
+        <h2>{t("acc_sites")}</h2>
+        <p className="muted small">{keep ? t("acc_sites_hint_keep") : t("acc_sites_hint_temp")}</p>
+        <ul className="site-list">
+          {SITES.map((site) => (
+            <li key={site.id}>
+              <span className="skill-badge" style={{ background: "#EEF1F5", width: 36, height: 36 }}>
+                <Icon name="globe" color="#475569" />
+              </span>
+              <div className="grow stack-xs">
+                <strong dir="ltr" className="self-start">{site.name}</strong>
+                <span className="muted small">{t(site.use)}</span>
+              </div>
+              <button
+                className="btn small"
+                onClick={() =>
+                  props.onOpenSite({
+                    title: site.name,
+                    target: { url: site.url },
+                    resource: null,
+                    skill: "general",
+                    activityCode: null,
+                    timer: false,
+                  })
+                }
+              >
+                {t("acc_open")}
+              </button>
+            </li>
+          ))}
+        </ul>
+        <p className="note small">{t("acc_google_note")}</p>
+      </section>
+
+      <section className="card stack">
+        <h2>{t("acc_clear_title")}</h2>
+        <p className="muted small">{t("acc_clear_body")}</p>
+        <div className="row">
+          <button
+            className="btn"
+            disabled={busy || !bridge}
+            onClick={async () => {
+              if (!bridge) return;
+              setBusy(true);
+              try {
+                await bridge.clearWebData();
+                setMessage(t("acc_cleared"));
+              } finally {
+                setBusy(false);
+              }
+            }}
+          >
+            {t("acc_clear_btn")}
           </button>
         </div>
       </section>

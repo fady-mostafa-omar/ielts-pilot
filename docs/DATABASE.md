@@ -19,7 +19,7 @@ File: `%APPDATA%\IELTS Pilot\data\ielts_pilot.db`
 - Timestamps: `UTCDateTime` column type — stored as naive UTC in SQLite, always returned timezone-aware; naive datetimes are rejected on write. Converted to local time for display.
 - JSON columns stored as `TEXT`, validated by Pydantic on the way in and out.
 - Enum-like columns stored as `TEXT` with `CHECK` constraints.
-- `skill` values: `listening`, `reading`, `writing`, `speaking` (plus `grammar`, `vocabulary`, `general` where noted).
+- `skill` values: `listening`, `reading`, `writing`, `speaking` (plus `grammar`, `vocabulary`, `techniques`, `general` where noted).
 - Band values: `REAL` in 0–9, steps of 0.5, enforced by `CHECK`.
 - Activity codes come from `CURRICULUM.md` §3.
 
@@ -37,7 +37,7 @@ File: `%APPDATA%\IELTS Pilot\data\ielts_pilot.db`
 | minimum_per_skill | REAL | e.g. 6.5 |
 | exam_date | DATE NULL | |
 | study_days_per_week | INTEGER | 1–7 |
-| study_minutes_per_day | INTEGER | 10–600 |
+| study_minutes_per_day | INTEGER | whole half hours, 30–840 (½ h to 14 h); was 10–600 before 0003 |
 | created_at, updated_at | DATETIME | |
 
 ### skill_levels — current level per skill, with history
@@ -46,7 +46,7 @@ File: `%APPDATA%\IELTS Pilot\data\ielts_pilot.db`
 | id | INTEGER PK | |
 | skill | TEXT | four skills only |
 | band | REAL | |
-| source_type | TEXT | `official_practice` \| `external_marker` \| `self_estimate` |
+| source_type | TEXT | `official_practice` \| `external_marker` \| `placement_quiz` (0003, from a Dalilk test) \| `self_estimate` |
 | source_note | TEXT | e.g. test title |
 | practice_result_id | INTEGER FK NULL → practice_results | **added in Sprint 4** with `practice_results` |
 | recorded_at | DATETIME | |
@@ -60,30 +60,51 @@ Latest row per skill = current level used by the planner. Index `(skill, recorde
 | value_json | TEXT |
 | updated_at | DATETIME |
 
-### resources
+### placement_results (0003)
+A result from one of Dalilk's free placement tests, typed in by the owner from the result page (the app never reads the page).
+
 | Column | Type | Notes |
 |---|---|---|
 | id | INTEGER PK | |
-| catalog_id | TEXT NULL UNIQUE | e.g. `DLK-15` from the catalogue CSV |
+| test | TEXT | `dalilk_13english` \| `dalilk_3min` |
+| level_label | TEXT | as shown, e.g. "B1", "Intermediate" |
+| approx_band | REAL NULL | only if the page showed one; band check |
+| taken_on | DATE | not in the future |
+| notes | TEXT | |
+| created_at | DATETIME | |
+
+Saving a result may also add `skill_levels` rows (`source_type = placement_quiz`) for the skills the owner ticks.
+
+### resources (0003)
+| Column | Type | Notes |
+|---|---|---|
+| id | INTEGER PK | |
+| catalog_id | TEXT NULL UNIQUE | e.g. `DLK-15`; NULL for the owner's own resources |
 | title | TEXT | |
-| provider | TEXT | `Dalilk`, `Official`, `Owner`, `Original` |
-| skill | TEXT | four skills + `grammar`, `vocabulary`, `general` |
-| activity_codes | TEXT NULL | `;`-separated, from CURRICULUM §3 |
-| resource_type | TEXT | `practice_test`, `plan`, `book`, `video_playlist`, `video_series`, `podcast`, `web_tool`, `other` |
+| provider | TEXT | `Dalilk`, `Official`, `engnovate`, `Mine` |
+| track | TEXT | Dalilk track: `foundation`, `fluency`, `ielts`; empty for the owner's own |
+| skill | TEXT | four skills + `grammar`, `vocabulary`, `techniques`, `general` |
+| activity_codes | TEXT | `;`-separated, from CURRICULUM §3 |
+| resource_type | TEXT | `placement_test`, `practice_test`, `plan`, `book`, `video_playlist`, `video_series`, `podcast`, `web_tool`, `file`, `other` |
 | format | TEXT | `pdf`, `audio`, `video`, `web`, `text` |
-| url | TEXT NULL | |
-| local_path | TEXT NULL | relative to `library\` |
-| sequence_group | TEXT NULL | resources consumed in order |
-| order_index | INTEGER NULL | |
-| is_repeatable | BOOLEAN | |
+| url | TEXT NULL | owner-added links must be `https://` |
+| local_path | TEXT NULL | a plain file name inside `library\` (no folders) |
 | needs_internet | BOOLEAN | |
-| licence_note | TEXT | required |
-| progress_position | TEXT NULL | e.g. "Day 7" |
-| status | TEXT | `active` \| `archived` |
-| completed_at | DATETIME NULL | |
+| relevance | TEXT | our IELTS-relevance judgement from the catalogue |
+| licence_note | TEXT | from the catalogue |
+| description | TEXT | Arabic description from the catalogue (`description_ar`) |
+| notes | TEXT | the owner's notes (kept across catalogue updates) |
+| progress_position | TEXT NULL | e.g. "episode 12" (owner's) |
+| status | TEXT | `active` \| `archived` (owner's) |
+| completed_at, last_opened_at | DATETIME NULL | owner's |
 | created_at, updated_at | DATETIME | |
 
-Indexes: `(skill, status)`, `(sequence_group, order_index)`.
+`CHECK (url IS NOT NULL OR local_path IS NOT NULL)`. Index `(skill, status)`.
+
+**Catalogue sync.** At every start (and after a restore or delete-all) the backend reads `content/catalog/*.csv` (bundled with the backend) and inserts new rows or refreshes the catalogue columns of existing ones. The owner's columns (notes, progress, status, completed/opened dates) are never touched. Only the owner's own resources can be deleted; catalogue items are archived. Deleting a resource keeps its sessions (`resource_id` becomes NULL).
+
+`sequence_group`, `order_index`, `is_repeatable` arrive with the planner in Sprint 2.
+
 
 ### weekly_plans
 | Column | Type | Notes |
@@ -117,21 +138,24 @@ Indexes: `(skill, status)`, `(sequence_group, order_index)`.
 
 Index `(scheduled_date, status)`.
 
-### study_sessions
+### study_sessions (0003)
 | Column | Type | Notes |
 |---|---|---|
 | id | INTEGER PK | |
 | started_at | DATETIME | |
 | ended_at | DATETIME NULL | |
-| last_heartbeat_at | DATETIME | updated ≤ every 30 s |
+| last_heartbeat_at | DATETIME | the app sends a heartbeat every 30 s |
 | active_seconds | INTEGER | never exceeds wall-clock duration |
-| skill, track, activity_code | TEXT | |
-| resource_id | INTEGER FK NULL | |
-| plan_task_id | INTEGER FK NULL | |
+| skill | TEXT | resource skills (see `resources`) |
+| activity_code | TEXT NULL | e.g. `L-EXT`, `PRAC`, `PLACEMENT` |
+| resource_id | INTEGER FK NULL → resources | `ON DELETE SET NULL` |
 | state | TEXT | `running`, `confirmed`, `unconfirmed`, `discarded` |
-| notes | TEXT NULL | |
+| origin | TEXT | `timer` (measured) \| `manual` (logged by hand, shown as such) |
+| notes | TEXT | |
 
-Indexes: `(started_at)`, `(skill, started_at)`.
+Index `(started_at)`.
+
+Rules: a heartbeat adds at most 120 s and never more than the wall time since the previous heartbeat (+5 s); idle time (no input for 5 min and no sound from the panel) is not sent. Starting a session closes any running one as `unconfirmed`; sessions still `running` at start-up become `unconfirmed` and the owner confirms or discards them on Home. Stopping confirms; the owner can lower (never raise) the minutes afterwards. `track` and `plan_task_id` arrive with the planner in Sprint 2.
 
 ### writing_prompts
 `id`, `task_type` (`task1` \| `task2`), `prompt_text`, `source_note`, `created_at`.
@@ -232,6 +256,7 @@ Index `(next_review_at)`.
 |---|---|---|
 | 0001 | 0 | `spike_kv` (packaging spike) |
 | 0002 | 1a | drop `spike_kv`; add `learner_profile`, `skill_levels`, `app_settings` |
+| 0003 | 1b | study time in half hours, 30–840 min (existing values rounded to the nearest half hour and clamped); `placement_quiz` level source; add `placement_results`, `resources`, `study_sessions` |
 
 
 - One Alembic revision per schema change; `alembic_version` holds the schema version.

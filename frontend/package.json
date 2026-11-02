@@ -1,13 +1,14 @@
 {
   "name": "ielts-pilot-frontend",
   "private": true,
-  "version": "0.0.2",
+  "version": "0.0.3",
   "type": "module",
   "scripts": {
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "build": "npm run typecheck && vite build"
   },
   "dependencies": {
+    "@fontsource/ibm-plex-sans-arabic": "5.3.0",
     "react": "19.3.1",
     "react-dom": "19.3.1"
   },
