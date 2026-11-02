@@ -12,12 +12,19 @@ import { copyFile, mkdir } from "node:fs/promises";
 import { basename, extname, join } from "node:path";
 import { clearWebData, type Bounds, type PanelTarget, type StudyPanel } from "./panel";
 import { APP_ORIGIN } from "./protocol";
+import {
+  checkForUpdate,
+  downloadUpdate,
+  installUpdate,
+  listReleases,
+  updateState,
+} from "./updater";
 
 const BACKUP_NAME = /^ielts-pilot-[A-Za-z0-9._-]+\.zip$/;
 
 export interface IpcDeps {
   dataDir: () => string;
-  restartBackend: () => Promise<string>;
+  restartBackend: (restoreCompatible?: boolean) => Promise<string>;
   documentsDir: () => string;
   panel: () => StudyPanel | null;
 }
@@ -141,7 +148,34 @@ export function registerIpc(deps: IpcDeps): void {
     }),
   );
 
-  ipcMain.handle("ip:restart-backend", guard(async () => deps.restartBackend()));
+  ipcMain.handle(
+    "ip:restart-backend",
+    guard(async (_event, options: unknown) =>
+      deps.restartBackend(
+        typeof options === "object" &&
+          options !== null &&
+          (options as { restoreCompatible?: unknown }).restoreCompatible === true,
+      ),
+    ),
+  );
+
+  // Focus mode can take the whole screen.
+  ipcMain.handle(
+    "ip:fullscreen",
+    guard(async (event, on: unknown) => {
+      const win = BrowserWindow.fromWebContents(event.sender);
+      if (!win) return false;
+      win.setFullScreen(on === true);
+      return win.isFullScreen();
+    }),
+  );
+
+  // Updates (D-027)
+  ipcMain.handle("ip:update-state", guard(async () => updateState()));
+  ipcMain.handle("ip:update-check", guard(async (_e, version: unknown) => checkForUpdate(version)));
+  ipcMain.handle("ip:update-download", guard(async () => downloadUpdate()));
+  ipcMain.handle("ip:update-install", guard(async () => installUpdate()));
+  ipcMain.handle("ip:update-releases", guard(async () => listReleases()));
 
   ipcMain.handle(
     "ip:open-folder",

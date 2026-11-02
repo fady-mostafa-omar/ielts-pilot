@@ -125,3 +125,52 @@ def test_0003_downgrade_round_trip(tmp_path: Path) -> None:
     assert {"resources", "study_sessions", "placement_results"} <= set(
         inspect(engine).get_table_names()
     )
+
+
+def test_downgrade_restores_newest_compatible_backup(tmp_path: Path) -> None:
+    """Older app + database changed by a newer app: refuse, then (when asked) go back to
+    the newest backup this version can read and keep the newer data as a backup."""
+    import zipfile
+
+    from fastapi.testclient import TestClient
+
+    from tests.conftest import AUTH, VALID_PROFILE
+
+    settings = settings_for(tmp_path)
+    client = TestClient(create_app(settings), base_url="http://127.0.0.1:54321")
+    client.headers.update(AUTH)
+    client.put("/api/v1/profile", json={**VALID_PROFILE, "display_name": "before"})
+    assert client.post("/api/v1/backups").status_code == 200
+    client.put("/api/v1/profile", json={**VALID_PROFILE, "display_name": "after"})
+
+    engine = make_engine(settings.db_path)
+    with engine.begin() as conn:  # pretend a newer version migrated the database
+        conn.execute(text("UPDATE alembic_version SET version_num = '9999'"))
+    engine.dispose()
+
+    with pytest.raises(StartupError, match=r"\[newer_db\]"):
+        create_app(settings)
+
+    from dataclasses import replace
+
+    app = create_app(replace(settings, restore_compatible=True))
+    client = TestClient(app, base_url="http://127.0.0.1:54321")
+    client.headers.update(AUTH)
+    assert client.get("/api/v1/profile").json()["display_name"] == "before"
+    safety = list((tmp_path / "backups").glob("*-pre-restore.zip"))
+    assert len(safety) == 1
+    with zipfile.ZipFile(safety[0]) as zf:
+        assert '"9999"' in zf.read("manifest.json").decode()
+
+
+def test_downgrade_without_compatible_backup_explains(tmp_path: Path) -> None:
+    from dataclasses import replace
+
+    settings = settings_for(tmp_path)
+    create_app(settings)
+    engine = make_engine(settings.db_path)
+    with engine.begin() as conn:
+        conn.execute(text("UPDATE alembic_version SET version_num = '9999'"))
+    engine.dispose()
+    with pytest.raises(StartupError, match=r"\[no_compatible_backup\]"):
+        create_app(replace(settings, restore_compatible=True))

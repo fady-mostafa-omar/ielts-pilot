@@ -114,6 +114,116 @@ export interface PlacementInput {
 
 export interface AppSettings {
   web_keep_signin: boolean | null;
+  hours_per_band: number | null;
+  study_weekdays: number[] | null; // 0 = Sunday … 6 = Saturday
+  break_every_minutes: number | null;
+  break_minutes: number | null;
+  plan_start: string | null;
+}
+
+export type SplitKey = "listening" | "reading" | "output" | "exam";
+
+export interface Estimate {
+  current_overall: number | null;
+  current_complete: boolean;
+  target_overall: number;
+  gap_bands: number | null;
+  hours_per_band: number;
+  total_hours: number | null;
+  hours_done: number;
+  remaining_hours: number | null;
+  skill_gaps: Record<Skill, number | null>;
+  exam_weights: Record<Skill, number>;
+  phase: "foundation" | "development" | "exam";
+  daily_minutes: number;
+  split: Record<SplitKey, number>;
+  exam_date: string | null;
+  goal_date: string | null;
+  final_mock_dates: string[];
+  review_date: string | null;
+  study_days_left: number | null;
+  needed_minutes_per_day: number | null;
+  feasible: boolean | null;
+  impossible: boolean;
+  suggested_daily_minutes: number | null;
+  earliest_exam_date: string | null;
+  reachable_band: number | null;
+  next_mock_date: string | null;
+  notes: string[];
+}
+
+export type DayKind =
+  | "study"
+  | "rest"
+  | "mock"
+  | "final_mock"
+  | "review"
+  | "exam"
+  | "after_exam";
+
+export interface PlanSummary extends Estimate {
+  today_kind: DayKind;
+  today_minutes: number;
+  streak_days: number;
+  focus_skill: Skill;
+  weekdays: number[];
+}
+
+export interface PlanTask {
+  id: number;
+  plan_date: string;
+  order_in_day: number;
+  day_type: string;
+  category: SplitKey | "support";
+  skill: ResourceSkill;
+  activity_code: string;
+  planned_minutes: number;
+  resource_id: number | null;
+  title: string;
+  instructions: string;
+  reason: string;
+  status: "pending" | "in_progress" | "done" | "skipped";
+  skip_reason: string | null;
+  started_at: string | null;
+  completed_at: string | null;
+  done_minutes: number;
+}
+
+export interface PreviewTask {
+  title: string;
+  category: SplitKey | "support";
+  skill: ResourceSkill;
+  activity_code: string;
+  planned_minutes: number;
+}
+
+export type DayPlan =
+  | { date: string; kind: DayKind; preview: false; tasks: PlanTask[] }
+  | { date: string; kind: DayKind; preview: true; tasks: PreviewTask[] };
+
+export interface UpdateState {
+  status:
+    | "unsupported"
+    | "idle"
+    | "checking"
+    | "available"
+    | "none"
+    | "downloading"
+    | "downloaded"
+    | "error";
+  current: string;
+  version: string | null;
+  notes: string | null;
+  percent: number;
+  error: string | null;
+  downgrade: boolean;
+}
+
+export interface ReleaseInfo {
+  version: string;
+  name: string;
+  publishedAt: string;
+  notes: string;
 }
 
 export interface Resource {
@@ -172,6 +282,7 @@ export interface StudySession {
   state: SessionState;
   origin: "timer" | "manual";
   notes: string;
+  plan_task_id: number | null;
 }
 
 export type PanelTarget = { url: string } | { library: string };
@@ -197,8 +308,19 @@ export interface PanelBridge {
   onState(callback: (state: PanelState) => void): () => void;
 }
 
+export interface UpdateBridge {
+  state(): Promise<UpdateState>;
+  check(version?: string): Promise<UpdateState>;
+  download(): Promise<UpdateState>;
+  install(): Promise<boolean>;
+  releases(): Promise<ReleaseInfo[]>;
+  onState(callback: (state: UpdateState) => void): () => void;
+}
+
 export interface Bridge {
-  restartBackend(): Promise<string>;
+  restartBackend(options?: { restoreCompatible?: boolean }): Promise<string>;
+  setFullScreen(on: boolean): Promise<boolean>;
+  updates: UpdateBridge;
   openFolder(which: "data" | "backups"): Promise<boolean>;
   importBackup(): Promise<string | null>;
   exportBackup(name: string): Promise<boolean>;

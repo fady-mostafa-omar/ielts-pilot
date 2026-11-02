@@ -194,6 +194,47 @@ const PATHS = {
       <path d="M12 7.5v.5" />
     </>
   ),
+  coffee: (
+    <>
+      <path d="M4 9h13v5a5 5 0 0 1-5 5H9a5 5 0 0 1-5-5z" />
+      <path d="M17 10h1.5a2.5 2.5 0 0 1 0 5H17" />
+      <path d="M8 3v3" />
+      <path d="M12 3v3" />
+    </>
+  ),
+  maximize: (
+    <>
+      <path d="M4 9V4h5" />
+      <path d="M20 9V4h-5" />
+      <path d="M4 15v5h5" />
+      <path d="M20 15v5h-5" />
+    </>
+  ),
+  minimize: (
+    <>
+      <path d="M9 4v5H4" />
+      <path d="M15 4v5h5" />
+      <path d="M9 20v-5H4" />
+      <path d="M15 20v-5h5" />
+    </>
+  ),
+  flame: (
+    <path d="M12 3c1 4 5 5.5 5 10a5 5 0 0 1-10 0c0-2.5 1.5-3.5 2-5.5 1 1 1.5 2 1.5 3.5C13 9 12 6 12 3z" />
+  ),
+  route: (
+    <>
+      <circle cx="6" cy="18" r="2.5" />
+      <circle cx="18" cy="6" r="2.5" />
+      <path d="M8.5 18H15a3 3 0 0 0 0-6H9a3 3 0 0 1 0-6h6.5" />
+    </>
+  ),
+  download: (
+    <>
+      <path d="M12 4v11" />
+      <path d="M7 10l5 5 5-5" />
+      <path d="M5 20h14" />
+    </>
+  ),
   trend: (
     <>
       <path d="M3 17l6-6 4 4 8-8" />

@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session
 
 from app.context import Ctx
 from app.db import utcnow
-from app.models import Resource, StudySession
+from app.models import PlanTask, Resource, StudySession
 from app.schemas import (
     HeartbeatIn,
     ManualSessionIn,
@@ -92,6 +92,8 @@ def start_session(body: SessionStartIn, ctx: Ctx) -> SessionOut:
     with ctx.session_factory.begin() as session:
         if body.resource_id is not None and session.get(Resource, body.resource_id) is None:
             raise HTTPException(404, {"error": "not_found", "message": "no such resource"})
+        if body.plan_task_id is not None and session.get(PlanTask, body.plan_task_id) is None:
+            raise HTTPException(404, {"error": "not_found", "message": "no such task"})
         close_running(session)
         row = StudySession(
             started_at=now,
@@ -100,6 +102,7 @@ def start_session(body: SessionStartIn, ctx: Ctx) -> SessionOut:
             skill=body.skill,
             activity_code=body.activity_code,
             resource_id=body.resource_id,
+            plan_task_id=body.plan_task_id,
             state="running",
             origin="timer",
             notes="",

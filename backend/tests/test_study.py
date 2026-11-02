@@ -81,7 +81,7 @@ def test_invalid_placements_rejected(client: TestClient, change: dict) -> None:
 
 
 def test_settings_round_trip(new_client: Callable[[], TestClient]) -> None:
-    assert new_client().get("/api/v1/settings").json() == {"web_keep_signin": None}
+    assert new_client().get("/api/v1/settings").json()["web_keep_signin"] is None
     assert new_client().put("/api/v1/settings", json={"web_keep_signin": True}).status_code == 200
     assert new_client().get("/api/v1/settings").json()["web_keep_signin"] is True
     assert new_client().put("/api/v1/settings", json={"nope": 1}).status_code == 422

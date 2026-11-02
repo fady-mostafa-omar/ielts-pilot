@@ -43,7 +43,11 @@ async function sleep(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms));
 }
 
-export async function startBackend(launch: BackendLaunch, dataDir: string): Promise<RunningBackend> {
+export async function startBackend(
+  launch: BackendLaunch,
+  dataDir: string,
+  extraEnv: Record<string, string> = {},
+): Promise<RunningBackend> {
   const port = await freePort();
   const token = randomBytes(32).toString("hex");
   const logDir = join(dataDir, "logs");
@@ -60,6 +64,7 @@ export async function startBackend(launch: BackendLaunch, dataDir: string): Prom
       IP_TOKEN: token,
       IP_DATA_DIR: dataDir,
       IP_PARENT_PID: String(process.pid), // backend stops itself if the app dies
+      ...extraEnv,
     },
     windowsHide: true,
     stdio: ["ignore", "pipe", "pipe"],

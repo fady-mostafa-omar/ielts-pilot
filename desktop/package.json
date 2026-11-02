@@ -1,7 +1,7 @@
 {
   "name": "ielts-pilot",
   "productName": "IELTS Pilot",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "description": "IELTS Pilot — personal English and IELTS Academic study app",
   "author": "Amr",
   "private": true,
@@ -19,5 +19,8 @@
     "electron": "45.2.1",
     "electron-builder": "26.18.0",
     "typescript": "7.0.2"
+  },
+  "dependencies": {
+    "electron-updater": "6.8.11"
   }
 }

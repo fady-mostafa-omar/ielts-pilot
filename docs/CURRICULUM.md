@@ -67,7 +67,23 @@ Sessions count toward a part by their skill: listening → listening; reading �
 
 Writing and speaking blocks in Track A (W-REV, S-FLU) count toward that skill. Grammar and vocabulary are support skills funded from Track A (§4 step 4).
 
-## 4. Weekly planning rules (`planner-1`)
+## 4a. Planner-2 (Sprint 2a, implemented in `backend/app/planner.py`)
+
+Replaces planner-1 below for v0.1. Every rule is a pure function with unit tests (`backend/tests/test_planner.py`).
+
+**Inputs:** targets, current level per skill (latest `skill_levels` row; a missing skill falls back to the latest Dalilk 13English estimate), exam date, study weekdays (default: Friday off first), minutes per day, hours per band *H* (default 200, Settings), plan start date, hours studied since the latest level measurement.
+
+**Estimate (D-023).** Current overall = IELTS rounding of the known skill bands. Gap = max(target overall − current overall, mean of the per-skill gaps). Hours needed = gap × *H*; remaining = needed − hours studied since the latest measurement. Study days left = study weekdays from today to exam − 5. Needed per day = remaining ÷ study days left. If it does not fit the daily time, three ways out are offered: the daily time rounded up to half hours (if ≤ 14 h), the earliest exam date that fits the current daily time, and the band reachable by the exam date (floored to 0.5). Nothing about *H* is claimed as fact: ~200 h/band is a rule of thumb of unclear origin; published course studies report smaller gains (≈0.2–0.5 band over 3–12 weeks).
+
+**Calendar (D-024).** Exam − 4, − 3, − 2: full practice tests (165 min). Exam − 1: techniques review only (≤ 120 min). Exam day and later: no tasks. Rest weekdays: no tasks. A full practice test on the last study day of every second week after the plan start, except within 10 days of the exam.
+
+**A study day (D-019).** Phase (§2 rule P) → development share 75 / 60 / 35 %. Development time = 30/60 listening (L-EXT: Dalilk IELTS podcast, or Daily English Listening below band 5.0), 20/60 reading (R-EXT: Dalilk graded stories), 10/60 output alternating speaking (S-FLU: expected questions, or everyday situations below 5.5) and writing (W-REV on the writing pad). The exam share follows Dalilk's 30-day plan order — one skill per week, biggest gap first: the first study day of the week is a technique video (T-STRAT), later days practice (L-PRAC / R-PRAC with official or engnovate tests, W-T1 / W-T2 on the writing pad, S-PRAC with expected questions). Blocks shorter than 10 min are merged into the longest development block. Minutes are rounded to 5; the exam block takes the remainder.
+
+**Storage.** Today's blocks are stored as `plan_tasks` the first time they are asked for and regenerated while none has started (inputs hash); started days are kept. Later days are previews. Tasks: pending → in_progress → done / skipped (with a reason) and can be reset. Sessions started from a task carry its id.
+
+**Focus mode (D-025).** "Continue learning" opens the first unfinished task in a full-window view; Next finishes it and opens the next; a break of *b* minutes is offered after every *e* minutes of real study (defaults 10 and 50, Settings), and break time is not counted.
+
+## 4. Weekly planning rules (`planner-1`, superseded by §4a)
 
 **Inputs:** days/week *D*, minutes/day *M*, per-skill targets *T*ₛ, current levels *C*ₛ (latest `skill_levels` row), phase (§2).
 

@@ -170,6 +170,21 @@ class SettingsIO(BaseModel):
 
     # Owner's consent to keep sites' sign-in cookies on this computer (Accounts tab).
     web_keep_signin: bool | None = None
+    # Planner (D-023, D-025). Weekday numbers as in JavaScript: 0 = Sunday … 6 = Saturday.
+    hours_per_band: int | None = Field(default=None, ge=50, le=600)
+    study_weekdays: list[int] | None = Field(default=None, min_length=1, max_length=7)
+    break_every_minutes: int | None = Field(default=None, ge=20, le=120)
+    break_minutes: int | None = Field(default=None, ge=3, le=30)
+    plan_start: date | None = None
+
+    @field_validator("study_weekdays")
+    @classmethod
+    def _weekdays(cls, value: list[int] | None) -> list[int] | None:
+        if value is None:
+            return None
+        if any(d < 0 or d > 6 for d in value) or len(set(value)) != len(value):
+            raise ValueError("study_weekdays must be distinct numbers 0-6")
+        return sorted(value)
 
 
 # --- placement tests -------------------------------------------------------------
@@ -294,6 +309,7 @@ class SessionStartIn(BaseModel):
     skill: ResourceSkill
     activity_code: str | None = Field(default=None, max_length=20)
     resource_id: int | None = None
+    plan_task_id: int | None = None
 
 
 class HeartbeatIn(BaseModel):
@@ -307,7 +323,7 @@ class HeartbeatIn(BaseModel):
 class SessionStopIn(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    notes: str = Field(default="", max_length=2000)
+    notes: str = Field(default="", max_length=20000)  # may hold a whole essay
 
 
 class SessionPatch(BaseModel):
@@ -315,7 +331,7 @@ class SessionPatch(BaseModel):
 
     state: Literal["confirmed", "discarded"] | None = None
     active_seconds: int | None = Field(default=None, ge=0)
-    notes: str | None = Field(default=None, max_length=2000)
+    notes: str | None = Field(default=None, max_length=20000)
 
 
 class ManualSessionIn(BaseModel):
@@ -343,3 +359,48 @@ class SessionOut(BaseModel):
     state: str
     origin: str
     notes: str
+    plan_task_id: int | None = None
+
+
+# --- plan ---------------------------------------------------------------------------
+
+
+class EstimateIn(BaseModel):
+    """Inputs for a what-if estimate during setup (nothing is saved)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    today: date
+    target_overall: Band
+    targets: dict[Skill, Band] | None = None
+    current: dict[Skill, Band | None]
+    exam_date: date | None = None
+    study_weekdays: list[int] = Field(min_length=1, max_length=7)
+    daily_minutes: int = Field(ge=MIN_DAY_MINUTES, le=MAX_DAY_MINUTES)
+    hours_per_band: int = Field(default=200, ge=50, le=600)
+
+
+class PlanTaskOut(BaseModel):
+    id: int
+    plan_date: date
+    order_in_day: int
+    day_type: str
+    category: str
+    skill: str
+    activity_code: str
+    planned_minutes: int
+    resource_id: int | None
+    title: str
+    instructions: str
+    reason: str
+    status: str
+    skip_reason: str | None
+    started_at: datetime | None
+    completed_at: datetime | None
+    done_minutes: float = 0.0
+
+
+class SkipIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    reason: str = Field(default="", max_length=300)

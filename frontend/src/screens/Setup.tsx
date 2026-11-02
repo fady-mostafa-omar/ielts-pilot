@@ -1,6 +1,7 @@
-// First-run setup wizard (PRD F1).
+// First-run setup wizard (PRD F1): name → Dalilk tests → target → level → hours estimate
+// → exam date and time → plan (owner's order, 2026-11-03).
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { api, ApiError } from "../api";
 import {
   GoalsFields,
@@ -19,17 +20,41 @@ import {
 } from "../forms";
 import { useI18n } from "../i18n";
 import { Icon } from "../icons";
-import { SKILLS, type Lang, type Placement, type PlacementTest, type Profile } from "../types";
+import { formatHM, todayIso } from "../plan";
+import {
+  SKILLS,
+  type Estimate,
+  type Lang,
+  type Placement,
+  type PlacementTest,
+  type Profile,
+  type Skill,
+} from "../types";
 import { PlacementCards, PlacementTestView } from "./Placement";
+import { Feasibility } from "./Plan";
 
-const STEPS = ["welcome", "tests", "goals", "levels", "time", "review"] as const;
+const STEPS = ["welcome", "tests", "goals", "levels", "estimate", "time", "review"] as const;
+
+function useEstimate(input: Parameters<typeof api.estimate>[0] | null): Estimate | null {
+  const [value, setValue] = useState<Estimate | null>(null);
+  const key = JSON.stringify(input);
+  useEffect(() => {
+    if (!input) return;
+    const timer = setTimeout(() => {
+      void api.estimate(input).then(setValue).catch(() => setValue(null));
+    }, 200);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key]);
+  return value;
+}
 
 export function SetupScreen(props: {
   lang: Lang;
   onLangChange: (lang: Lang) => void;
   onDone: (profile: Profile) => void;
 }) {
-  const { t, formatBand, formatDays, formatHours } = useI18n();
+  const { t, formatBand, formatDate, formatDays, formatHours } = useI18n();
   const [step, setStep] = useState(0);
   const [name, setName] = useState("");
   const [goals, setGoals] = useState<GoalsDraft>(goalsDefault);
@@ -41,16 +66,56 @@ export function SetupScreen(props: {
   const [keepSignIn, setKeepSignIn] = useState(false);
   const [placements, setPlacements] = useState<Placement[]>([]);
   const [testOpen, setTestOpen] = useState<PlacementTest | null>(null);
+  const [hoursPerBand, setHoursPerBand] = useState(200);
+  const [saved, setSaved] = useState<Record<Skill, number | null>>({
+    listening: null,
+    reading: null,
+    writing: null,
+    speaking: null,
+  });
+
+  // Levels saved by the Dalilk tests, overridden by anything typed in the levels step.
+  const currentLevels = Object.fromEntries(
+    SKILLS.map((s) => [s, levels[s].band ?? saved[s]]),
+  ) as Record<Skill, number | null>;
+  const planInput =
+    STEPS[step] === "estimate" || STEPS[step] === "time" || STEPS[step] === "review"
+      ? {
+          today: todayIso(),
+          target_overall: goals.target_overall,
+          targets: goals.custom ? goals.targets : undefined,
+          current: currentLevels,
+          exam_date: goals.exam_date || null,
+          study_weekdays: time.weekdays,
+          daily_minutes: time.study_minutes_per_day,
+          hours_per_band: hoursPerBand,
+        }
+      : null;
+  const estimate = useEstimate(planInput);
+
+  useEffect(() => {
+    if (STEPS[step] !== "estimate") return;
+    void api.levels().then((l) =>
+      setSaved(
+        Object.fromEntries(SKILLS.map((s) => [s, l.current[s]?.band ?? null])) as Record<
+          Skill,
+          number | null
+        >,
+      ),
+    );
+  }, [step]);
 
   const goalErrors = validateGoals(goals, t);
   const levelErrors = validateLevels(levels, t);
   const current = STEPS[step];
   const stepValid =
     current === "goals"
-      ? Object.keys(goalErrors).length === 0
-      : current === "levels"
-        ? Object.keys(levelErrors).length === 0
-        : true;
+      ? Object.keys(goalErrors).filter((k) => k !== "exam_date").length === 0
+      : current === "time"
+        ? !goalErrors.exam_date
+        : current === "levels"
+          ? Object.keys(levelErrors).length === 0
+          : true;
 
   function next() {
     if (!stepValid) {
@@ -70,7 +135,12 @@ export function SetupScreen(props: {
       );
       const entries = levelsToEntries(levels);
       if (entries.length > 0) await api.addLevels(entries);
-      await api.saveSettings({ web_keep_signin: keepSignIn });
+      await api.saveSettings({
+        web_keep_signin: keepSignIn,
+        hours_per_band: hoursPerBand,
+        study_weekdays: time.weekdays,
+        plan_start: todayIso(),
+      });
       props.onDone(profile);
     } catch (e) {
       setError(t("err_generic", { msg: e instanceof ApiError ? e.message : String(e) }));
@@ -154,7 +224,12 @@ export function SetupScreen(props: {
         {current === "goals" && (
           <section className="stack">
             <h1>{t("goals_title")}</h1>
-            <GoalsFields value={goals} onChange={setGoals} errors={showErrors ? goalErrors : {}} />
+            <GoalsFields
+              value={goals}
+              onChange={setGoals}
+              errors={showErrors ? goalErrors : {}}
+              showExamDate={false}
+            />
           </section>
         )}
 
@@ -173,10 +248,91 @@ export function SetupScreen(props: {
           </section>
         )}
 
+        {current === "estimate" && (
+          <section className="stack">
+            <h1>{t("est_title")}</h1>
+            {estimate && estimate.total_hours !== null ? (
+              <>
+                <div className="est-equation">
+                  <div>
+                    <span className="muted small">{t("est_now")}</span>
+                    <strong>{formatBand(estimate.current_overall)}</strong>
+                  </div>
+                  <Icon name="arrowLeft" className="flip-ltr" color="#94A3B8" />
+                  <div>
+                    <span className="muted small">{t("est_target")}</span>
+                    <strong>{formatBand(estimate.target_overall)}</strong>
+                  </div>
+                  <span className="est-op">=</span>
+                  <div className="est-total">
+                    <span className="muted small">{t("est_hours")}</span>
+                    <strong dir="ltr">{Math.round(estimate.total_hours)}</strong>
+                  </div>
+                </div>
+                <p>
+                  {t("est_explain", {
+                    gap: (estimate.gap_bands ?? 0).toFixed(2).replace(/\.?0+$/, ""),
+                    h: hoursPerBand,
+                    total: Math.round(estimate.total_hours),
+                  })}
+                </p>
+                {!estimate.current_complete && <p className="note small">{t("est_partial")}</p>}
+                <label className="field">
+                  <span className="field-label">{t("est_per_band")}</span>
+                  <input
+                    type="number"
+                    min={50}
+                    max={600}
+                    step={10}
+                    value={hoursPerBand}
+                    onChange={(e) =>
+                      setHoursPerBand(Math.min(600, Math.max(50, Number(e.target.value) || 200)))
+                    }
+                  />
+                  <span className="field-hint">{t("est_per_band_hint")}</span>
+                </label>
+              </>
+            ) : (
+              <p className="note">{t("est_no_level")}</p>
+            )}
+          </section>
+        )}
+
         {current === "time" && (
           <section className="stack">
-            <h1>{t("time_title")}</h1>
+            <h1>{t("schedule_title")}</h1>
+            <label className={`field${showErrors && goalErrors.exam_date ? " field-error" : ""}`}>
+              <span className="field-label row">
+                <Icon name="flag" color="#1D4ED8" /> {t("field_exam_date")} ({t("optional")})
+              </span>
+              <input
+                type="date"
+                value={goals.exam_date}
+                min={todayIso()}
+                onChange={(e) => setGoals({ ...goals, exam_date: e.target.value })}
+              />
+              {showErrors && goalErrors.exam_date && (
+                <span className="field-message">{goalErrors.exam_date}</span>
+              )}
+              <span className="field-hint">{t("schedule_exam_hint")}</span>
+            </label>
             <TimeFields value={time} onChange={setTime} />
+            {estimate && (
+              <Feasibility
+                estimate={estimate}
+                onDaily={(m) => setTime({ ...time, study_minutes_per_day: m })}
+                onExamDate={(d) => setGoals({ ...goals, exam_date: d })}
+                onTarget={(b) =>
+                  setGoals({
+                    ...goals,
+                    target_overall: b,
+                    custom: false,
+                    targets: { listening: b, reading: b, writing: b, speaking: b },
+                    minimum_per_skill: Math.min(goals.minimum_per_skill, b),
+                  })
+                }
+              />
+            )}
           </section>
         )}
 
@@ -196,7 +352,7 @@ export function SetupScreen(props: {
               <dt>{t("field_minimum")}</dt>
               <dd>{formatBand(goals.minimum_per_skill)}</dd>
               <dt>{t("field_exam_date")}</dt>
-              <dd>{goals.exam_date || t("not_set")}</dd>
+              <dd>{goals.exam_date ? formatDate(goals.exam_date) : t("not_set")}</dd>
               {SKILLS.some((s) => levels[s].band !== null) && (<>
               <dt>{t("levels_title")}</dt>
               <dd>
@@ -210,6 +366,17 @@ export function SetupScreen(props: {
                 ))}
               </dd>
               </>)}
+              {estimate && estimate.total_hours !== null && (
+                <>
+                  <dt>{t("est_hours")}</dt>
+                  <dd>
+                    {Math.round(estimate.total_hours)}
+                    {estimate.needed_minutes_per_day !== null && (
+                      <> · {t("review_per_day", { hm: formatHM(estimate.needed_minutes_per_day) })}</>
+                    )}
+                  </dd>
+                </>
+              )}
               {placements.length > 0 && (
                 <>
                   <dt>{t("tests_title")}</dt>
@@ -226,7 +393,7 @@ export function SetupScreen(props: {
               <dt>{t("time_title")}</dt>
               <dd>
                 {t("home_week_plan", {
-                  days: formatDays(time.study_days_per_week),
+                  days: formatDays(time.weekdays.length),
                   hours: formatHours(time.study_minutes_per_day),
                 })}
               </dd>

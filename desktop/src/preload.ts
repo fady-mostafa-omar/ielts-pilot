@@ -7,7 +7,21 @@ type PanelTarget = { url: string } | { library: string };
 type Bounds = { x: number; y: number; width: number; height: number };
 
 contextBridge.exposeInMainWorld("ipBridge", {
-  restartBackend: (): Promise<string> => ipcRenderer.invoke("ip:restart-backend"),
+  restartBackend: (options?: { restoreCompatible?: boolean }): Promise<string> =>
+    ipcRenderer.invoke("ip:restart-backend", options ?? {}),
+  setFullScreen: (on: boolean): Promise<boolean> => ipcRenderer.invoke("ip:fullscreen", on),
+  updates: {
+    state: (): Promise<unknown> => ipcRenderer.invoke("ip:update-state"),
+    check: (version?: string): Promise<unknown> => ipcRenderer.invoke("ip:update-check", version),
+    download: (): Promise<unknown> => ipcRenderer.invoke("ip:update-download"),
+    install: (): Promise<boolean> => ipcRenderer.invoke("ip:update-install"),
+    releases: (): Promise<unknown> => ipcRenderer.invoke("ip:update-releases"),
+    onState: (callback: (state: unknown) => void): (() => void) => {
+      const handler = (_event: IpcRendererEvent, s: unknown) => callback(s);
+      ipcRenderer.on("ip:update-state", handler);
+      return () => ipcRenderer.removeListener("ip:update-state", handler);
+    },
+  },
   openFolder: (which: "data" | "backups"): Promise<boolean> =>
     ipcRenderer.invoke("ip:open-folder", which),
   importBackup: (): Promise<string | null> => ipcRenderer.invoke("ip:import-backup"),

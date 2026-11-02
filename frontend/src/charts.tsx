@@ -293,3 +293,31 @@ export function SkillBar(props: {
     </div>
   );
 }
+
+/* ---------- a small celebration (respects reduced motion via CSS) ---------- */
+
+const CONFETTI_COLORS = ["#2563EB", "#0F766E", "#F59E0B", "#7C3AED", "#DB2777", "#22C55E"];
+
+export function Confetti() {
+  return (
+    <div className="confetti" aria-hidden="true">
+      {Array.from({ length: 22 }, (_, i) => {
+        const angle = (i / 22) * Math.PI * 2;
+        const distance = 70 + (i % 4) * 22;
+        return (
+          <i
+            key={i}
+            style={
+              {
+                background: CONFETTI_COLORS[i % CONFETTI_COLORS.length],
+                "--dx": `${Math.cos(angle) * distance}px`,
+                "--dy": `${Math.sin(angle) * distance}px`,
+                animationDelay: `${(i % 5) * 40}ms`,
+              } as React.CSSProperties
+            }
+          />
+        );
+      })}
+    </div>
+  );
+}

@@ -17,6 +17,9 @@ class Settings:
     port: int
     token: str
     data_dir: Path
+    # Set for one start by the app's "go back to a compatible backup" button, after the
+    # owner installed an older version than the one that last changed the database.
+    restore_compatible: bool = False
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -32,7 +35,12 @@ class Settings:
         token = os.environ["IP_TOKEN"]
         if len(token) < 32:
             raise ValueError("IP_TOKEN must be at least 32 characters")
-        return cls(port=port, token=token, data_dir=Path(os.environ["IP_DATA_DIR"]))
+        return cls(
+            port=port,
+            token=token,
+            data_dir=Path(os.environ["IP_DATA_DIR"]),
+            restore_compatible=os.environ.get("IP_RESTORE_COMPATIBLE") == "1",
+        )
 
     @property
     def db_path(self) -> Path:

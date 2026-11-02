@@ -11,6 +11,26 @@ nothing of unknown licence ships inside the installer.
 |---|---|---|---|
 | Electron | 45.2.1 | MIT | Bundles Chromium and Node.js; their licences ship with the app as `LICENSE.electron.txt` and `LICENSES.chromium.html` in the install folder |
 
+### Desktop runtime packages (in `app.asar`, for in-app updates)
+| Package | Version | Licence |
+|---|---|---|
+| electron-updater | 6.8.11 | MIT |
+| builder-util-runtime | 9.7.0 | MIT |
+| debug | 4.4.3 | MIT |
+| fs-extra | 10.1.0 | MIT |
+| graceful-fs | 4.2.11 | ISC |
+| js-yaml | 4.3.2 | MIT |
+| argparse | 2.0.1 | Python-2.0 |
+| jsonfile | 6.2.1 | MIT |
+| lazy-val | 1.0.5 | MIT |
+| lodash.escaperegexp | 4.1.2 | MIT |
+| lodash.isequal | 4.5.0 | MIT |
+| ms | 2.1.3 | MIT |
+| sax | 1.6.1 | BlueOak-1.0.0 |
+| semver | 7.8.6 | ISC |
+| tiny-typed-emitter | 2.1.0 | MIT |
+| universalify | 2.0.1 | MIT |
+
 ### UI (bundled into the frontend JavaScript)
 | Package | Version | Licence |
 |---|---|---|

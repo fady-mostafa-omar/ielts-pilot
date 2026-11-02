@@ -19,6 +19,13 @@ win:
     - target: nsis
       arch: [x64]
   artifactName: IELTS-Pilot-Setup-${version}.${ext}
+# Installers and latest.yml go to the public releases repository (D-027); the release
+# workflow uploads them, so local and CI builds use --publish never.
+publish:
+  provider: github
+  owner: fady-mostafa-omar
+  repo: ielts-pilot-releases
+  releaseType: release
 nsis:
   oneClick: true
   perMachine: false

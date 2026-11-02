@@ -157,6 +157,28 @@ Index `(started_at)`.
 
 Rules: a heartbeat adds at most 120 s and never more than the wall time since the previous heartbeat (+5 s); idle time (no input for 5 min and no sound from the panel) is not sent. Starting a session closes any running one as `unconfirmed`; sessions still `running` at start-up become `unconfirmed` and the owner confirms or discards them on Home. Stopping confirms; the owner can lower (never raise) the minutes afterwards. `track` and `plan_task_id` arrive with the planner in Sprint 2.
 
+### plan_tasks (0004)
+| Column | Type | Notes |
+|---|---|---|
+| id | INTEGER PK | |
+| plan_date | DATE | local calendar day |
+| order_in_day | INTEGER | unique with `plan_date` |
+| day_type | TEXT | `study`, `mock`, `final_mock`, `review` |
+| category | TEXT | `listening`, `reading`, `output`, `exam`, `support` |
+| skill | TEXT | resource skills |
+| activity_code | TEXT | CURRICULUM §3, plus `MOCK` |
+| planned_minutes | INTEGER | > 0 |
+| resource_id | INTEGER FK NULL → resources | `ON DELETE SET NULL`; NULL = writing pad / timer |
+| title, instructions, reason | TEXT | generated in the interface language |
+| status | TEXT | `pending`, `in_progress`, `done`, `skipped` |
+| skip_reason | TEXT NULL | |
+| inputs_hash | TEXT | planner inputs; pending days are regenerated when it changes |
+| generator_version | TEXT | `planner-2` |
+| started_at, completed_at | DATETIME NULL | |
+| created_at | DATETIME | |
+
+Index `(plan_date, status)`. Planner settings live in `app_settings`: `hours_per_band`, `study_weekdays` (JavaScript numbering, 0 = Sunday), `break_every_minutes`, `break_minutes`, `plan_start`.
+
 ### writing_prompts
 `id`, `task_type` (`task1` \| `task2`), `prompt_text`, `source_note`, `created_at`.
 
@@ -256,6 +278,7 @@ Index `(next_review_at)`.
 |---|---|---|
 | 0001 | 0 | `spike_kv` (packaging spike) |
 | 0002 | 1a | drop `spike_kv`; add `learner_profile`, `skill_levels`, `app_settings` |
+| 0004 | 2a | add `plan_tasks`; `study_sessions.plan_task_id` (FK, `ON DELETE SET NULL`) |
 | 0003 | 1b | study time in half hours, 30–840 min (existing values rounded to the nearest half hour and clamped); `placement_quiz` level source; add `placement_results`, `resources`, `study_sessions` |
 
 

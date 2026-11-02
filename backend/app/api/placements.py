@@ -1,14 +1,12 @@
-"""Dalilk placement test results (13English, 3-minute speaking test) and owner settings."""
-
-import json
+"""Dalilk placement test results (13English, 3-minute speaking test)."""
 
 from fastapi import APIRouter
 from sqlalchemy import select
 
 from app.context import Ctx
 from app.db import utcnow
-from app.models import AppSetting, PlacementResult, SkillLevel
-from app.schemas import PlacementIn, PlacementOut, SettingsIO
+from app.models import PlacementResult, SkillLevel
+from app.schemas import PlacementIn, PlacementOut
 
 router = APIRouter(prefix="/api/v1")
 
@@ -52,30 +50,3 @@ def add_placement(body: PlacementIn, ctx: Ctx) -> PlacementOut:
             )
         session.flush()
         return PlacementOut.model_validate(row, from_attributes=True)
-
-
-DEFAULT_SETTINGS = SettingsIO(web_keep_signin=None)
-
-
-@router.get("/settings", response_model=SettingsIO)
-def get_settings(ctx: Ctx) -> SettingsIO:
-    values = DEFAULT_SETTINGS.model_dump()
-    with ctx.session_factory() as session:
-        for row in session.scalars(select(AppSetting)):
-            if row.key in values:
-                values[row.key] = json.loads(row.value_json)
-    return SettingsIO(**values)
-
-
-@router.put("/settings", response_model=SettingsIO)
-def put_settings(body: SettingsIO, ctx: Ctx) -> SettingsIO:
-    now = utcnow()
-    with ctx.session_factory.begin() as session:
-        for key, value in body.model_dump(exclude_unset=True).items():
-            row = session.get(AppSetting, key)
-            if row is None:
-                session.add(AppSetting(key=key, value_json=json.dumps(value), updated_at=now))
-            else:
-                row.value_json = json.dumps(value)
-                row.updated_at = now
-    return get_settings(ctx)

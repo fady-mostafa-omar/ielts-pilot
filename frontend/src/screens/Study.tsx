@@ -1,30 +1,53 @@
 // Study view: the study panel (a sandboxed browser view drawn by the main process over
 // the placeholder below) next to a sidebar with the session timer, notes and progress.
-// Also used without a timer to sign in to sites and to take Dalilk's placement tests.
+// Also used without a timer to sign in to sites and to take Dalilk's placement tests,
+// and — with `focus` — as the distraction-free task screen of the daily plan (D-025).
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { api } from "../api";
 import { useI18n } from "../i18n";
 import { Icon, SKILL_STYLE, SkillBadge } from "../icons";
 import { formatClock } from "../plan";
-import type { PanelState, PanelTarget, Resource, ResourceSkill, StudySession } from "../types";
+import type {
+  PanelState,
+  PanelTarget,
+  PlanTask,
+  Resource,
+  ResourceSkill,
+  StudySession,
+} from "../types";
 
 export interface StudyTarget {
   title: string;
-  target: PanelTarget | null; // null: timer only (paper book, class, …)
+  target: PanelTarget | null; // null: timer only (paper book, writing pad, …)
   resource: Resource | null;
   skill: ResourceSkill;
   activityCode: string | null;
   timer: boolean;
 }
 
+export interface FocusOptions {
+  task: PlanTask;
+  index: number;
+  total: number;
+  breakDueAt: number; // this task's active seconds at which the next break is due
+  breakMinutes: number;
+  onBreakTaken: (activeSeconds: number) => void;
+  onNext: (activeSeconds: number) => Promise<void>;
+  onSkip: (reason: string) => Promise<void>;
+  onExit: () => void;
+  fullScreen: boolean;
+  onToggleFullScreen: () => void;
+}
+
 const HEARTBEAT_MS = 30_000;
 const ACTIVITY_MS = 5_000;
 const IDLE_LIMIT_S = 300; // no keyboard/mouse for 5 min and no sound -> not counted
+const MIN_WORDS: Record<string, number> = { "W-T1": 150, "W-T2": 250, "W-REV": 120 };
 
 /* ---------- the panel area ---------- */
 
-function useStudyPanel(target: PanelTarget | null, keepSignIn: boolean) {
+function useStudyPanel(target: PanelTarget | null, keepSignIn: boolean, visible: boolean) {
   const holder = useRef<HTMLDivElement>(null);
   const [state, setState] = useState<PanelState | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -56,6 +79,10 @@ function useStudyPanel(target: PanelTarget | null, keepSignIn: boolean) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  useEffect(() => {
+    if (bridge && target) void bridge.panel.setVisible(visible);
+  }, [bridge, target, visible]);
+
   return { holder, state, error, bridge };
 }
 
@@ -68,19 +95,13 @@ function shownUrl(url: string): string {
   }
 }
 
-function PanelArea(props: { target: PanelTarget | null; keepSignIn: boolean }) {
+function PanelArea(props: { target: PanelTarget; keepSignIn: boolean; visible: boolean }) {
   const { t } = useI18n();
-  const { holder, state, error, bridge } = useStudyPanel(props.target, props.keepSignIn);
-
-  if (!props.target) {
-    return (
-      <div className="panel-empty">
-        <Icon name="clock" size={48} color="#94A3B8" />
-        <p className="lead">{t("study_offline_title")}</p>
-        <p className="muted">{t("study_offline_body")}</p>
-      </div>
-    );
-  }
+  const { holder, state, error, bridge } = useStudyPanel(
+    props.target,
+    props.keepSignIn,
+    props.visible,
+  );
   if (!bridge) {
     return (
       <div className="panel-empty">
@@ -141,10 +162,101 @@ function PanelArea(props: { target: PanelTarget | null; keepSignIn: boolean }) {
   );
 }
 
+/* ---------- writing pad (timer-only writing tasks) ---------- */
+
+function draftKey(id: string): string {
+  return `ip-draft-${id}`;
+}
+
+function readDraft(id: string): string {
+  try {
+    return window.localStorage.getItem(draftKey(id)) ?? "";
+  } catch {
+    return "";
+  }
+}
+
+function saveDraft(id: string, text: string): void {
+  try {
+    if (text) window.localStorage.setItem(draftKey(id), text);
+    else window.localStorage.removeItem(draftKey(id));
+  } catch {
+    // drafts are a convenience only
+  }
+}
+
+function countWords(text: string): number {
+  return text.trim() ? text.trim().split(/\s+/).length : 0;
+}
+
+function WritingPad(props: { value: string; onChange: (v: string) => void; minWords: number }) {
+  const { t } = useI18n();
+  const words = countWords(props.value);
+  return (
+    <div className="writing-pad">
+      <div className="writing-head">
+        <Icon name="pen" color="#B45309" />
+        <strong>{t("pad_title")}</strong>
+        <span className="spacer" />
+        <span className={`pill ${words >= props.minWords ? "pill-ok" : ""}`} dir="ltr">
+          {words} / {props.minWords} {t("pad_words")}
+        </span>
+      </div>
+      <textarea
+        dir="ltr"
+        lang="en"
+        spellCheck={false}
+        autoFocus
+        value={props.value}
+        placeholder={t("pad_ph")}
+        onChange={(e) => props.onChange(e.target.value)}
+      />
+      <p className="muted small">{t("pad_hint")}</p>
+    </div>
+  );
+}
+
+/* ---------- break ---------- */
+
+function BreakView(props: { minutes: number; onDone: () => void }) {
+  const { t } = useI18n();
+  const [left, setLeft] = useState(props.minutes * 60);
+  useEffect(() => {
+    const timer = setInterval(() => setLeft((s) => Math.max(0, s - 1)), 1000);
+    return () => clearInterval(timer);
+  }, []);
+  return (
+    <div className="break-view">
+      <div className="break-ring" aria-hidden="true">
+        <Icon name="coffee" size={44} color="#0F766E" />
+      </div>
+      <h2>{t("break_title")}</h2>
+      <p className="break-clock" dir="ltr">
+        {formatClock(left)}
+      </p>
+      <p className="muted">{t("break_body")}</p>
+      <ul className="break-tips">
+        <li>{t("break_tip_water")}</li>
+        <li>{t("break_tip_walk")}</li>
+        <li>{t("break_tip_eyes")}</li>
+      </ul>
+      <button className="btn primary big-btn" onClick={props.onDone}>
+        <Icon name="play" size={14} /> {left > 0 ? t("break_back_early") : t("break_back")}
+      </button>
+    </div>
+  );
+}
+
 /* ---------- session timer ---------- */
 
-function useSessionTimer(enabled: boolean, skill: ResourceSkill, resourceId: number | null,
-  activityCode: string | null) {
+function useSessionTimer(
+  enabled: boolean,
+  skill: ResourceSkill,
+  resourceId: number | null,
+  activityCode: string | null,
+  planTaskId: number | null,
+  hold: boolean, // paused from outside (a break)
+) {
   const [session, setSession] = useState<StudySession | null>(null);
   const [paused, setPaused] = useState(false);
   const [activeNow, setActiveNow] = useState(true);
@@ -154,14 +266,14 @@ function useSessionTimer(enabled: boolean, skill: ResourceSkill, resourceId: num
   const finished = useRef(false);
   const pausedRef = useRef(false);
   const activeRef = useRef(true);
-  pausedRef.current = paused;
+  pausedRef.current = paused || hold;
   activeRef.current = activeNow;
 
   // start on mount, stop on unmount (navigating away confirms the session)
   useEffect(() => {
     if (!enabled) return;
     let cancelled = false;
-    void api.startSession(skill, resourceId, activityCode).then((s) => {
+    void api.startSession(skill, resourceId, activityCode, planTaskId).then((s) => {
       if (cancelled) {
         void api.stopSession(s.id);
         return;
@@ -251,22 +363,32 @@ export function StudyScreen(props: {
   onBack: () => void;
   onResourceChanged?: (r: Resource) => void;
   sidebar?: ReactNode; // replaces the timer sidebar (sign-in, placement tests)
+  focus?: FocusOptions;
 }) {
-  const { t } = useI18n();
-  const { study } = props;
+  const { t, lang } = useI18n();
+  const { study, focus } = props;
+  const [onBreak, setOnBreak] = useState(false);
   const timer = useSessionTimer(
     study.timer,
     study.skill,
     study.resource?.id ?? null,
     study.activityCode,
+    focus?.task.id ?? null,
+    onBreak,
   );
+  const padId = focus ? String(focus.task.id) : "free";
+  const usePad = !study.target && !!study.activityCode?.startsWith("W-");
   const [resource, setResource] = useState<Resource | null>(study.resource);
-  const [notes, setNotes] = useState(study.resource?.notes ?? "");
+  const [notes, setNotes] = useState(() =>
+    usePad ? readDraft(padId) : (study.resource?.notes ?? ""),
+  );
   const [progress, setProgress] = useState(study.resource?.progress_position ?? "");
   const [finishing, setFinishing] = useState(false);
   const [summary, setSummary] = useState<StudySession | null>(null);
   const [minutes, setMinutes] = useState(0);
   const [busy, setBusy] = useState(false);
+  const [skipping, setSkipping] = useState(false);
+  const [skipReason, setSkipReason] = useState("");
 
   useEffect(() => {
     if (study.resource) {
@@ -278,6 +400,18 @@ export function StudyScreen(props: {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // a break is due: pause the timer, hide the panel
+  useEffect(() => {
+    if (focus && !onBreak && timer.session && timer.display >= focus.breakDueAt) {
+      setOnBreak(true);
+    }
+  }, [focus, onBreak, timer.session, timer.display]);
+
+  function updateNotes(value: string) {
+    setNotes(value);
+    if (usePad) saveDraft(padId, value);
+  }
+
   async function saveResource(patch: Parameters<typeof api.patchResource>[1]) {
     if (!resource) return;
     const r = await api.patchResource(resource.id, patch);
@@ -285,18 +419,45 @@ export function StudyScreen(props: {
     props.onResourceChanged?.(r);
   }
 
+  async function saveResourceFields() {
+    if (resource) await saveResource({ notes, progress_position: progress.trim() || null });
+  }
+
   async function finish() {
     setBusy(true);
     try {
-      if (resource) {
-        await saveResource({ notes, progress_position: progress.trim() || null });
-      }
+      await saveResourceFields();
       const stopped = await timer.finish(resource ? "" : notes);
       if (stopped) {
         setSummary(stopped);
         setMinutes(Math.round(stopped.active_seconds / 60));
       }
       setFinishing(true);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function next() {
+    if (!focus) return;
+    setBusy(true);
+    try {
+      await saveResourceFields();
+      const stopped = await timer.finish(resource ? "" : notes);
+      if (usePad) saveDraft(padId, "");
+      await focus.onNext(stopped?.active_seconds ?? 0);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function skip() {
+    if (!focus) return;
+    setBusy(true);
+    try {
+      await saveResourceFields();
+      await timer.finish(resource ? "" : notes);
+      await focus.onSkip(skipReason);
     } finally {
       setBusy(false);
     }
@@ -324,58 +485,172 @@ export function StudyScreen(props: {
   const skillStyle = SKILL_STYLE[study.skill];
   const status = !timer.session
     ? t("study_starting")
-    : timer.paused
-      ? t("study_paused")
-      : timer.activeNow
-        ? t("study_running")
-        : t("study_idle");
+    : onBreak
+      ? t("study_on_break")
+      : timer.paused
+        ? t("study_paused")
+        : timer.activeNow
+          ? t("study_running")
+          : t("study_idle");
+  const planned = focus ? focus.task.planned_minutes * 60 : 0;
+  const plannedPct = planned ? Math.min(100, (timer.display / planned) * 100) : 0;
+
+  const main = onBreak ? (
+    <BreakView
+      minutes={focus?.breakMinutes ?? 10}
+      onDone={() => {
+        setOnBreak(false);
+        focus?.onBreakTaken(timer.display);
+      }}
+    />
+  ) : study.target ? null : usePad ? (
+    <WritingPad
+      value={notes}
+      onChange={updateNotes}
+      minWords={MIN_WORDS[study.activityCode ?? ""] ?? 120}
+    />
+  ) : (
+    <div className="panel-empty">
+      <Icon name="clock" size={48} color="#94A3B8" />
+      <p className="lead">{t("study_offline_title")}</p>
+      <p className="muted">{t("study_offline_body")}</p>
+    </div>
+  );
 
   return (
-    <div className="study">
+    <div className={`study${focus ? " focus" : ""}`}>
       <aside className="study-side">
-        <div className="study-head">
-          <button className="btn subtle small" onClick={props.onBack}>
-            <Icon name="arrowRight" size={16} className="flip-ltr" /> {t("back")}
-          </button>
-        </div>
+        {focus ? (
+          <div className="focus-head">
+            <span className="pill pill-focus">
+              {t("focus_task_of", { n: focus.index + 1, total: focus.total })}
+            </span>
+            <span className="spacer" />
+            <button
+              className="icon-btn"
+              title={focus.fullScreen ? t("focus_exit_fullscreen") : t("focus_fullscreen")}
+              onClick={focus.onToggleFullScreen}
+            >
+              <Icon name={focus.fullScreen ? "minimize" : "maximize"} />
+            </button>
+            <button className="btn subtle small" onClick={focus.onExit}>
+              {t("focus_exit")}
+            </button>
+          </div>
+        ) : (
+          <div className="study-head">
+            <button className="btn subtle small" onClick={props.onBack}>
+              <Icon name="arrowRight" size={16} className="flip-ltr" /> {t("back")}
+            </button>
+          </div>
+        )}
+        {focus && (
+          <div className="focus-dots" aria-hidden="true">
+            {Array.from({ length: focus.total }, (_, i) => (
+              <span
+                key={i}
+                className={i < focus.index ? "done" : i === focus.index ? "now" : ""}
+              />
+            ))}
+          </div>
+        )}
         <div className="study-title">
           <SkillBadge skill={study.skill} />
           <div>
             <span className="muted small">{t(`rskill_${study.skill}`)}</span>
             <h2>{study.title}</h2>
+            {resource && focus && <span className="muted small">{resource.title}</span>}
           </div>
         </div>
+
+        {focus && (
+          <div className="task-brief">
+            <p>{focus.task.instructions}</p>
+            {focus.task.reason && (
+              <p className="muted small">
+                <strong>{t("focus_why")}</strong> {focus.task.reason}
+              </p>
+            )}
+          </div>
+        )}
 
         {props.sidebar}
 
         {study.timer && !finishing && (
           <>
-            <div className={`timer-box${timer.paused || !timer.activeNow ? " is-paused" : ""}`}>
+            <div
+              className={`timer-box${timer.paused || onBreak || !timer.activeNow ? " is-paused" : ""}`}
+            >
               <Icon name="clock" size={22} color={skillStyle.color} />
               <span className="timer-clock" dir="ltr">
                 {formatClock(timer.display)}
               </span>
               <span className="timer-status">{status}</span>
             </div>
+            {focus && (
+              <div className="stack-xs">
+                <div className="meter" aria-hidden="true">
+                  <span style={{ width: `${plannedPct}%` }} />
+                </div>
+                <span className="muted small">
+                  {plannedPct >= 100
+                    ? t("focus_planned_done")
+                    : t("focus_planned", { m: focus.task.planned_minutes })}
+                </span>
+              </div>
+            )}
             <div className="row">
               <button
                 className="btn"
-                disabled={!timer.session}
+                disabled={!timer.session || onBreak}
                 onClick={() => timer.setPaused(!timer.paused)}
               >
                 <Icon name={timer.paused ? "play" : "pause"} size={14} />
                 {timer.paused ? t("study_resume") : t("study_pause")}
               </button>
               <span className="spacer" />
-              <button
-                className="btn primary"
-                disabled={!timer.session || busy}
-                onClick={() => void finish()}
-              >
-                <Icon name="stop" size={14} /> {t("study_finish")}
-              </button>
+              {focus ? (
+                <button
+                  className="btn primary big-btn"
+                  disabled={!timer.session || busy}
+                  onClick={() => void next()}
+                >
+                  {t("focus_next")}{" "}
+                  <Icon name={lang === "ar" ? "arrowLeft" : "arrowRight"} size={16} />
+                </button>
+              ) : (
+                <button
+                  className="btn primary"
+                  disabled={!timer.session || busy}
+                  onClick={() => void finish()}
+                >
+                  <Icon name="stop" size={14} /> {t("study_finish")}
+                </button>
+              )}
             </div>
-            <p className="muted small">{t("study_idle_hint")}</p>
+            {focus && !skipping && (
+              <button className="btn subtle small self-start" onClick={() => setSkipping(true)}>
+                {t("focus_skip")}
+              </button>
+            )}
+            {focus && skipping && (
+              <div className="row wrap">
+                <input
+                  className="grow"
+                  value={skipReason}
+                  maxLength={300}
+                  placeholder={t("focus_skip_reason")}
+                  onChange={(e) => setSkipReason(e.target.value)}
+                />
+                <button className="btn small" disabled={busy} onClick={() => void skip()}>
+                  {t("focus_skip_confirm")}
+                </button>
+                <button className="btn subtle small" onClick={() => setSkipping(false)}>
+                  {t("cancel")}
+                </button>
+              </div>
+            )}
+            {!focus && <p className="muted small">{t("study_idle_hint")}</p>}
 
             {resource && (
               <label className="field">
@@ -391,16 +666,18 @@ export function StudyScreen(props: {
                 />
               </label>
             )}
-            <label className="field grow">
-              <span className="field-label">{t("study_notes")}</span>
-              <textarea
-                value={notes}
-                maxLength={5000}
-                placeholder={t("study_notes_ph")}
-                onChange={(e) => setNotes(e.target.value)}
-                onBlur={() => (resource ? void saveResource({ notes }) : undefined)}
-              />
-            </label>
+            {!usePad && (
+              <label className="field grow">
+                <span className="field-label">{t("study_notes")}</span>
+                <textarea
+                  value={notes}
+                  maxLength={5000}
+                  placeholder={t("study_notes_ph")}
+                  onChange={(e) => updateNotes(e.target.value)}
+                  onBlur={() => (resource ? void saveResource({ notes }) : undefined)}
+                />
+              </label>
+            )}
             {resource && (
               <label className="check">
                 <input
@@ -444,7 +721,12 @@ export function StudyScreen(props: {
         )}
       </aside>
       <section className="study-main">
-        <PanelArea target={study.target} keepSignIn={props.keepSignIn} />
+        {study.target && (
+          <div className={onBreak ? "hidden-under" : "fill"}>
+            <PanelArea target={study.target} keepSignIn={props.keepSignIn} visible={!onBreak} />
+          </div>
+        )}
+        {main}
       </section>
     </div>
   );

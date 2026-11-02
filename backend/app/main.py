@@ -12,7 +12,7 @@ from app import (
     backup,
     models,  # noqa: F401  (registers tables)
 )
-from app.api import data, placements, profile, resources, sessions
+from app.api import data, placements, plan, profile, resources, sessions
 from app.config import Settings
 from app.context import AppContext
 from app.db import make_engine
@@ -34,13 +34,35 @@ def _migrate(settings: Settings, engine: Engine) -> str | None:
         current, head = current_revision(engine), head_revision()
         if current != head:
             if not is_known_revision(current):
+                if settings.restore_compatible:
+                    return _restore_compatible(settings, engine, current)
                 raise StartupError(
-                    f"The database (schema {current}) was created by a newer version of "
-                    "IELTS Pilot. Install the newer version, or restore an older backup."
+                    f"[newer_db] The database (schema {current}) was changed by a newer "
+                    "version of IELTS Pilot. Install the newer version again, or go back to "
+                    "the newest backup this version can read."
                 )
             path = backup.create_backup(settings, "pre-migration", current, __version__)
             log.info("pre-migration backup %s (%s -> %s)", path.name, current, head)
     return upgrade_to_head(engine)
+
+
+def _restore_compatible(settings: Settings, engine: Engine, current: str | None) -> str | None:
+    """After a downgrade: restore the newest valid backup this version understands.
+    The current (newer) database is kept first as a pre-restore backup."""
+    candidates = [
+        b
+        for b in backup.list_backups(settings)
+        if b["valid"] and is_known_revision(b["schema_revision"])
+    ]
+    candidates.sort(key=lambda b: b["created_at"] or "", reverse=True)
+    if not candidates:
+        raise StartupError(
+            f"[no_compatible_backup] No backup made by this version or an older one was found "
+            f"(database schema {current}). Install the newer version again."
+        )
+    restored, safety = backup.restore(settings, engine, candidates[0]["name"], __version__)
+    log.warning("downgrade: restored %s; newer data kept in %s", restored, safety)
+    return current_revision(engine)
 
 
 def create_app(settings: Settings, engine: Engine | None = None) -> FastAPI:
@@ -74,6 +96,6 @@ def create_app(settings: Settings, engine: Engine | None = None) -> FastAPI:
             {"detail": {"error": exc.code, "message": exc.message}}, status_code=exc.status
         )
 
-    for module in (data, profile, placements, resources, sessions):
+    for module in (data, profile, placements, plan, resources, sessions):
         app.include_router(module.router)
     return app

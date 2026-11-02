@@ -77,11 +77,13 @@ Status: **draft for approval** · 2026-11-02
 8. Update tab: installers published to a separate public releases repository (code stays private); automatic update to the latest version or a chosen one; going back to an older version restores the backup taken before the newer one changed the database (D-027).
 
 ## Sprint 2a — Updates, plan and focus · v0.0.4
-- Public releases repo + release workflow on tags; Settings → Update (latest or a chosen version)
-- New setup order: name → Dalilk test → target → hours estimate → exam date → plan (additions 1–4)
-- Planner-2: daily split per D-019 scaled by the hours estimate; final 4 days; bi-weekly mocks; unrealistic-plan warning; rationale shown
-- Today in focus mode with "Continue learning", breaks, celebrations (additions 5–6)
-- Needs from the owner: Dalilk routine PDFs (foundation, fluency, 30-day IELTS plan) to check the split; create the public releases repo
+- [x] Public releases repo (owner created 2026-11-03) + publish step on version tags; Settings → Update (latest or a chosen version; older version → restore the newest compatible backup)
+- [x] New setup order: name → Dalilk tests → target → level → hours estimate → exam date and time → review (additions 1–4)
+- [x] Planner-2 (CURRICULUM §4a): hours estimate, final 4 days, bi-weekly mocks, three ways out of an unrealistic plan, rationale on every task
+- [x] "My plan" page: hours done / left, road to the exam, today's tasks, coming days, gap per skill
+- [x] Focus mode with "Continue learning", full screen, breaks, skip with reason, writing pad, celebrations (additions 5–6)
+- [x] Dalilk routine PDFs read (2026-11-03): trackers without a minute split; the 30-day plan's order (input → technique → practice, one skill per week) is used for the exam part
+- [ ] Windows CI build and first published release; owner acceptance
 
 **Exit:** the owner studies daily from Today, and new versions arrive through the Update tab.
 

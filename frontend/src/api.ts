@@ -4,6 +4,11 @@
 import type {
   AppSettings,
   BackupInfo,
+  DayPlan,
+  Estimate,
+  PlanSummary,
+  PlanTask,
+  Skill,
   LevelEntry,
   Levels,
   Placement,
@@ -113,10 +118,20 @@ export const api = {
     return request<StudySession[]>(`sessions?${q.toString()}`);
   },
   openSessions: () => request<StudySession[]>("sessions/open"),
-  startSession: (skill: ResourceSkill, resourceId: number | null, activityCode: string | null) =>
+  startSession: (
+    skill: ResourceSkill,
+    resourceId: number | null,
+    activityCode: string | null,
+    planTaskId: number | null = null,
+  ) =>
     request<StudySession>(
       "sessions/start",
-      json("POST", { skill, resource_id: resourceId, activity_code: activityCode }),
+      json("POST", {
+        skill,
+        resource_id: resourceId,
+        activity_code: activityCode,
+        plan_task_id: planTaskId,
+      }),
     ),
   heartbeat: (id: number, activeDeltaSeconds: number) =>
     request<StudySession>(
@@ -129,6 +144,28 @@ export const api = {
     id: number,
     patch: { state?: "confirmed" | "discarded"; active_seconds?: number; notes?: string },
   ) => request<StudySession>(`sessions/${id}`, json("PATCH", patch)),
+  estimate: (input: {
+    today: string;
+    target_overall: number;
+    targets?: Partial<Record<Skill, number>>;
+    current: Record<Skill, number | null>;
+    exam_date: string | null;
+    study_weekdays: number[];
+    daily_minutes: number;
+    hours_per_band: number;
+  }) => request<Estimate>("plan/estimate", json("POST", input)),
+  planSummary: (today: string) =>
+    request<PlanSummary>(
+      `plan/summary?today=${today}&tz=${new Date().getTimezoneOffset()}`,
+    ),
+  planDay: (date: string, today: string) =>
+    request<DayPlan>(`plan/day?date=${date}&today=${today}`),
+  taskStart: (id: number) => request<PlanTask>(`plan/tasks/${id}/start`, { method: "POST" }),
+  taskDone: (id: number) => request<PlanTask>(`plan/tasks/${id}/done`, { method: "POST" }),
+  taskSkip: (id: number, reason: string) =>
+    request<PlanTask>(`plan/tasks/${id}/skip`, json("POST", { reason })),
+  taskReset: (id: number) => request<PlanTask>(`plan/tasks/${id}/reset`, { method: "POST" }),
+
   logManual: (skill: ResourceSkill, startedAt: Date, minutes: number, notes: string) =>
     request<StudySession>(
       "sessions/manual",

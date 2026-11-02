@@ -7,6 +7,7 @@ import {
   GoalsFields,
   LevelsFields,
   TimeFields,
+  defaultWeekdays,
   goalsFromProfile,
   levelsDefault,
   levelsToEntries,
@@ -28,13 +29,15 @@ import {
   type Placement,
   type PlacementTest,
   type Profile,
+  type ReleaseInfo,
   type SourceType,
   type SystemInfo,
+  type UpdateState,
 } from "../types";
 import { PlacementCards } from "./Placement";
 import type { StudyTarget } from "./Study";
 
-export type SettingsTab = "profile" | "levels" | "accounts" | "data";
+export type SettingsTab = "profile" | "levels" | "accounts" | "update" | "data";
 
 // Sites the owner may want to stay signed in to inside the study panel.
 const SITES = [
@@ -73,7 +76,7 @@ export function SettingsScreen(props: {
     <div className="page stack-lg">
       <h1>{t("settings_title")}</h1>
       <div className="tabs" role="tablist">
-        {(["profile", "levels", "accounts", "data"] as const).map((k) => (
+        {(["profile", "levels", "accounts", "update", "data"] as const).map((k) => (
           <button
             key={k}
             role="tab"
@@ -86,8 +89,14 @@ export function SettingsScreen(props: {
         ))}
       </div>
       {tab === "profile" && (
-        <ProfileTab profile={props.profile} onSaved={props.onProfileSaved} />
+        <ProfileTab
+          profile={props.profile}
+          settings={props.settings}
+          onSaved={props.onProfileSaved}
+          onSettingsChanged={props.onSettingsChanged}
+        />
       )}
+      {tab === "update" && <UpdateTab />}
       {tab === "levels" && (
         <LevelsTab
           levels={props.levels}
@@ -107,17 +116,28 @@ export function SettingsScreen(props: {
   );
 }
 
-function ProfileTab(props: { profile: Profile; onSaved: (p: Profile) => void }) {
+function ProfileTab(props: {
+  profile: Profile;
+  settings: AppSettings;
+  onSaved: (p: Profile) => void;
+  onSettingsChanged: (s: AppSettings) => void;
+}) {
   const { t } = useI18n();
   const p = props.profile;
   const [name, setName] = useState(p.display_name ?? "");
   const [lang, setLang] = useState<Lang>(p.interface_language);
   const [goals, setGoals] = useState<GoalsDraft>(() => goalsFromProfile(p));
   const [time, setTime] = useState<TimeDraft>({
-    study_days_per_week: p.study_days_per_week,
+    weekdays:
+      props.settings.study_weekdays && props.settings.study_weekdays.length === p.study_days_per_week
+        ? props.settings.study_weekdays
+        : defaultWeekdays(p.study_days_per_week),
     study_minutes_per_day: p.study_minutes_per_day,
     explanation_language: p.explanation_language,
   });
+  const [perBand, setPerBand] = useState(props.settings.hours_per_band ?? 200);
+  const [breakEvery, setBreakEvery] = useState(props.settings.break_every_minutes ?? 50);
+  const [breakMinutes, setBreakMinutes] = useState(props.settings.break_minutes ?? 10);
   const [status, setStatus] = useState<"idle" | "saving" | "saved">("idle");
   const [error, setError] = useState<string | null>(null);
   const goalErrors = validateGoals(goals, t);
@@ -129,6 +149,14 @@ function ProfileTab(props: { profile: Profile; onSaved: (p: Profile) => void }) 
     try {
       const saved = await api.saveProfile(
         toProfileInput({ display_name: name, interface_language: lang }, goals, time),
+      );
+      props.onSettingsChanged(
+        await api.saveSettings({
+          study_weekdays: time.weekdays,
+          hours_per_band: perBand,
+          break_every_minutes: breakEvery,
+          break_minutes: breakMinutes,
+        }),
       );
       setStatus("saved");
       props.onSaved(saved);
@@ -160,6 +188,39 @@ function ProfileTab(props: { profile: Profile; onSaved: (p: Profile) => void }) 
       <section className="card stack">
         <h2>{t("time_title")}</h2>
         <TimeFields value={time} onChange={setTime} />
+      </section>
+      <section className="card stack">
+        <h2>{t("set_plan_title")}</h2>
+        <div className="grid-3">
+          <Field label={t("est_per_band")} hint={t("est_per_band_hint")}>
+            <input
+              type="number"
+              min={50}
+              max={600}
+              step={10}
+              value={perBand}
+              onChange={(e) => setPerBand(Math.min(600, Math.max(50, Number(e.target.value) || 200)))}
+            />
+          </Field>
+          <Field label={t("set_break_every")} icon={<Icon name="coffee" color="#0F766E" />}>
+            <select value={breakEvery} onChange={(e) => setBreakEvery(Number(e.target.value))}>
+              {[25, 30, 40, 50, 60, 75, 90, 120].map((m) => (
+                <option key={m} value={m}>
+                  {t("n_minutes", { n: m })}
+                </option>
+              ))}
+            </select>
+          </Field>
+          <Field label={t("set_break_len")}>
+            <select value={breakMinutes} onChange={(e) => setBreakMinutes(Number(e.target.value))}>
+              {[3, 5, 7, 10, 15, 20, 30].map((m) => (
+                <option key={m} value={m}>
+                  {t("n_minutes", { n: m })}
+                </option>
+              ))}
+            </select>
+          </Field>
+        </div>
       </section>
       {error && (
         <p className="error-box" role="alert">
@@ -609,4 +670,154 @@ function AccountsTab(props: {
       </section>
     </div>
   );
+}
+
+function UpdateTab() {
+  const { t, formatDate } = useI18n();
+  const bridge = window.ipBridge;
+  const [state, setState] = useState<UpdateState | null>(null);
+  const [releases, setReleases] = useState<ReleaseInfo[] | null>(null);
+  const [chosen, setChosen] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    if (!bridge) return;
+    void bridge.updates.state().then(setState);
+    return bridge.updates.onState(setState);
+  }, [bridge]);
+
+  if (!bridge) return <p className="muted">{t("bridge_missing")}</p>;
+  if (!state) return <div className="spinner" aria-hidden="true" />;
+  if (state.status === "unsupported") return <p className="muted">{t("upd_unsupported")}</p>;
+
+  const run = async (fn: () => Promise<unknown>) => {
+    setBusy(true);
+    setError(null);
+    try {
+      await fn();
+    } catch (e) {
+      setError(errorText(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+  const chosenRelease = releases?.find((r) => r.version === chosen) ?? null;
+  const older = chosen !== "" && compareVersions(chosen, state.current) < 0;
+
+  return (
+    <div className="stack-lg">
+      <section className="card stack">
+        <h2 className="row">
+          <Icon name="download" color="#1D4ED8" /> {t("upd_title")}
+        </h2>
+        <p>
+          {t("upd_current")} <strong dir="ltr">{state.current}</strong>
+        </p>
+        {state.status === "checking" && <p className="muted">{t("upd_checking")}</p>}
+        {state.status === "none" && <p className="ok">{t("upd_latest")}</p>}
+        {state.status === "error" && (
+          <p className="error-box">
+            {t("upd_error")} <bdi dir="ltr">{state.error}</bdi>
+          </p>
+        )}
+        {state.status === "available" && (
+          <div className="stack">
+            <p className="ok-box">
+              {state.downgrade
+                ? t("upd_ready_older", { v: state.version ?? "" })
+                : t("upd_available", { v: state.version ?? "" })}
+            </p>
+            {state.notes && <pre className="release-notes">{state.notes}</pre>}
+            <button
+              className="btn primary self-start"
+              disabled={busy}
+              onClick={() => void run(() => bridge.updates.download())}
+            >
+              <Icon name="download" size={16} /> {t("upd_download", { v: state.version ?? "" })}
+            </button>
+          </div>
+        )}
+        {state.status === "downloading" && (
+          <div className="stack-xs">
+            <span>{t("upd_downloading", { p: state.percent })}</span>
+            <div className="meter" aria-hidden="true">
+              <span style={{ width: `${state.percent}%` }} />
+            </div>
+          </div>
+        )}
+        {state.status === "downloaded" && (
+          <div className="stack">
+            <p className="ok-box">{t("upd_downloaded", { v: state.version ?? "" })}</p>
+            <button
+              className="btn primary self-start"
+              onClick={() => void bridge.updates.install()}
+            >
+              {t("upd_install")}
+            </button>
+          </div>
+        )}
+        {["idle", "none", "error"].includes(state.status) && (
+          <button
+            className="btn self-start"
+            disabled={busy}
+            onClick={() => void run(() => bridge.updates.check())}
+          >
+            {t("upd_check")}
+          </button>
+        )}
+        <p className="muted small">{t("upd_how")}</p>
+      </section>
+
+      <section className="card stack">
+        <h2>{t("upd_pick_title")}</h2>
+        <p className="muted small">{t("upd_pick_body")}</p>
+        {releases === null ? (
+          <button
+            className="btn self-start"
+            disabled={busy}
+            onClick={() => void run(async () => setReleases(await bridge.updates.releases()))}
+          >
+            {t("upd_list")}
+          </button>
+        ) : releases.length === 0 ? (
+          <p className="muted">{t("upd_none_published")}</p>
+        ) : (
+          <>
+            <select value={chosen} onChange={(e) => setChosen(e.target.value)}>
+              <option value="">{t("upd_choose")}</option>
+              {releases.map((r) => (
+                <option key={r.version} value={r.version} disabled={r.version === state.current}>
+                  {r.version} · {formatDate(r.publishedAt)}
+                  {r.version === state.current ? ` (${t("upd_installed")})` : ""}
+                </option>
+              ))}
+            </select>
+            {chosenRelease?.notes && <pre className="release-notes">{chosenRelease.notes}</pre>}
+            {older && <p className="note small">{t("upd_older_warning")}</p>}
+            <button
+              className="btn self-start"
+              disabled={busy || !chosen}
+              onClick={() =>
+                void run(async () => {
+                  if (older) await api.createBackup();
+                  await bridge.updates.check(chosen);
+                })
+              }
+            >
+              {t("upd_get_version", { v: chosen || "…" })}
+            </button>
+          </>
+        )}
+      </section>
+      {error && <p className="error-box">{error}</p>}
+    </div>
+  );
+}
+
+function compareVersions(a: string, b: string): number {
+  const pa = a.split(".").map(Number);
+  const pb = b.split(".").map(Number);
+  for (let i = 0; i < 3; i++) if (pa[i] !== pb[i]) return pa[i] - pb[i];
+  return 0;
 }

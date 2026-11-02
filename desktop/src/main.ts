@@ -14,6 +14,7 @@ import {
 } from "./backend";
 import { registerIpc } from "./ipc";
 import { StudyPanel } from "./panel";
+import { checkForUpdate, initUpdater } from "./updater";
 import { APP_ORIGIN, makeHandler } from "./protocol";
 
 protocol.registerSchemesAsPrivileged([
@@ -66,12 +67,12 @@ function backendLaunch(): BackendLaunch {
   return { command: python, args: [join(backendDir, "run_backend.py")], cwd: backendDir };
 }
 
-function boot(): Promise<void> {
+function boot(extraEnv: Record<string, string> = {}): Promise<void> {
   if (booting) return booting;
   state = { status: "starting" };
   booting = (async () => {
     try {
-      const backend = await startBackend(backendLaunch(), dataDir());
+      const backend = await startBackend(backendLaunch(), dataDir(), extraEnv);
       state = { status: "ready", backend };
       log(`backend healthy on 127.0.0.1:${backend.port} after ${backend.startupMs} ms`);
       backend.process.once("exit", (code) => {
@@ -94,9 +95,10 @@ function boot(): Promise<void> {
   return booting;
 }
 
-async function restartBackend(): Promise<string> {
+async function restartBackend(restoreCompatible = false): Promise<string> {
   if (state.status === "ready") return state.status;
-  await boot();
+  // After installing an older version: go back to the newest backup it can read (D-027).
+  await boot(restoreCompatible ? { IP_RESTORE_COMPATIBLE: "1" } : {});
   return state.status;
 }
 
@@ -185,6 +187,9 @@ const SMOKE_PROBE = `(async () => {
     }
     await window.ipBridge.panel.close();
   }
+  const iso = new Date().toISOString().slice(0, 10);
+  const planDay = await fetch('api/v1/plan/day?date=' + iso + '&today=' + iso);
+  const planBody = planDay.ok ? await planDay.json() : null;
   let rejected = false;
   try { await window.ipBridge.panel.open({ url: 'file:///C:/Windows/win.ini' }, false); }
   catch { rejected = true; }
@@ -201,6 +206,7 @@ const SMOKE_PROBE = `(async () => {
     sessionRecorded: !!stopped && stopped.ok,
     panelShowedLibraryFile: !!panelUrl && panelUrl.endsWith('smoke-panel.txt'),
     panelRejectsFileUrl: rejected,
+    planDayOk: planDay.status === 200 && !!planBody && typeof planBody.kind === 'string',
   };
 })()`;
 
@@ -230,7 +236,8 @@ async function runSmoke(outFile: string): Promise<number> {
       probe.catalogResources > 0 &&
       probe.sessionRecorded === true &&
       probe.panelShowedLibraryFile === true &&
-      probe.panelRejectsFileUrl === true;
+      probe.panelRejectsFileUrl === true &&
+      probe.planDayOk === true;
   } catch (err) {
     result.error = err instanceof Error ? err.message : String(err);
   }
@@ -265,8 +272,11 @@ async function main(): Promise<void> {
     return;
   }
 
-  createWindow(false);
+  const { win } = createWindow(false);
+  initUpdater(win, log);
   void boot();
+  // Look for a new version once, quietly, after start-up; offline is fine.
+  setTimeout(() => void checkForUpdate(), 20_000);
 }
 
 // A second launch focuses the existing window (skipped for smoke tests).

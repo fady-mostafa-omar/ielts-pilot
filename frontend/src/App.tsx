@@ -3,9 +3,11 @@ import { api, ApiError, onBackendFailure } from "./api";
 import { I18nProvider, useI18n } from "./i18n";
 import { Icon, type IconName } from "./icons";
 import { BootScreen, FailedScreen } from "./screens/Boot";
+import { FocusRunner } from "./screens/Focus";
 import { HomeScreen } from "./screens/Home";
 import { LibraryScreen } from "./screens/Library";
 import { PlacementTestView } from "./screens/Placement";
+import { PlanScreen } from "./screens/Plan";
 import { SettingsScreen, type SettingsTab } from "./screens/Settings";
 import { SetupScreen } from "./screens/Setup";
 import { StudyScreen, type StudyTarget } from "./screens/Study";
@@ -17,6 +19,7 @@ import type {
   PlacementTest,
   Profile,
   ResourceSkill,
+  UpdateState,
 } from "./types";
 
 type Phase =
@@ -27,6 +30,8 @@ type Phase =
 
 type Page =
   | { kind: "home" }
+  | { kind: "plan" }
+  | { kind: "focus" }
   | { kind: "library"; skill?: ResourceSkill }
   | { kind: "settings"; tab?: SettingsTab }
   | { kind: "study"; study: StudyTarget; back: Page }
@@ -72,7 +77,15 @@ export function App() {
   const [lang, setLang] = useState<Lang>("ar");
   const [page, setPage] = useState<Page>({ kind: "home" });
   const [placements, setPlacements] = useState<Placement[]>([]);
+  const [update, setUpdate] = useState<UpdateState | null>(null);
   const started = useRef(false);
+
+  useEffect(() => {
+    const bridge = window.ipBridge;
+    if (!bridge?.updates) return;
+    void bridge.updates.state().then(setUpdate);
+    return bridge.updates.onState(setUpdate);
+  }, []);
 
   const boot = useCallback(async () => {
     setPhase({ kind: "booting" });
@@ -93,8 +106,8 @@ export function App() {
     return onBackendFailure((message) => setPhase({ kind: "failed", message }));
   }, [boot]);
 
-  const retry = async () => {
-    if (window.ipBridge) await window.ipBridge.restartBackend();
+  const retry = async (restoreCompatible = false) => {
+    if (window.ipBridge) await window.ipBridge.restartBackend({ restoreCompatible });
     await boot();
   };
 
@@ -120,12 +133,18 @@ export function App() {
     <I18nProvider lang={lang}>
       <div data-testid="app-state" data-state={STATE_ATTR[phase.kind]} className="app">
         {phase.kind === "booting" && <BootScreen />}
-        {phase.kind === "failed" && <FailedScreen message={phase.message} onRetry={retry} />}
+        {phase.kind === "failed" && (
+          <FailedScreen
+            message={phase.message}
+            onRetry={() => retry()}
+            onRestoreCompatible={() => retry(true)}
+          />
+        )}
         {phase.kind === "setup" && (
           <SetupScreen lang={lang} onLangChange={setLang} onDone={() => void reloadUser()} />
         )}
         {phase.kind === "ready" && (
-          <Shell page={page} onNavigate={setPage}>
+          <Shell page={page} onNavigate={setPage} update={update}>
             {page.kind === "home" && (
               <HomeScreen
                 profile={phase.profile}
@@ -133,6 +152,24 @@ export function App() {
                 onStudy={(study) => setPage({ kind: "study", study, back: page })}
                 onOpenLibrary={(skill) => setPage({ kind: "library", skill })}
                 onOpenSettings={(tab) => setPage({ kind: "settings", tab })}
+                onContinue={() => setPage({ kind: "focus" })}
+                onOpenPlan={() => setPage({ kind: "plan" })}
+              />
+            )}
+            {page.kind === "plan" && (
+              <PlanScreen
+                profile={phase.profile}
+                onProfileSaved={(profile) => setPhase({ ...phase, profile })}
+                onContinue={() => setPage({ kind: "focus" })}
+                onOpenSettings={() => setPage({ kind: "settings", tab: "profile" })}
+              />
+            )}
+            {page.kind === "focus" && (
+              <FocusRunner
+                keepSignIn={phase.settings.web_keep_signin === true}
+                settings={phase.settings}
+                onExit={() => setPage({ kind: "home" })}
+                onOpenLibrary={() => setPage({ kind: "library" })}
               />
             )}
             {page.kind === "library" && (
@@ -187,17 +224,27 @@ export function App() {
   );
 }
 
-const NAV: { kind: "home" | "library" | "settings"; icon: IconName }[] = [
+const NAV: { kind: "home" | "plan" | "library" | "settings"; icon: IconName }[] = [
   { kind: "home", icon: "home" },
+  { kind: "plan", icon: "route" },
   { kind: "library", icon: "library" },
   { kind: "settings", icon: "settings" },
 ];
 
-function Shell(props: { page: Page; onNavigate: (p: Page) => void; children: React.ReactNode }) {
+function Shell(props: {
+  page: Page;
+  onNavigate: (p: Page) => void;
+  update: UpdateState | null;
+  children: React.ReactNode;
+}) {
   const { t } = useI18n();
-  const fixed = props.page.kind === "study" || props.page.kind === "test";
+  const focus = props.page.kind === "focus";
+  const fixed = focus || props.page.kind === "study" || props.page.kind === "test";
+  const newVersion =
+    props.update && ["available", "downloaded"].includes(props.update.status) && !props.update.downgrade;
   return (
     <div className="shell">
+      {!focus && (
       <nav className="topbar">
         <span className="brand">
           <span className="brand-mark">
@@ -225,7 +272,16 @@ function Shell(props: { page: Page; onNavigate: (p: Page) => void; children: Rea
             {t("nav_studying")}
           </span>
         )}
+        {newVersion && (
+          <button
+            className="pill pill-update"
+            onClick={() => props.onNavigate({ kind: "settings", tab: "update" })}
+          >
+            <Icon name="download" size={14} /> {t("nav_new_version", { v: props.update?.version ?? "" })}
+          </button>
+        )}
       </nav>
+      )}
       <main className={fixed ? "main-fixed" : "main-scroll"}>{props.children}</main>
     </div>
   );

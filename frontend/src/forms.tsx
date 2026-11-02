@@ -125,6 +125,7 @@ export function GoalsFields(props: {
   value: GoalsDraft;
   onChange: (d: GoalsDraft) => void;
   errors: Partial<Record<string, string>>;
+  showExamDate?: boolean;
 }) {
   const { t } = useI18n();
   const d = props.value;
@@ -184,6 +185,7 @@ export function GoalsFields(props: {
         </div>
       )}
 
+      {props.showExamDate !== false && (
       <Field label={`${t("field_exam_date")} (${t("optional")})`} error={props.errors.exam_date}>
         <input
           type="date"
@@ -192,6 +194,7 @@ export function GoalsFields(props: {
           onChange={(e) => set({ exam_date: e.target.value })}
         />
       </Field>
+      )}
     </div>
   );
 }
@@ -199,68 +202,102 @@ export function GoalsFields(props: {
 /* ---------- study time ---------- */
 
 export interface TimeDraft {
-  study_days_per_week: number;
+  weekdays: number[]; // 0 = Sunday … 6 = Saturday
   study_minutes_per_day: number;
   explanation_language: ExplanationLang;
 }
 
+/** Six days a week with Friday off, two hours a day. */
 export function timeDefault(): TimeDraft {
-  return { study_days_per_week: 5, study_minutes_per_day: 60, explanation_language: "balanced" };
+  return { weekdays: [0, 1, 2, 3, 4, 6], study_minutes_per_day: 120, explanation_language: "balanced" };
+}
+
+/** Rest days fall on Friday first, then Thursday … (same rule as the planner). */
+export function defaultWeekdays(days: number): number[] {
+  const rest = [5, 4, 3, 2, 1, 0, 6].slice(0, 7 - Math.max(1, Math.min(7, days)));
+  return [0, 1, 2, 3, 4, 5, 6].filter((d) => !rest.includes(d));
 }
 
 // Daily study time is chosen in hours: ½ h to 14 h in half-hour steps.
 const DAY_MINUTES = Array.from({ length: 28 }, (_, i) => (i + 1) * 30);
+// Shown from Saturday, the first day of the week in Egypt.
+const WEEK_ORDER = [6, 0, 1, 2, 3, 4, 5];
 
-export function TimeFields(props: { value: TimeDraft; onChange: (d: TimeDraft) => void }) {
-  const { t, formatHours } = useI18n();
+export function WeekdayPicker(props: { value: number[]; onChange: (days: number[]) => void }) {
+  const { t } = useI18n();
+  const names = t("weekday_short").split(",");
+  return (
+    <div className="weekday-picker" role="group" aria-label={t("field_days")}>
+      {WEEK_ORDER.map((d, i) => {
+        const on = props.value.includes(d);
+        return (
+          <button
+            key={d}
+            type="button"
+            aria-pressed={on}
+            className={on ? "on" : ""}
+            onClick={() => {
+              const next = on ? props.value.filter((x) => x !== d) : [...props.value, d];
+              if (next.length > 0) props.onChange(next.sort((a, b) => a - b));
+            }}
+          >
+            {names[i]}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+export function TimeFields(props: {
+  value: TimeDraft;
+  onChange: (d: TimeDraft) => void;
+  hideExplanation?: boolean;
+}) {
+  const { t, formatHours, formatDays } = useI18n();
   const d = props.value;
   const set = (patch: Partial<TimeDraft>) => props.onChange({ ...d, ...patch });
   return (
     <div className="stack">
-      <div className="grid-2">
-        <Field label={t("field_days")} icon={<Icon name="calendar" color="#1D4ED8" />}>
-          <select
-            value={d.study_days_per_week}
-            onChange={(e) => set({ study_days_per_week: Number(e.target.value) })}
-          >
-            {[1, 2, 3, 4, 5, 6, 7].map((n) => (
-              <option key={n} value={n}>
-                {n}
-              </option>
-            ))}
-          </select>
-        </Field>
-        <Field label={t("field_hours")} icon={<Icon name="clock" color="#B45309" />}>
-          <select
-            value={d.study_minutes_per_day}
-            onChange={(e) => set({ study_minutes_per_day: Number(e.target.value) })}
-          >
-            {DAY_MINUTES.map((n) => (
-              <option key={n} value={n}>
-                {formatHours(n)}
-              </option>
-            ))}
-          </select>
-        </Field>
-      </div>
-      <Field label={t("field_explanation")}>
-        <div className="segmented" role="radiogroup">
-          {(["ar_heavy", "balanced", "en_heavy"] as const).map((v) => (
-            <button
-              key={v}
-              type="button"
-              role="radio"
-              aria-checked={d.explanation_language === v}
-              className={d.explanation_language === v ? "active" : ""}
-              onClick={() => set({ explanation_language: v })}
-            >
-              {t(`expl_${v}`)}
-            </button>
-          ))}
-        </div>
+      <Field
+        label={t("field_days")}
+        hint={t("field_days_hint", { days: formatDays(d.weekdays.length) })}
+        icon={<Icon name="calendar" color="#1D4ED8" />}
+      >
+        <WeekdayPicker value={d.weekdays} onChange={(weekdays) => set({ weekdays })} />
       </Field>
+      <Field label={t("field_hours")} icon={<Icon name="clock" color="#B45309" />}>
+        <select
+          value={d.study_minutes_per_day}
+          onChange={(e) => set({ study_minutes_per_day: Number(e.target.value) })}
+        >
+          {DAY_MINUTES.map((n) => (
+            <option key={n} value={n}>
+              {formatHours(n)}
+            </option>
+          ))}
+        </select>
+      </Field>
+      {!props.hideExplanation && (
+        <Field label={t("field_explanation")}>
+          <div className="segmented" role="radiogroup">
+            {(["ar_heavy", "balanced", "en_heavy"] as const).map((v) => (
+              <button
+                key={v}
+                type="button"
+                role="radio"
+                aria-checked={d.explanation_language === v}
+                className={d.explanation_language === v ? "active" : ""}
+                onClick={() => set({ explanation_language: v })}
+              >
+                {t(`expl_${v}`)}
+              </button>
+            ))}
+          </div>
+        </Field>
+      )}
       <p className="muted">
-        {t("weekly_hours", { hours: formatHours(d.study_days_per_week * d.study_minutes_per_day) })}
+        {t("weekly_hours", { hours: formatHours(d.weekdays.length * d.study_minutes_per_day) })}
       </p>
     </div>
   );
@@ -278,7 +315,7 @@ export function toProfileInput(
     target_overall: goals.target_overall,
     minimum_per_skill: goals.minimum_per_skill,
     exam_date: goals.exam_date || null,
-    study_days_per_week: time.study_days_per_week,
+    study_days_per_week: time.weekdays.length,
     study_minutes_per_day: time.study_minutes_per_day,
   };
   if (goals.custom) {

@@ -3,7 +3,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { api, ApiError } from "../api";
-import { Donut, Hourglass, LevelChart, SkillBar, WeekBars, type DayBar } from "../charts";
+import { Confetti, Donut, Hourglass, LevelChart, SkillBar, WeekBars, type DayBar } from "../charts";
 import { useI18n } from "../i18n";
 import { Icon, SKILL_STYLE, SkillBadge } from "../icons";
 import {
@@ -20,11 +20,14 @@ import {
   overallHistory,
   startOfDay,
   startOfWeek,
+  todayIso,
   type Category,
 } from "../plan";
 import {
   RESOURCE_SKILLS,
   SKILLS,
+  type DayPlan,
+  type PlanSummary,
   type Levels,
   type Placement,
   type Profile,
@@ -32,6 +35,7 @@ import {
   type ResourceSkill,
   type StudySession,
 } from "../types";
+import { nextTask } from "./Focus";
 import { studyTargetFor } from "./Library";
 import type { StudyTarget } from "./Study";
 
@@ -40,6 +44,8 @@ interface HomeData {
   open: StudySession[];
   placements: Placement[];
   resources: Resource[];
+  summary: PlanSummary | null;
+  today: DayPlan | null;
 }
 
 const SPLIT_ROWS = ["listening", "reading", "output", "exam"] as const;
@@ -56,6 +62,8 @@ export function HomeScreen(props: {
   onStudy: (target: StudyTarget) => void;
   onOpenLibrary: (skill?: ResourceSkill) => void;
   onOpenSettings: (tab?: "levels") => void;
+  onContinue: () => void;
+  onOpenPlan: () => void;
 }) {
   const { t, lang, formatBand, formatDate, formatShortDate, formatHours, formatDays } = useI18n();
   const { profile, levels } = props;
@@ -67,13 +75,16 @@ export function HomeScreen(props: {
 
   const load = useCallback(async () => {
     try {
-      const [sessions, open, placements, resources] = await Promise.all([
+      const iso = todayIso();
+      const [sessions, open, placements, resources, summary, today] = await Promise.all([
         api.sessions(weekStart),
         api.openSessions(),
         api.placements(),
         api.resources(),
+        api.planSummary(iso).catch(() => null),
+        api.planDay(iso, iso).catch(() => null),
       ]);
-      setData({ sessions, open, placements, resources });
+      setData({ sessions, open, placements, resources, summary, today });
     } catch (e) {
       setError(e instanceof ApiError ? e.message : String(e));
     }
@@ -83,7 +94,13 @@ export function HomeScreen(props: {
     void load();
   }, [load]);
 
-  const split = useMemo(() => dailySplit(profile, levels), [profile, levels]);
+  const fallbackSplit = useMemo(() => dailySplit(profile, levels), [profile, levels]);
+  const split = data?.summary
+    ? { phase: data.summary.phase, total: data.summary.daily_minutes, minutes: data.summary.split }
+    : fallbackSplit;
+  const todayTasks = data?.today && !data.today.preview ? data.today.tasks : [];
+  const upNext = nextTask(todayTasks);
+  const tasksDone = todayTasks.filter((x) => x.status === "done").length;
   const now = new Date();
   const todayKey = dayKey(now);
   const sessions = counted(data?.sessions ?? []);
@@ -105,7 +122,16 @@ export function HomeScreen(props: {
     };
   });
   const weekDone = days.reduce((a, d) => a + d.minutes, 0);
-  const elapsedDays = days.filter((d) => d.state !== "future");
+  const createdDay = startOfDay(new Date(profile.created_at));
+  const studyWeekdays = data?.summary?.weekdays;
+  const elapsedDays = days.filter((d, i) => {
+    const day = addDays(weekStart, i);
+    return (
+      d.state !== "future" &&
+      day >= createdDay &&
+      (!studyWeekdays || studyWeekdays.includes(day.getDay()))
+    );
+  });
   const metDays = elapsedDays.filter((d) => d.minutes >= target).length;
 
   const points = overallHistory(levels, data?.placements ?? []);
@@ -159,6 +185,55 @@ export function HomeScreen(props: {
         <OpenSessions sessions={data.open} resources={data.resources} onChanged={load} />
       )}
 
+      {data && (
+        <section className="hero hero-home">
+          <div className="hero-main">
+            <span className="hero-kicker">
+              <Icon name="route" color="#FFFFFF" /> {t("hero_kicker")}
+              {(data.summary?.streak_days ?? 0) > 0 && (
+                <span className="streak">
+                  <Icon name="flame" size={16} color="#FDBA74" />
+                  {t("streak", { days: formatDays(data.summary!.streak_days) })}
+                </span>
+              )}
+            </span>
+            {upNext ? (
+              <>
+                <h2 className="hero-title">{upNext.title}</h2>
+                <p className="hero-sub">
+                  {t(`cat_${upNext.category}`)} · <bdi dir="ltr">{formatHM(upNext.planned_minutes)}</bdi>{" "}
+                  · {t("plan_tasks_done", { n: tasksDone, total: todayTasks.length })}
+                </p>
+              </>
+            ) : todayTasks.length > 0 ? (
+              <h2 className="hero-title">{t("focus_day_done")}</h2>
+            ) : (
+              <>
+                <h2 className="hero-title">
+                  {t(`focus_kind_${data.today?.kind ?? "study"}`)}
+                </h2>
+                <p className="hero-sub">{t(`focus_kind_${data.today?.kind ?? "study"}_body`)}</p>
+              </>
+            )}
+            <div className="hero-dots" aria-hidden="true">
+              {todayTasks.map((x) => (
+                <span key={x.id} className={`hd-${x.status}`} />
+              ))}
+            </div>
+          </div>
+          <div className="hero-actions">
+            {upNext && (
+              <button className="btn hero-btn" onClick={props.onContinue}>
+                <Icon name="play" size={16} /> {t("continue_learning")}
+              </button>
+            )}
+            <button className="btn hero-link" onClick={props.onOpenPlan}>
+              {t("hero_see_plan")}
+            </button>
+          </div>
+        </section>
+      )}
+
       <section className="cards-3">
         {/* today's goal */}
         <article className="card">
@@ -170,6 +245,7 @@ export function HomeScreen(props: {
                 : t("home_left", { hm: formatHM(left) })}
             </span>
           </div>
+          {left === 0 && doneToday > 0 && <Confetti />}
           <div className="row gap-lg">
             <Hourglass
               fraction={target ? doneToday / target : 0}
@@ -336,8 +412,8 @@ export function HomeScreen(props: {
             </>
           ) : (
             <>
-              <h2 className="title-lg">{t("home_start_title")}</h2>
-              <p className="muted">{t("home_start_body")}</p>
+              <h2 className="title-lg">{t("home_free_title")}</h2>
+              <p className="muted">{t("home_free_body")}</p>
             </>
           )}
           <div className="quick-skills">
@@ -364,7 +440,6 @@ export function HomeScreen(props: {
               {t("home_timer_only")}
             </button>
           </div>
-          <p className="muted small">{t("home_plan_soon")}</p>
         </article>
 
         {/* time split */}
