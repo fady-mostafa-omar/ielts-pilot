@@ -10,7 +10,7 @@ Status: **draft for approval** · 2026-11-02
 
 ---
 
-## Sprint 0 — Discovery and validation (current)
+## Sprint 0 — Discovery and validation · ✅ done 2026-11-02
 
 - [x] Review master spec; risks; architecture recommendation
 - [x] Check the Dalilk library page
@@ -21,22 +21,25 @@ Status: **draft for approval** · 2026-11-02
 - [x] **Packaging spike** code: Electron + React window → FastAPI `/health` + one SQLite write/read in `%APPDATA%`; PyInstaller onedir; electron-builder NSIS per-user; CI workflows and Windows smoke scripts
 - [x] Spike verified on Linux (packaged build, end-to-end smoke test, twice, persistence confirmed)
 - [x] Versions pinned (`DECISIONS.md`)
-- [ ] Private GitHub repo attached to the session; code pushed
-- [ ] Windows build + smoke tests green on GitHub Actions
-- [ ] Owner installs on the baseline laptop (exit criteria below)
-- [ ] Generate `THIRD_PARTY_LICENSES.md` from installed packages
+- [x] Private GitHub repo attached; code pushed
+- [x] Windows build + smoke tests green on GitHub Actions (first run, run 41518170203)
+- [x] Owner installs on the baseline laptop — all exit criteria met
+- [x] `THIRD_PARTY_LICENSES.md` generated from installed packages
+- [x] D-014 approved
 
-**Exit criteria (spike, on the baseline laptop):**
-1. Installs per-user from the CI artifact.
-2. Opens with Wi-Fi off.
-3. A value written before closing is still there after reopening.
-4. `netstat` shows the backend bound to 127.0.0.1 only.
+**Exit criteria (spike, on the baseline laptop) — results 2026-11-02:**
+1. Installs per-user from the CI artifact — ✅
+2. Opens with Wi-Fi off — ✅ (owner confirmed)
+3. A value written before closing is still there after reopening — ✅
+4. Backend bound to 127.0.0.1 only — ✅ (`Get-NetTCPConnection`: 127.0.0.1)
 
-If the spike fails: plan B (TypeScript-only backend, D-003) is proposed to the owner before any feature work.
+**Measured (from `main.log` on the baseline laptop):** backend ready after 9.6 s on the very first launch, 1.8 s on later launches. Installer 134 MB; installed size 395 MB. The first-launch delay is likely Windows Defender scanning new binaries plus a cold disk — not measured separately.
+
+**Carried into Sprint 1:** show the window immediately with a loading state instead of waiting for the backend (first launch showed nothing for ~10 s).
 
 ## Sprint 1 — Foundation
 
-F1 setup, settings, database + migrations, F4 resource library with the Dalilk catalogue and owner-added resources, in-app PDF / YouTube / web panel, F5 sessions, F12 backup/restore. Close O-2 (official practice links) and O-3 (format facts).
+Immediate window with loading state; F1 setup, settings, database + migrations (replacing the spike table), F4 resource library with the Dalilk catalogue and owner-added resources, in-app PDF / YouTube / web panel, F5 sessions, F12 backup/restore. Close O-2 (official practice links) and O-3 (format facts).
 
 **Exit:** the owner can open any resource inside the app and every use is logged.
 

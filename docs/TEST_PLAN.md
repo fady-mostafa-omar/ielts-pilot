@@ -88,7 +88,18 @@ These are **targets to be measured**, not promises:
 | Cold start to Today | ≤ 10 s |
 | Screen navigation | ≤ 300 ms perceived |
 | Memory, all app processes, idle on Today | ≤ 500 MB |
-| Installer size | Reported at the spike; investigate if > 250 MB |
+| Installer size | Investigate if > 250 MB |
+
+**Measured at the packaging spike (2026-11-02)**
+
+| Metric | Baseline laptop | GitHub Windows runner |
+|---|---|---|
+| Backend ready, first launch after install | 9.6 s | 1.8 s |
+| Backend ready, later launches | 1.8 s | 1.3 s |
+| Installer size | — | 134 MB |
+| Installed size | — | 395 MB |
+
+Cold start to a usable window was not measured separately; the window currently waits for the backend (fixed in Sprint 1). Memory use not yet measured.
 
 ## 7. Edge cases (master spec §13, applicable to v0.1)
 
