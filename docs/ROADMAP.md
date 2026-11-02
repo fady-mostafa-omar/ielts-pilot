@@ -37,11 +37,23 @@ Status: **draft for approval** · 2026-11-02
 
 **Carried into Sprint 1:** show the window immediately with a loading state instead of waiting for the backend (first launch showed nothing for ~10 s).
 
-## Sprint 1 — Foundation
+## Sprint 1 — Foundation (split into 1a and 1b, approved 2026-11-02)
 
-Immediate window with loading state; F1 setup, settings, database + migrations (replacing the spike table), F4 resource library with the Dalilk catalogue and owner-added resources, in-app PDF / YouTube / web panel, F5 sessions, F12 backup/restore. Close O-2 (official practice links) and O-3 (format facts).
+### Sprint 1a — Setup, settings, data safety · v0.0.2
+- [x] Window opens immediately with a loading state; error screen with Try again
+- [x] Real schema (migration 0002) replacing the spike table; automatic backup before migrating
+- [x] F1 first-run setup wizard (goals, current level with source, study time, language)
+- [x] Home screen: goals, levels with sources, exam countdown, weekly time — no computed bands
+- [x] Settings: goals and time, level history, data and backups
+- [x] F12 backup / restore / import / export / delete-all, with safety backups
+- [x] Arabic (RTL) and English (LTR)
+- [x] Spellchecker off — no outbound network at startup (verified with Chromium's network log)
+- [ ] Windows CI build green; owner acceptance on the baseline laptop
 
-**Exit:** the owner can open any resource inside the app and every use is logged.
+### Sprint 1b — Resource library and study sessions
+F4 resource library with the Dalilk catalogue and owner-added resources, in-app PDF / YouTube / web panel, F5 sessions. Close O-2 (official practice links) and O-3 (format facts).
+
+**Exit (Sprint 1):** the owner can open any resource inside the app and every use is logged.
 
 ## Sprint 2 — Today and plan · *the owner starts studying here*
 

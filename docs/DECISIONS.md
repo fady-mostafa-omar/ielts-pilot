@@ -19,6 +19,9 @@ Each decision: ID · date · decision · reason · status.
 | D-012 | 2026-11-02 | Own wording for criteria checklists; link to official band descriptors | The descriptors are the IELTS partners' text | Approved |
 | D-013 | 2026-11-02 | v0.1 scope = PRD §5 (F1–F12); diagnostic, mastery model, lessons, labs and AI come later | Get the owner studying early (R-01) | Approved |
 | D-014 | 2026-11-02 | The renderer calls `app://ui/api/…`; the main process proxies to the backend and adds the token. Requests with an `Origin` header are rejected; no CORS | Token never reaches the renderer; UI and API share one origin, avoiding CORS and Chromium private-network checks; renderer cannot call `/shutdown` | Approved (2026-11-02) |
+| D-015 | 2026-11-02 | No router or i18n library yet: page state in `App.tsx`; a small typed dictionary for Arabic/English | Three screens; fewer dependencies; the type system guarantees every key exists in both languages | Proposed (Sprint 1a) |
+| D-016 | 2026-11-02 | Backups as checksummed zips; restore copies into the live DB with SQLite's backup API; a safety backup before every migration, restore and delete-all; keep the newest 10 automatic backups | Works while Windows holds the DB file open; no destructive step without a way back; bounded disk use | Proposed (Sprint 1a) |
+| D-017 | 2026-11-02 | Spellchecker disabled in the app | Electron's spellchecker downloads dictionaries from Google at startup (seen in the network log), which breaks offline-first; the real IELTS has no spellcheck, so practice should not have one | Proposed (Sprint 1a) |
 
 ## Pinned versions (packaging spike, 2026-11-02)
 

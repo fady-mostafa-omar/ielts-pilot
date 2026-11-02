@@ -9,7 +9,7 @@ import uvicorn
 
 from app import __version__
 from app.config import Settings
-from app.main import create_app
+from app.main import StartupError, create_app
 
 
 def _setup_logging(log_dir: Path) -> None:
@@ -41,6 +41,11 @@ def main() -> None:
 
     try:
         app = create_app(settings)
+    except StartupError as exc:
+        # One-line reason on stderr; the Electron shell shows it to the user.
+        log.error("startup failed: %s", exc)
+        print(f"STARTUP_ERROR: {exc}", file=sys.stderr, flush=True)
+        sys.exit(3)
     except Exception:
         log.exception("startup failed")
         sys.exit(3)
@@ -58,6 +63,6 @@ def main() -> None:
         server_header=False,
     )
     server = uvicorn.Server(config)
-    app.state.set_shutdown_handler(lambda: setattr(server, "should_exit", True))
+    app.state.ctx.request_shutdown = lambda: setattr(server, "should_exit", True)
     server.run()
     log.info("backend stopped")

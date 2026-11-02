@@ -44,6 +44,9 @@ $dataDir = Join-Path $env:APPDATA 'IELTS Pilot'
 $db = Join-Path $dataDir 'data/ielts_pilot.db'
 if (-not (Test-Path $db)) { throw "Database not found at $db" }
 Write-Host "OK  database at $db"
+$zips = Get-ChildItem (Join-Path $dataDir 'backups') -Filter 'ielts-pilot-*.zip' -ErrorAction SilentlyContinue
+if (-not $zips) { throw 'No backup files found in %APPDATA%\IELTS Pilot\backups' }
+Write-Host "OK  $($zips.Count) backup file(s) present"
 
 $leftover = Get-Process -Name 'ielts_pilot_backend' -ErrorAction SilentlyContinue
 if ($leftover) { throw 'Backend process still running after the app exited' }

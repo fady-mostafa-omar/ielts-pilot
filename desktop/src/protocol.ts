@@ -1,11 +1,11 @@
 // app://ui/...      -> static files of the built frontend
-// app://ui/api/...  -> forwarded to the local backend, signed with the launch token
+// app://ui/api/...  -> forwarded to the local backend, signed with the launch token (D-014)
 //
 // Same origin for UI and API, so no CORS; the renderer never holds the token.
 
 import { readFile } from "node:fs/promises";
 import { extname, join, normalize, sep } from "node:path";
-import type { RunningBackend } from "./backend";
+import type { BackendState } from "./backend";
 
 export const APP_ORIGIN = "app://ui";
 
@@ -35,8 +35,8 @@ const CSP = [
 // Endpoints only the main process may call.
 const BLOCKED_FROM_RENDERER = new Set(["/api/v1/shutdown"]);
 
-function jsonError(status: number, error: string): Response {
-  return new Response(JSON.stringify({ error }), {
+function jsonError(status: number, error: string, message?: string): Response {
+  return new Response(JSON.stringify({ detail: { error, message } }), {
     status,
     headers: { "content-type": "application/json" },
   });
@@ -65,14 +65,12 @@ async function serveStatic(uiDir: string, pathname: string): Promise<Response> {
   }
 }
 
-async function proxyToBackend(
-  backend: RunningBackend | null,
-  request: Request,
-  url: URL,
-): Promise<Response> {
-  if (!backend) return jsonError(503, "backend_unavailable");
+async function proxyToBackend(state: BackendState, request: Request, url: URL): Promise<Response> {
+  if (state.status === "starting") return jsonError(503, "backend_starting");
+  if (state.status === "failed") return jsonError(503, "backend_failed", state.message);
   if (BLOCKED_FROM_RENDERER.has(url.pathname)) return jsonError(403, "forbidden");
 
+  const { backend } = state;
   const headers = new Headers({ "x-ip-token": backend.token });
   const contentType = request.headers.get("content-type");
   if (contentType) headers.set("content-type", contentType);
@@ -93,11 +91,11 @@ async function proxyToBackend(
   }
 }
 
-export function makeHandler(uiDir: string, getBackend: () => RunningBackend | null) {
+export function makeHandler(uiDir: string, getState: () => BackendState) {
   return async (request: Request): Promise<Response> => {
     const url = new URL(request.url);
     if (`${url.protocol}//${url.host}` !== APP_ORIGIN) return new Response("Not found", { status: 404 });
-    if (url.pathname.startsWith("/api/")) return proxyToBackend(getBackend(), request, url);
+    if (url.pathname.startsWith("/api/")) return proxyToBackend(getState(), request, url);
     return serveStatic(uiDir, url.pathname);
   };
 }

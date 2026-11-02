@@ -20,7 +20,12 @@ export interface RunningBackend {
   startupMs: number;
 }
 
-const HEALTH_TIMEOUT_MS = 30_000;
+export type BackendState =
+  | { status: "starting" }
+  | { status: "ready"; backend: RunningBackend }
+  | { status: "failed"; message: string };
+
+const HEALTH_TIMEOUT_MS = 60_000;
 
 async function freePort(): Promise<number> {
   return new Promise((resolve, reject) => {
@@ -56,17 +61,27 @@ export async function startBackend(launch: BackendLaunch, dataDir: string): Prom
   child.stdout?.pipe(consoleLog);
   child.stderr?.pipe(consoleLog);
 
+  // The backend prints one "STARTUP_ERROR: <reason>" line when it refuses to start.
+  let startupError: string | null = null;
+  child.stderr?.on("data", (chunk: Buffer) => {
+    const match = /STARTUP_ERROR: (.+)/.exec(chunk.toString("utf-8"));
+    if (match) startupError = match[1].trim();
+  });
+
   let exitedEarly: string | null = null;
   child.once("exit", (code, signal) => {
-    exitedEarly = `backend exited during startup (code ${code}, signal ${signal})`;
+    exitedEarly = `The local service stopped during startup (code ${code}, signal ${signal}).`;
   });
   child.once("error", (err) => {
-    exitedEarly = `backend failed to start: ${err.message}`;
+    exitedEarly = `The local service could not be started: ${err.message}`;
   });
 
   const baseUrl = `http://127.0.0.1:${port}`;
   while (Date.now() - started < HEALTH_TIMEOUT_MS) {
-    if (exitedEarly) throw new Error(exitedEarly);
+    if (exitedEarly) {
+      await sleep(100); // let the last stderr chunk arrive
+      throw new Error(startupError ?? exitedEarly);
+    }
     try {
       const res = await fetch(`${baseUrl}/api/v1/health`, {
         headers: { "x-ip-token": token },
@@ -82,7 +97,7 @@ export async function startBackend(launch: BackendLaunch, dataDir: string): Prom
     await sleep(200);
   }
   child.kill();
-  throw new Error(`backend did not become healthy within ${HEALTH_TIMEOUT_MS / 1000}s`);
+  throw new Error(`The local service did not start within ${HEALTH_TIMEOUT_MS / 1000} s.`);
 }
 
 export async function stopBackend(backend: RunningBackend): Promise<void> {

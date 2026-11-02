@@ -33,8 +33,8 @@ Status: **draft for approval** · 2026-11-02 · Related: `PRD.md`, `DATABASE.md`
 |---|---|---|
 | Shell | Electron | Spec decision; supports Windows 10+ today |
 | UI | React + Vite + TypeScript | D-002 — no server rendering needed; simpler than Next.js static export |
-| Routing | React Router, HashRouter | Works with a custom protocol, no server |
-| i18n | i18next + react-i18next (confirm in Sprint 1) | Arabic/English, RTL/LTR switching |
+| Routing | None yet — page state in `App.tsx` (D-015) | Three screens; revisit when screens multiply |
+| i18n | Small typed dictionary in `i18n.tsx` (D-015) | Arabic/English, RTL/LTR; compile-time check that both languages have every key |
 | Charts | Chart.js or Recharts (choose in Sprint 4) | Lightweight; licence checked before adoption |
 | Backend | Python 3.12, FastAPI, Uvicorn, Pydantic v2 | D-003, D-006 — owner works in Python; future local STT/NLP is Python |
 | ORM / migrations | SQLAlchemy 2.x + Alembic | D-004 |
@@ -47,18 +47,20 @@ Exact versions are pinned during the packaging spike and recorded in `DECISIONS.
 
 ## 3. Process lifecycle
 
-**Startup**
-1. Main acquires the single-instance lock; a second launch focuses the existing window.
+**Startup** (window first, backend second — measured first launch was ~10 s on the baseline laptop)
+1. Main acquires the single-instance lock; a second launch focuses the existing window. On the `ready` event it turns the session spellchecker off (it would otherwise download dictionaries from Google; see D-017).
 2. Data dir = `app.getPath('userData')` → `%APPDATA%\IELTS Pilot\`.
 3. Main picks a free port on 127.0.0.1 and generates a 256-bit random token.
 4. Main spawns `resources\backend\ielts_pilot_backend.exe` with `IP_PORT`, `IP_TOKEN`, `IP_DATA_DIR` as **environment variables** (command-line arguments are readable by other processes).
 5. Backend: if a migration is pending, writes an automatic backup, runs Alembic to head, then serves.
-6. Main polls `GET /api/v1/health` (target: ready ≤ 10 s on the baseline laptop). On failure → error window with the log path and a Retry button.
-7. Main creates the window and loads `app://ui/index.html`. The renderer calls `app://ui/api/…`; main forwards each call to the backend and adds the token, so the token never reaches the renderer (D-014). `/api/v1/shutdown` is refused when it comes from the renderer.
+6. Main polls `GET /api/v1/health` (target: ready ≤ 10 s on the baseline laptop).
+7. The window is created **before** step 3 and loads `app://ui/index.html` immediately. While the backend starts, `app://ui/api/*` answers 503 `backend_starting` and the UI shows a loading screen; if startup fails it answers 503 `backend_failed` with the reason and the UI shows an error screen with **Try again** (restarts the backend through the bridge) and **Open data folder**. The renderer calls `app://ui/api/…`; main forwards each call to the backend and adds the token, so the token never reaches the renderer (D-014). `/api/v1/shutdown` is refused when it comes from the renderer.
+
+If the database was made by a newer app version, the backend refuses to start (`STARTUP_ERROR` line on stderr), and that reason is what the UI shows.
 
 **Shutdown:** main calls `POST /api/v1/shutdown`, waits up to 3 s, then terminates the process tree.
 
-**Crash recovery:** if the backend exits unexpectedly, main restarts it once, then shows the error window. The backend writes a PID file; on startup a stale backend process from a previous crash is terminated before a new one starts.
+**Crash recovery:** if the backend exits unexpectedly, the next API call returns `backend_failed` and the UI switches to the error screen with **Try again**. (Stale-process cleanup via a PID file is not implemented yet; not observed as a problem so far.)
 
 ## 4. Local API security
 
@@ -75,7 +77,9 @@ Exact versions are pinned during the packaging spike and recorded in `DECISIONS.
 - Strict Content-Security-Policy for the app origin.
 - Main window navigation restricted to `app://ui`; `window.open` denied.
 - External resources open in a **separate web panel** (WebContentsView) with its own session partition, no preload, no Node. Links outside the allow-list open in the system browser after confirmation.
-- Microphone permission granted only to the app origin (Speaking lab); every other permission request denied.
+- All permission requests denied for now; the microphone will be allowed for the app origin only when the Speaking lab arrives (Sprint 3).
+- Spellchecker disabled (D-017).
+- **Preload bridge** (`window.ipBridge`, sandboxed, `contextBridge` only): `restartBackend()`, `openFolder('data'|'backups')`, `importBackup()` (file dialog → copies the zip into `backups\` as `ielts-pilot-imported-<time>.zip`), `exportBackup(name)` (save dialog → copies a backup elsewhere). Every IPC handler rejects callers whose frame is not `app://ui`. The backend never receives an arbitrary file path.
 
 ## 6. Embedded content
 
@@ -118,7 +122,7 @@ backend/
       queue.py       Today queue ordering (CURRICULUM §5)
       srs.py         SM-2 scheduler (CURRICULUM §7)
       progress.py    aggregates for F11
-      backup.py      zip export/import using SQLite online backup
+      backup.py      zip backups, restore, delete-all (SQLite online backup API)
   migrations/        Alembic
   tests/
 ```
@@ -130,7 +134,8 @@ All routes under `/api/v1`, JSON, token required.
 | Area | Endpoints |
 |---|---|
 | System | `GET /health`, `POST /shutdown` |
-| Profile & settings | `GET/PUT /profile`, `GET/POST /skill-levels`, `GET/PUT /settings` |
+| Profile & levels | `GET/PUT /profile`, `GET/POST /skill-levels` |
+| System & data | `GET /system`, `GET/POST /backups`, `POST /backups/{name}/restore`, `DELETE /backups/{name}`, `POST /data/delete-all` |
 | Resources | `GET/POST /resources`, `GET/PUT/DELETE /resources/{id}`, `POST /resources/{id}/file` |
 | Sessions | `POST /sessions`, `PATCH /sessions/{id}` (heartbeat, stop, confirm), `GET /sessions` |
 | Plan | `GET /plan/current`, `POST /plan/generate` |
@@ -142,7 +147,6 @@ All routes under `/api/v1`, JSON, token required.
 | Reviews | `GET /reviews/due`, `POST /reviews/{kind}/{id}/grade` |
 | Practice results | `GET/POST /practice-results`, `PATCH/DELETE /practice-results/{id}` |
 | Progress | `GET /progress/summary?weeks=N` |
-| Backup | `POST /backup/export`, `POST /backup/import` |
 
 ## 10. Repository layout
 

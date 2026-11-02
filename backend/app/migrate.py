@@ -6,6 +6,8 @@ from pathlib import Path
 from alembic import command
 from alembic.config import Config
 from alembic.runtime.migration import MigrationContext
+from alembic.script import ScriptDirectory
+from alembic.util.exc import CommandError
 from sqlalchemy import Engine
 
 
@@ -16,12 +18,34 @@ def migrations_dir() -> Path:
     return base / "migrations"
 
 
-def upgrade_to_head(engine: Engine) -> str | None:
-    """Apply all pending migrations and return the resulting revision id."""
+def _config() -> Config:
     cfg = Config()
     cfg.set_main_option("script_location", str(migrations_dir()))
+    return cfg
+
+
+def head_revision() -> str | None:
+    return ScriptDirectory.from_config(_config()).get_current_head()
+
+
+def is_known_revision(revision: str | None) -> bool:
+    if revision is None:
+        return True
+    try:
+        return ScriptDirectory.from_config(_config()).get_revision(revision) is not None
+    except CommandError:
+        return False
+
+
+def current_revision(engine: Engine) -> str | None:
+    with engine.connect() as connection:
+        return MigrationContext.configure(connection).get_current_revision()
+
+
+def upgrade_to_head(engine: Engine) -> str | None:
+    """Apply all pending migrations and return the resulting revision id."""
+    cfg = _config()
     with engine.begin() as connection:
         cfg.attributes["connection"] = connection
         command.upgrade(cfg, "head")
-    with engine.connect() as connection:
-        return MigrationContext.configure(connection).get_current_revision()
+    return current_revision(engine)

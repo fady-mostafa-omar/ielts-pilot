@@ -54,15 +54,25 @@ $bad = $listeners | Where-Object { $_.LocalAddress -ne '127.0.0.1' }
 if ($bad) { throw "Backend listens on non-loopback address: $($bad.LocalAddress -join ', ')" }
 Write-Host "OK  listening only on 127.0.0.1"
 
-$value = "ci-$(Get-Date -Format o)"
-Invoke-RestMethod -Uri "$base/spike/value" -Method Put -Headers $auth -ContentType 'application/json' `
-    -Body (@{ value = $value } | ConvertTo-Json) | Out-Null
+Assert-Status "$base/profile" $auth 404 'no profile before setup'
+
+$value = "ci-$(Get-Date -Format 'yyyyMMddHHmmss')"
+$profileBody = @{
+    display_name = $value; interface_language = 'ar'; explanation_language = 'balanced'
+    target_overall = 7.5; minimum_per_skill = 6.5; study_days_per_week = 5; study_minutes_per_day = 60
+}
+Invoke-RestMethod -Uri "$base/profile" -Method Put -Headers $auth -ContentType 'application/json' `
+    -Body ($profileBody | ConvertTo-Json) | Out-Null
+$backup = Invoke-RestMethod -Uri "$base/backups" -Method Post -Headers $auth
+Write-Host "OK  backup created: $($backup.name) ($($backup.size_bytes) bytes)"
 Stop-Backend $p
 
 $p = Start-Backend
-$read = Invoke-RestMethod -Uri "$base/spike/value" -Headers $auth
-if ($read.value -ne $value) { throw "Value not persisted: got '$($read.value)'" }
-Write-Host "OK  value persisted across restart"
+$read = Invoke-RestMethod -Uri "$base/profile" -Headers $auth
+if ($read.display_name -ne $value) { throw "Profile not persisted: got '$($read.display_name)'" }
+Write-Host "OK  profile persisted across restart"
+$restore = Invoke-RestMethod -Uri "$base/backups/$($backup.name)/restore" -Method Post -Headers $auth
+Write-Host "OK  restore works (safety backup $($restore.safety_backup))"
 Stop-Backend $p
 
 if (-not (Test-Path (Join-Path $dataDir 'data/ielts_pilot.db'))) { throw 'Database file missing' }

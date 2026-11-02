@@ -1,97 +1,149 @@
-import { useEffect, useState } from "react";
-import { api, type Health, type StoredValue } from "./api";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { api, ApiError, onBackendFailure } from "./api";
+import { I18nProvider, useI18n } from "./i18n";
+import { BootScreen, FailedScreen } from "./screens/Boot";
+import { HomeScreen } from "./screens/Home";
+import { SettingsScreen } from "./screens/Settings";
+import { SetupScreen } from "./screens/Setup";
+import type { Lang, Levels, Profile } from "./types";
 
-type BackendState = "loading" | "ok" | "error";
+type Phase =
+  | { kind: "booting" }
+  | { kind: "failed"; message: string }
+  | { kind: "setup" }
+  | { kind: "ready"; profile: Profile; levels: Levels | null };
 
-export function App() {
-  const [state, setState] = useState<BackendState>("loading");
-  const [health, setHealth] = useState<Health | null>(null);
-  const [stored, setStored] = useState<StoredValue | null>(null);
-  const [draft, setDraft] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const [saving, setSaving] = useState(false);
+type Page = "home" | "settings";
 
-  useEffect(() => {
-    Promise.all([api.health(), api.getValue()])
-      .then(([h, v]) => {
-        setHealth(h);
-        setStored(v);
-        setState("ok");
-      })
-      .catch((e: unknown) => {
-        setError(String(e));
-        setState("error");
-      });
-  }, []);
+const STATE_ATTR: Record<Phase["kind"], string> = {
+  booting: "booting",
+  failed: "error",
+  setup: "setup",
+  ready: "home",
+};
 
-  async function save() {
-    setSaving(true);
-    setError(null);
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+async function waitForBackend(): Promise<void> {
+  for (;;) {
     try {
-      setStored(await api.putValue(draft));
-      setDraft("");
+      await api.health();
+      return;
     } catch (e) {
-      setError(String(e));
-    } finally {
-      setSaving(false);
+      if (e instanceof ApiError && e.code === "backend_starting") {
+        await sleep(300);
+        continue;
+      }
+      throw e;
     }
   }
+}
+
+async function loadUser(): Promise<Phase> {
+  try {
+    const profile = await api.profile();
+    const levels = await api.levels();
+    return { kind: "ready", profile, levels };
+  } catch (e) {
+    if (e instanceof ApiError && e.code === "no_profile") return { kind: "setup" };
+    throw e;
+  }
+}
+
+export function App() {
+  const [phase, setPhase] = useState<Phase>({ kind: "booting" });
+  const [lang, setLang] = useState<Lang>("ar");
+  const [page, setPage] = useState<Page>("home");
+  const started = useRef(false);
+
+  const boot = useCallback(async () => {
+    setPhase({ kind: "booting" });
+    try {
+      await waitForBackend();
+      const next = await loadUser();
+      if (next.kind === "ready") setLang(next.profile.interface_language);
+      setPhase(next);
+    } catch (e) {
+      setPhase({ kind: "failed", message: e instanceof Error ? e.message : String(e) });
+    }
+  }, []);
+
+  useEffect(() => {
+    if (started.current) return; // StrictMode runs effects twice in development
+    started.current = true;
+    void boot();
+    return onBackendFailure((message) => setPhase({ kind: "failed", message }));
+  }, [boot]);
+
+  const retry = async () => {
+    if (window.ipBridge) await window.ipBridge.restartBackend();
+    await boot();
+  };
+
+  const reloadUser = async () => {
+    const next = await loadUser();
+    if (next.kind === "ready") setLang(next.profile.interface_language);
+    setPage("home");
+    setPhase(next);
+  };
 
   return (
-    <main className="page">
-      <header>
-        <h1>IELTS Pilot</h1>
-        <p className="muted">تجربة التغليف (Packaging spike) — نسخة تجريبية هتتشال</p>
-      </header>
-
-      <section className="card">
-        <h2>حالة الـ backend</h2>
-        <p>
-          <span className={`dot dot-${state}`} />
-          <span data-testid="backend-status" data-state={state}>
-            {state === "loading" && "بيتصل…"}
-            {state === "ok" && "شغال"}
-            {state === "error" && "مش شغال"}
-          </span>
-        </p>
-        {health && (
-          <dl>
-            <dt>الإصدار</dt>
-            <dd dir="ltr">{health.version}</dd>
-            <dt>نسخة قاعدة البيانات</dt>
-            <dd dir="ltr">{health.schema_revision}</dd>
-            <dt>مكان البيانات</dt>
-            <dd dir="ltr" className="path">{health.data_dir}</dd>
-          </dl>
-        )}
-      </section>
-
-      <section className="card">
-        <h2>اختبار الحفظ</h2>
-        <p className="muted">اكتب أي حاجة واحفظها، اقفل البرنامج وافتحه تاني — لازم تلاقيها.</p>
-        <p>
-          القيمة المحفوظة:{" "}
-          <strong data-testid="stored-value">{stored?.value ?? "— لسه مفيش —"}</strong>
-        </p>
-        <div className="row">
-          <input
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            maxLength={2000}
-            placeholder="اكتب هنا"
-            disabled={state !== "ok"}
+    <I18nProvider lang={lang}>
+      <div data-testid="app-state" data-state={STATE_ATTR[phase.kind]} className="app">
+        {phase.kind === "booting" && <BootScreen />}
+        {phase.kind === "failed" && <FailedScreen message={phase.message} onRetry={retry} />}
+        {phase.kind === "setup" && (
+          <SetupScreen
+            lang={lang}
+            onLangChange={setLang}
+            onDone={() => void reloadUser()}
           />
-          <button onClick={save} disabled={state !== "ok" || saving || draft.trim() === ""}>
-            {saving ? "بيحفظ…" : "احفظ"}
-          </button>
-        </div>
-      </section>
+        )}
+        {phase.kind === "ready" && (
+          <Shell page={page} onNavigate={setPage}>
+            {page === "home" ? (
+              <HomeScreen
+                profile={phase.profile}
+                levels={phase.levels}
+                onOpenSettings={() => setPage("settings")}
+              />
+            ) : (
+              <SettingsScreen
+                profile={phase.profile}
+                levels={phase.levels}
+                onProfileSaved={(profile) => {
+                  setLang(profile.interface_language);
+                  setPhase({ ...phase, profile });
+                }}
+                onLevelsChanged={(levels) => setPhase({ ...phase, levels })}
+                onDataReplaced={reloadUser}
+              />
+            )}
+          </Shell>
+        )}
+      </div>
+    </I18nProvider>
+  );
+}
 
-      {error && (
-        <p className="error" role="alert" dir="ltr">
-          {error}
-        </p>
-      )}
-    </main>
+function Shell(props: { page: Page; onNavigate: (p: Page) => void; children: React.ReactNode }) {
+  const { t } = useI18n();
+  return (
+    <>
+      <nav className="topbar">
+        <span className="brand">{t("app_name")}</span>
+        {(["home", "settings"] as const).map((p) => (
+          <button
+            key={p}
+            className={props.page === p ? "active" : ""}
+            aria-current={props.page === p ? "page" : undefined}
+            onClick={() => props.onNavigate(p)}
+          >
+            {t(`nav_${p}`)}
+          </button>
+        ))}
+      </nav>
+      <main>{props.children}</main>
+    </>
   );
 }

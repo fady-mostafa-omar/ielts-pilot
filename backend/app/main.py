@@ -1,36 +1,55 @@
 """FastAPI application factory."""
 
-from collections.abc import Callable
-from datetime import UTC, datetime
+import logging
 
-from fastapi import FastAPI
-from pydantic import BaseModel, Field
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
 from sqlalchemy import Engine
 from sqlalchemy.orm import sessionmaker
 
-from app import __version__
+from app import (
+    __version__,
+    backup,
+    models,  # noqa: F401  (registers tables)
+)
+from app.api import data, profile
 from app.config import Settings
+from app.context import AppContext
 from app.db import make_engine
-from app.migrate import upgrade_to_head
-from app.models import SpikeKV
+from app.migrate import current_revision, head_revision, is_known_revision, upgrade_to_head
 from app.security import LocalGuardMiddleware
 
-SPIKE_KEY = "spike"
+log = logging.getLogger("ielts_pilot")
 
 
-class ValueIn(BaseModel):
-    value: str = Field(max_length=2000)
+class StartupError(RuntimeError):
+    pass
 
 
-class ValueOut(BaseModel):
-    value: str | None
-    updated_at: datetime | None
+def _migrate(settings: Settings, engine: Engine) -> str | None:
+    """Back up an existing database before any schema change, then migrate."""
+    db_existed = settings.db_path.exists() and settings.db_path.stat().st_size > 0
+    if db_existed:
+        current, head = current_revision(engine), head_revision()
+        if current != head:
+            if not is_known_revision(current):
+                raise StartupError(
+                    f"The database (schema {current}) was created by a newer version of "
+                    "IELTS Pilot. Install the newer version, or restore an older backup."
+                )
+            path = backup.create_backup(settings, "pre-migration", current, __version__)
+            log.info("pre-migration backup %s (%s -> %s)", path.name, current, head)
+    return upgrade_to_head(engine)
 
 
 def create_app(settings: Settings, engine: Engine | None = None) -> FastAPI:
     engine = engine or make_engine(settings.db_path)
-    schema_revision = upgrade_to_head(engine)
-    session_factory = sessionmaker(engine, expire_on_commit=False)
+    try:
+        schema_revision = _migrate(settings, engine)
+    except backup.BackupError as exc:
+        raise StartupError(
+            f"Could not back up before updating the database: {exc.message}"
+        ) from exc
 
     app = FastAPI(
         title="IELTS Pilot backend",
@@ -39,44 +58,20 @@ def create_app(settings: Settings, engine: Engine | None = None) -> FastAPI:
         redoc_url=None,
         openapi_url=None,
     )
+    app.state.ctx = AppContext(
+        settings=settings,
+        engine=engine,
+        session_factory=sessionmaker(engine, expire_on_commit=False),
+        schema_revision=schema_revision,
+    )
     app.add_middleware(LocalGuardMiddleware, token=settings.token, port=settings.port)
 
-    # Replaced by the server with a callable that stops uvicorn.
-    request_shutdown: list[Callable[[], None]] = [lambda: None]
-    app.state.set_shutdown_handler = lambda fn: request_shutdown.__setitem__(0, fn)
+    @app.exception_handler(backup.BackupError)
+    async def _backup_error(_request: Request, exc: backup.BackupError) -> JSONResponse:
+        return JSONResponse(
+            {"detail": {"error": exc.code, "message": exc.message}}, status_code=exc.status
+        )
 
-    @app.get("/api/v1/health")
-    def health() -> dict:
-        return {
-            "status": "ok",
-            "version": __version__,
-            "schema_revision": schema_revision,
-            "data_dir": str(settings.data_dir),
-        }
-
-    @app.post("/api/v1/shutdown")
-    def shutdown() -> dict:
-        request_shutdown[0]()
-        return {"status": "stopping"}
-
-    @app.get("/api/v1/spike/value", response_model=ValueOut)
-    def get_value() -> ValueOut:
-        with session_factory() as session:
-            row = session.get(SpikeKV, SPIKE_KEY)
-            if row is None:
-                return ValueOut(value=None, updated_at=None)
-            return ValueOut(value=row.value, updated_at=row.updated_at)
-
-    @app.put("/api/v1/spike/value", response_model=ValueOut)
-    def put_value(body: ValueIn) -> ValueOut:
-        now = datetime.now(UTC)
-        with session_factory.begin() as session:
-            row = session.get(SpikeKV, SPIKE_KEY)
-            if row is None:
-                session.add(SpikeKV(key=SPIKE_KEY, value=body.value, updated_at=now))
-            else:
-                row.value = body.value
-                row.updated_at = now
-        return ValueOut(value=body.value, updated_at=now)
-
+    app.include_router(data.router)
+    app.include_router(profile.router)
     return app

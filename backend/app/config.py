@@ -8,6 +8,9 @@ import os
 from dataclasses import dataclass
 from pathlib import Path
 
+# Refuse disk-heavy operations (backups now, recordings later) below this free space (R-02).
+MIN_FREE_BYTES = 500 * 1024 * 1024
+
 
 @dataclass(frozen=True)
 class Settings:
@@ -38,3 +41,15 @@ class Settings:
     @property
     def log_dir(self) -> Path:
         return self.data_dir / "logs"
+
+    @property
+    def backups_dir(self) -> Path:
+        return self.data_dir / "backups"
+
+    @property
+    def recordings_dir(self) -> Path:
+        return self.data_dir / "recordings"
+
+    @property
+    def library_dir(self) -> Path:
+        return self.data_dir / "library"

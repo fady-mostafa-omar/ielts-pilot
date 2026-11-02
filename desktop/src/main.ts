@@ -1,9 +1,18 @@
-// IELTS Pilot — Electron main process (packaging spike).
+// IELTS Pilot — Electron main process.
+//
+// Startup order: window first (shows a loading state), backend second. The UI polls
+// app://ui/api/v1/health and gets 503 "backend_starting" until the backend is ready.
 
 import { app, BrowserWindow, dialog, protocol, session } from "electron";
 import { appendFileSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { startBackend, stopBackend, type BackendLaunch, type RunningBackend } from "./backend";
+import {
+  startBackend,
+  stopBackend,
+  type BackendLaunch,
+  type BackendState,
+} from "./backend";
+import { registerIpc } from "./ipc";
 import { APP_ORIGIN, makeHandler } from "./protocol";
 
 protocol.registerSchemesAsPrivileged([
@@ -14,7 +23,15 @@ const smokeArg = process.argv.find((a) => a.startsWith("--smoke-test="));
 const smokeOutFile = smokeArg ? smokeArg.slice("--smoke-test=".length) : null;
 if (smokeOutFile) app.disableHardwareAcceleration();
 
-let backend: RunningBackend | null = null;
+// Offline-first: the session spellchecker would download dictionaries from Google
+// as soon as the default session exists, so turn it off at the earliest hook.
+app.once("ready", () => {
+  session.defaultSession.setSpellCheckerEnabled(false);
+  session.defaultSession.setSpellCheckerLanguages([]);
+});
+
+let state: BackendState = { status: "starting" };
+let booting: Promise<void> | null = null;
 let shuttingDown = false;
 
 function dataDir(): string {
@@ -47,20 +64,62 @@ function backendLaunch(): BackendLaunch {
   return { command: python, args: [join(backendDir, "run_backend.py")], cwd: backendDir };
 }
 
+function boot(): Promise<void> {
+  if (booting) return booting;
+  state = { status: "starting" };
+  booting = (async () => {
+    try {
+      const backend = await startBackend(backendLaunch(), dataDir());
+      state = { status: "ready", backend };
+      log(`backend healthy on 127.0.0.1:${backend.port} after ${backend.startupMs} ms`);
+      backend.process.once("exit", (code) => {
+        log(`backend exited (code ${code})`);
+        if (!shuttingDown) {
+          state = {
+            status: "failed",
+            message: `The local service stopped unexpectedly (code ${code}).`,
+          };
+        }
+      });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      state = { status: "failed", message };
+      log(`backend start failed: ${message}`);
+    } finally {
+      booting = null;
+    }
+  })();
+  return booting;
+}
+
+async function restartBackend(): Promise<string> {
+  if (state.status === "ready") return state.status;
+  await boot();
+  return state.status;
+}
+
 function createWindow(hidden: boolean): { win: BrowserWindow; loaded: Promise<void> } {
   const win = new BrowserWindow({
     width: 1100,
-    height: 760,
-    show: !hidden,
+    height: 780,
+    minWidth: 760,
+    minHeight: 560,
+    show: false,
+    backgroundColor: "#f6f7f9",
     title: "IELTS Pilot",
     autoHideMenuBar: true,
     webPreferences: {
+      preload: join(__dirname, "preload.js"),
       contextIsolation: true,
       sandbox: true,
       nodeIntegration: false,
+      // No spellchecker: it downloads dictionaries from Google, and the real IELTS
+      // exam has no spellcheck, so practice should not have one either.
+      spellcheck: false,
       backgroundThrottling: !hidden,
     },
   });
+  if (!hidden) win.once("ready-to-show", () => win.show());
   win.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
   win.webContents.on("will-navigate", (event, url) => {
     if (!url.startsWith(`${APP_ORIGIN}/`)) event.preventDefault();
@@ -75,29 +134,39 @@ function createWindow(hidden: boolean): { win: BrowserWindow; loaded: Promise<vo
   return { win, loaded };
 }
 
-// Runs inside the page: checks the UI rendered, then exercises the full
-// renderer -> app:// proxy -> backend -> SQLite chain.
+// Runs inside the page: waits for the UI to leave its boot screen, then exercises
+// renderer -> app:// proxy -> backend -> SQLite, a backup, and the bridge.
 const SMOKE_PROBE = `(async () => {
-  const el = () => document.querySelector('[data-testid="backend-status"]');
-  for (let i = 0; i < 150 && (!el() || el().dataset.state === 'loading'); i++) {
+  const el = () => document.querySelector('[data-testid="app-state"]');
+  for (let i = 0; i < 300 && (!el() || el().dataset.state === 'booting'); i++) {
     await new Promise((r) => setTimeout(r, 100));
   }
   const uiState = el() ? el().dataset.state : 'missing';
-  const before = await (await fetch('api/v1/spike/value')).json();
+  const before = await fetch('api/v1/profile');
+  const previousValue = before.ok ? (await before.json()).display_name : null;
   const written = 'smoke-' + new Date().toISOString();
-  const put = await fetch('api/v1/spike/value', {
+  const put = await fetch('api/v1/profile', {
     method: 'PUT', headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ value: written }),
+    body: JSON.stringify({
+      display_name: written, interface_language: 'ar', explanation_language: 'balanced',
+      target_overall: 7.5, minimum_per_skill: 6.5,
+      study_days_per_week: 5, study_minutes_per_day: 60,
+    }),
   });
-  const after = await (await fetch('api/v1/spike/value')).json();
+  const after = await (await fetch('api/v1/profile')).json();
+  const backup = await fetch('api/v1/backups', { method: 'POST' });
+  const backupName = backup.ok ? (await backup.json()).name : null;
+  const listed = await (await fetch('api/v1/backups')).json();
   const shutdown = await fetch('api/v1/shutdown', { method: 'POST' });
   return {
     uiState,
-    previousValue: before.value,
+    previousValue,
     writtenValue: written,
     putStatus: put.status,
-    roundTrip: after.value === written,
+    roundTrip: after.display_name === written,
+    backupCreated: !!backupName && listed.some((b) => b.name === backupName && b.valid),
     shutdownBlockedFromRenderer: shutdown.status === 403,
+    bridgePresent: typeof window.ipBridge === 'object',
   };
 })()`;
 
@@ -105,19 +174,22 @@ async function runSmoke(outFile: string): Promise<number> {
   const result: Record<string, unknown> = { ok: false, platform: process.platform };
   try {
     result.dataDir = dataDir();
-    result.backendStartupMs = backend?.startupMs;
     const { win, loaded } = createWindow(true);
-    await loaded;
+    await Promise.all([loaded, boot()]);
+    if (state.status !== "ready") throw new Error(`backend ${state.status}`);
+    result.backendStartupMs = state.backend.startupMs;
     const probe = (await win.webContents.executeJavaScript(SMOKE_PROBE, true)) as Record<
       string,
       unknown
     >;
     Object.assign(result, probe);
     result.ok =
-      probe.uiState === "ok" &&
+      (probe.uiState === "setup" || probe.uiState === "home") &&
       probe.putStatus === 200 &&
       probe.roundTrip === true &&
-      probe.shutdownBlockedFromRenderer === true;
+      probe.backupCreated === true &&
+      probe.shutdownBlockedFromRenderer === true &&
+      probe.bridgePresent === true;
   } catch (err) {
     result.error = err instanceof Error ? err.message : String(err);
   }
@@ -127,47 +199,21 @@ async function runSmoke(outFile: string): Promise<number> {
 }
 
 async function shutdown(): Promise<void> {
-  if (backend) {
-    await stopBackend(backend);
-    backend = null;
-  }
+  if (booting) await booting;
+  if (state.status === "ready") await stopBackend(state.backend);
 }
 
 async function main(): Promise<void> {
   session.defaultSession.setPermissionRequestHandler((_wc, _permission, callback) =>
     callback(false),
   );
-  protocol.handle("app", makeHandler(uiDir(), () => backend));
-
+  protocol.handle("app", makeHandler(uiDir(), () => state));
+  registerIpc({
+    dataDir,
+    restartBackend,
+    documentsDir: () => app.getPath("documents"),
+  });
   log(`starting ${app.getName()} ${app.getVersion()} packaged=${app.isPackaged}`);
-  try {
-    backend = await startBackend(backendLaunch(), dataDir());
-    log(`backend healthy on 127.0.0.1:${backend.port} after ${backend.startupMs} ms`);
-    backend.process.once("exit", (code) => {
-      log(`backend exited (code ${code})`);
-      if (!shuttingDown) {
-        dialog.showErrorBox(
-          "IELTS Pilot",
-          `The local service stopped unexpectedly.\nLogs: ${join(dataDir(), "logs")}`,
-        );
-        app.quit();
-      }
-    });
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    log(`backend start failed: ${message}`);
-    if (smokeOutFile) {
-      writeFileSync(smokeOutFile, JSON.stringify({ ok: false, error: message }, null, 2));
-      app.exit(1);
-      return;
-    }
-    dialog.showErrorBox(
-      "IELTS Pilot",
-      `Could not start the local service.\n${message}\nLogs: ${join(dataDir(), "logs")}`,
-    );
-    app.exit(1);
-    return;
-  }
 
   if (smokeOutFile) {
     const code = await runSmoke(smokeOutFile);
@@ -178,6 +224,7 @@ async function main(): Promise<void> {
   }
 
   createWindow(false);
+  void boot();
 }
 
 // A second launch focuses the existing window (skipped for smoke tests).
@@ -193,10 +240,14 @@ if (!smokeOutFile && !app.requestSingleInstanceLock()) {
   });
   app.on("window-all-closed", () => app.quit());
   app.on("before-quit", (event) => {
-    if (shuttingDown || !backend) return;
+    if (shuttingDown) return;
     event.preventDefault();
     shuttingDown = true;
     void shutdown().finally(() => app.quit());
   });
-  void app.whenReady().then(main);
+  void app.whenReady().then(main).catch((err: unknown) => {
+    log(`fatal: ${String(err)}`);
+    dialog.showErrorBox("IELTS Pilot", String(err));
+    app.exit(1);
+  });
 }

@@ -16,7 +16,7 @@ File: `%APPDATA%\IELTS Pilot\data\ielts_pilot.db`
 ## 2. Conventions
 
 - Primary keys: `INTEGER` autoincrement (single local user, no sync).
-- Timestamps stored in UTC; converted to local time for display.
+- Timestamps: `UTCDateTime` column type — stored as naive UTC in SQLite, always returned timezone-aware; naive datetimes are rejected on write. Converted to local time for display.
 - JSON columns stored as `TEXT`, validated by Pydantic on the way in and out.
 - Enum-like columns stored as `TEXT` with `CHECK` constraints.
 - `skill` values: `listening`, `reading`, `writing`, `speaking` (plus `grammar`, `vocabulary`, `general` where noted).
@@ -48,7 +48,7 @@ File: `%APPDATA%\IELTS Pilot\data\ielts_pilot.db`
 | band | REAL | |
 | source_type | TEXT | `official_practice` \| `external_marker` \| `self_estimate` |
 | source_note | TEXT | e.g. test title |
-| practice_result_id | INTEGER FK NULL → practice_results | when derived from F10 |
+| practice_result_id | INTEGER FK NULL → practice_results | **added in Sprint 4** with `practice_results` |
 | recorded_at | DATETIME | |
 
 Latest row per skill = current level used by the planner. Index `(skill, recorded_at)`.
@@ -228,8 +228,14 @@ Index `(next_review_at)`.
 
 ## 5. Migrations and versioning
 
+| Revision | Sprint | Change |
+|---|---|---|
+| 0001 | 0 | `spike_kv` (packaging spike) |
+| 0002 | 1a | drop `spike_kv`; add `learner_profile`, `skill_levels`, `app_settings` |
+
+
 - One Alembic revision per schema change; `alembic_version` holds the schema version.
-- The backend runs pending migrations at startup, immediately after an automatic backup.
+- The backend runs pending migrations at startup, immediately after an automatic `pre-migration` backup. A database whose revision this app does not know (made by a newer version) is never touched: the backend refuses to start.
 - Downgrades are not supported in packaged builds; recovery is by restoring the pre-migration backup.
 
 ## 6. Backup format
@@ -239,4 +245,11 @@ Index `(next_review_at)`.
 - `data/ielts_pilot.db` — made with SQLite's online backup API, consistent while the app runs.
 - `recordings/…`, `library/…`.
 
-Restore refuses a backup with a newer schema than the app, migrates an older one, and always backs up current data first.
+- Name: `ielts-pilot-<UTC yyyymmdd-hhmmss>-<kind>.zip`; kinds `manual`, `pre-migration`, `pre-restore`, `pre-delete`; files copied in via the bridge are named `ielts-pilot-imported-<time>.zip`.
+- Written to a `.partial` file first, then renamed, so a crash never leaves a half backup that looks complete.
+- Refused below 500 MB free disk (R-02).
+- Retention: the newest 10 automatic backups are kept; manual and imported backups are never deleted automatically.
+
+**Restore** verifies every checksum and refuses unsafe paths (zip-slip) and backups with an unknown (newer) schema; makes a `pre-restore` backup; copies the database **into** the live file with SQLite's backup API (no file replacement, which Windows may block while the file is open); replaces `recordings\` and `library\`; then migrates to head if the backup is older.
+
+**Delete all data** requires the literal confirmation `DELETE` (the UI asks the owner to type «امسح» / “DELETE”), makes a `pre-delete` backup, clears every table and the `recordings\` and `library\` folders. Backups are kept.
