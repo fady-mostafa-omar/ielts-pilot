@@ -83,7 +83,8 @@ Status: **draft for approval** · 2026-11-02
 - [x] "My plan" page: hours done / left, road to the exam, today's tasks, coming days, gap per skill
 - [x] Focus mode with "Continue learning", full screen, breaks, skip with reason, writing pad, celebrations (additions 5–6)
 - [x] Dalilk routine PDFs read (2026-11-03): trackers without a minute split; the 30-day plan's order (input → technique → practice, one skill per week) is used for the exam part
-- [ ] Windows CI build and first published release; owner acceptance
+- [x] Windows CI build green; v0.0.4 published to ielts-pilot-releases (2026-11-03)
+- [ ] Owner acceptance; first in-app update (to v0.0.5) tested on the laptop
 
 **Exit:** the owner studies daily from Today, and new versions arrive through the Update tab.
 
