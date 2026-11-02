@@ -61,23 +61,44 @@ Status: **draft for approval** · 2026-11-02
 - [x] Settings → Accounts: consent to keep sign-ins, sites list, sign out of all sites
 - [x] Backend stops when the app is gone (D-021); app icon
 - [x] O-2 closed (official practice links in the catalogue); O-3 partly (format facts from ielts.org)
-- [ ] Windows CI build green; owner acceptance on the baseline laptop
+- [x] Windows CI build green (2026-11-02); owner reports v0.0.3 working on the baseline laptop (2026-11-03)
 
 **Exit (Sprint 1):** the owner can open any resource inside the app and every use is logged.
 
-## Sprint 2 — Today and plan · *the owner starts studying here*
+## Owner additions (2026-11-03, approved)
 
-F3 planner, F2 Today queue, carry-over rules, plan rationale. Decide O-1 (Dalilk 30-day plan).
+1. Hours to goal: per-skill gap × hours per band (default 200, editable, labelled as an estimate) → total hours; divided over the study days left before the exam; the app learns the owner's own hours-per-band from official practice results (D-023).
+2. Exam countdown: target reached 4 days before the exam; 3 days of full practice tests; last day techniques review only; a full practice test every two weeks before that (D-024).
+3. If the hours needed exceed the time available, the app says so and offers: move the exam date, lower the target, or add hours. It never builds an impossible plan.
+4. Bigger gap → more hours → more podcast episodes and stories; skills weighted by their own gap (CURRICULUM §4 step 3).
+5. Focus mode: a task fills the window (optional full screen), one task, timer, Next; a large "Continue learning" button resumes exactly where the owner stopped; breaks after ~50 min (5–10 min countdown, not counted as study, adjustable) (D-025).
+6. Brighter, more graphic UI with small celebrations when a goal is met — professional, not childish.
+7. Writing/speaking tutor through ChatGPT (or Claude / Gemini): the app builds a prompt with level, target, task, flashcard words and recurring mistakes, copies it, opens the site in the panel; task timers (Task 1 20 min, Task 2 40 min); Next continues the plan. No typing into the site on the owner's behalf; AI marks are shown as "AI opinion" and never move the level (D-026).
+8. Update tab: installers published to a separate public releases repository (code stays private); automatic update to the latest version or a chosen one; going back to an older version restores the backup taken before the newer one changed the database (D-027).
 
-**Exit:** the owner studies daily from Today.
+## Sprint 2a — Updates, plan and focus · v0.0.4
+- Public releases repo + release workflow on tags; Settings → Update (latest or a chosen version)
+- New setup order: name → Dalilk test → target → hours estimate → exam date → plan (additions 1–4)
+- Planner-2: daily split per D-019 scaled by the hours estimate; final 4 days; bi-weekly mocks; unrealistic-plan warning; rationale shown
+- Today in focus mode with "Continue learning", breaks, celebrations (additions 5–6)
+- Needs from the owner: Dalilk routine PDFs (foundation, fluency, 30-day IELTS plan) to check the split; create the public releases repo
 
-## Sprint 3 — Output labs
+**Exit:** the owner studies daily from Today, and new versions arrive through the Update tab.
 
-F6 Writing lab, F7 Speaking lab.
+## Sprint 2b — Active listening, reading, vocabulary · v0.0.5
+- Listening in 4 steps on the Dalilk IELTS podcast: listen only → listen + transcript (PDF beside the player) → shadowing → listen again and rate comprehension
+- Reading: Dalilk graded stories by level
+- Capture new words while listening/reading → flashcards (SM-2) → reviews in Today
 
-## Sprint 4 — Memory and progress → v0.1 complete
+## Sprint 3 — Output labs with the AI tutor · v0.0.6
+- Writing Task 1 / Task 2 and Speaking Parts 1–3 with timers (addition 7)
+- Shadowing with recording; sentence building from flashcard words (write / say); phrase bank by IELTS topic
+- Mistakes notebook fed by the owner from the tutor's feedback
 
-F8 mistakes notebook, F9 vocabulary, reviews in Today, F10 practice results, F11 progress.
+## Sprint 4 — Exam preparation and progress → v0.1
+- Technique videos per question type (Hegazy playlist) placed in the plan; practice tests (official, engnovate) with result entry → levels and the overall chart
+- Progress page and weekly report; vocabulary and mistakes reviews
+- Optional: AI method B (official API keys, provider switch, key stored encrypted)
 
 **Exit = v0.1:** every PRD acceptance criterion passes on the baseline laptop.
 
