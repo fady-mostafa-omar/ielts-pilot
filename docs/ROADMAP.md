@@ -138,7 +138,7 @@ The owner's screenshot showed Daily English Listening (DLK-11) opening the old p
 ## v0.0.8 — Words, phrases and stories
 - Dalilk's 350 words first (coloured cards, Arabic and English), then words captured from the podcasts and stories → flashcards (SM-2) → reviews in Today
 - Dalilk's 150 phrases one by one in the pauses between tasks
-- Reading: Dalilk graded stories by level
+- Reading: Dalilk graded stories by level, opened like the podcast player (owner, 2026-11-03): the next story at the owner's level opens directly, text with its audio if the story has one, remembers where he stopped, "finished" moves to the next; how far this is possible depends on the stories site (checked in 0.0.7)
 
 ## Sprint 3 — Output labs with the AI tutor · v0.0.9
 - Writing Task 1 / Task 2 and Speaking Parts 1–3 with timers (addition 7)
