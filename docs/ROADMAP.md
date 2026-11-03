@@ -136,7 +136,7 @@ The owner's screenshot showed Daily English Listening (DLK-11) opening the old p
 - [x] Updates in one press (D-034)
 - [x] "How long did you study?" when Next closes a task the timer under-counted; the difference counts as hand-logged time (D-033)
 - [x] Achievement counters on Home: episodes per podcast, tasks finished, hours (h:mm, hand-logged shown), study days
-- [ ] Windows CI build green; v0.0.7 published
+- [x] Windows CI build green (154 tests, installer smoke); v0.0.7 published to ielts-pilot-releases (2026-11-03)
 - [ ] Owner updates with the one-press button
 
 ## Content map (between 0.0.7 and 0.0.8)
