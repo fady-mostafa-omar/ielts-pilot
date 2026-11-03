@@ -97,7 +97,7 @@ The owner asked for the podcast player first, as soon as possible. Versions from
 - [x] Player: play/pause, back / forward 5 s (also ← / → / Space), seek, speed 0.75–1.25×; break pauses the audio
 - [x] Transcript PDF (Google Drive) beside the player; 4 steps: listen only → listen + read → shadowing → listen and rate
 - [x] Opens from the Library and from the plan's podcast task (DLK-20)
-- [ ] Windows CI build green; v0.0.5 published
+- [x] Windows CI build green (141 tests, installer smoke incl. podcast); v0.0.5 published to ielts-pilot-releases (2026-11-03)
 - [ ] Owner installs v0.0.5 through the Update tab (first real in-app update) and confirms audio + transcript play on the laptop
 
 ## Sprint 2b-2 — Stories and vocabulary · v0.0.6
