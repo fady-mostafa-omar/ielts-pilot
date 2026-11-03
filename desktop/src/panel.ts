@@ -28,7 +28,30 @@ export const KEEP_PARTITION = "persist:web";
 export const TEMP_PARTITION = "web-temp";
 export const LIBRARY_NAME = /^[A-Za-z0-9][A-Za-z0-9._ ()-]{0,200}$/;
 
-export type PanelTarget = { url: string } | { library: string };
+export type PanelTarget = { url: string } | { library: string } | { video: string };
+
+// v0.0.8: one YouTube video, alone (D-036): the embed player only, navigation locked,
+// YouTube's own suggestion overlays hidden, and its playing state reported to the UI.
+const VIDEO_ID = /^[A-Za-z0-9_-]{11}$/;
+const EMBED = "https://www.youtube-nocookie.com/embed/";
+const EMBED_QUERY = "?autoplay=1&rel=0&modestbranding=1&playsinline=1&iv_load_policy=3&fs=0";
+const HIDE_OVERLAYS = `
+  .ytp-pause-overlay, .ytp-endscreen-content, .ytp-ce-element, .ytp-chrome-top,
+  .ytp-youtube-button, .ytp-watermark, .ytp-show-cards-title, .ytp-cards-teaser,
+  .ytp-suggested-action, .ytp-impression-link, .ytp-videowall-still,
+  .ytp-endscreen-previous, .ytp-endscreen-next, .ytp-related-on-error-overlay
+  { display: none !important; }`;
+const MEDIA_PROBE = `(() => { const v = document.querySelector('video');
+  return v ? { current: v.currentTime || 0, duration: v.duration || 0, ended: v.ended,
+  paused: v.paused } : null; })()`;
+
+export interface MediaState {
+  video: string;
+  current: number;
+  duration: number;
+  ended: boolean;
+  paused: boolean;
+}
 
 export interface PanelState {
   open: boolean;
@@ -91,6 +114,13 @@ export function webSession(partition: string): Session {
     }
     callback(permission === "fullscreen" || permission === "clipboard-sanitized-write");
   });
+  // The embedded player refuses to play without a referrer (YouTube "error 153");
+  // the panel's own pages have no web origin, so the player's own site is named.
+  ses.webRequest.onBeforeSendHeaders({ urls: [`${EMBED}*`] }, (details, callback) => {
+    const headers = { ...details.requestHeaders };
+    if (!headers.Referer && !headers.referer) headers.Referer = "https://www.youtube-nocookie.com/";
+    callback({ requestHeaders: headers });
+  });
   ses.setPermissionCheckHandler((_wc, permission, requestingOrigin) => {
     if (permission === "media") return isDalilk(requestingOrigin);
     return permission === "fullscreen" || permission === "clipboard-sanitized-write";
@@ -104,6 +134,8 @@ export class StudyPanel {
   private bounds: Bounds = { x: 0, y: 0, width: 0, height: 0 };
   private visible = true;
   private lastError: string | null = null;
+  private videoId: string | null = null;
+  private mediaTimer: NodeJS.Timeout | null = null;
 
   constructor(
     private readonly win: BrowserWindow,
@@ -156,6 +188,7 @@ export class StudyPanel {
   }
 
   private allowedNavigation(url: string): boolean {
+    if (this.videoId) return url.startsWith(EMBED + this.videoId);
     if (isWebUrl(url)) return true;
     // A library file may only show itself (PDF viewer anchors, etc.).
     const current = this.view?.webContents.getURL() ?? "";
@@ -171,7 +204,7 @@ export class StudyPanel {
       if (!isWebUrl(url)) event.preventDefault();
     });
     wc.setWindowOpenHandler(({ url, disposition }) => {
-      if (!isWebUrl(url)) return { action: "deny" };
+      if (!isWebUrl(url) || this.videoId) return { action: "deny" };
       if (disposition === "new-window") {
         // Sign-in pop-ups ("Continue with Google") need a real window with an opener.
         return {
@@ -233,6 +266,11 @@ export class StudyPanel {
       update();
     });
     wc.on("did-stop-loading", update);
+    wc.on("dom-ready", () => {
+      if (this.videoId && wc.getURL().startsWith(EMBED)) {
+        void wc.insertCSS(HIDE_OVERLAYS).catch(() => undefined);
+      }
+    });
     wc.on("did-navigate", update);
     wc.on("did-navigate-in-page", update);
     wc.on("page-title-updated", update);
@@ -254,12 +292,42 @@ export class StudyPanel {
     return view;
   }
 
+  private stopMedia(): void {
+    if (this.mediaTimer) clearInterval(this.mediaTimer);
+    this.mediaTimer = null;
+    this.videoId = null;
+  }
+
+  private watchMedia(): void {
+    if (this.mediaTimer) clearInterval(this.mediaTimer);
+    this.mediaTimer = setInterval(() => {
+      const wc = this.view?.webContents;
+      const video = this.videoId;
+      if (!wc || wc.isDestroyed() || !video) return;
+      wc.executeJavaScript(MEDIA_PROBE, true)
+        .then((state: Omit<MediaState, "video"> | null) => {
+          if (state && !this.win.isDestroyed() && this.videoId === video) {
+            this.win.webContents.send("ip:panel-media", { video, ...state });
+          }
+        })
+        .catch(() => undefined);
+    }, 2000);
+  }
+
   async open(target: PanelTarget, keepSignIn: boolean): Promise<PanelState> {
     let url: string | null;
-    if ("library" in target) url = this.libraryUrl(target.library);
+    this.stopMedia();
+    if ("video" in target) {
+      if (!VIDEO_ID.test(target.video)) throw new Error("this video cannot be opened");
+      url = EMBED + target.video + EMBED_QUERY;
+    } else if ("library" in target) url = this.libraryUrl(target.library);
     else url = isWebUrl(target.url) ? target.url : null;
     if (!url) throw new Error("this address cannot be opened");
     const view = this.ensureView(keepSignIn ? KEEP_PARTITION : TEMP_PARTITION);
+    if ("video" in target) {
+      this.videoId = target.video;
+      this.watchMedia();
+    }
     this.lastError = null;
     view.webContents.loadURL(url).catch(() => {
       // reported through did-fail-load
@@ -301,6 +369,7 @@ export class StudyPanel {
   }
 
   close(): void {
+    this.stopMedia();
     const view = this.view;
     this.view = null;
     this.partition = null;

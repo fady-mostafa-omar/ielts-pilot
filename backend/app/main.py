@@ -12,7 +12,17 @@ from app import (
     backup,
     models,  # noqa: F401  (registers tables)
 )
-from app.api import data, placements, plan, podcast, profile, resources, sessions, stats
+from app.api import (
+    content,
+    data,
+    placements,
+    plan,
+    podcast,
+    profile,
+    resources,
+    sessions,
+    stats,
+)
 from app.config import Settings
 from app.context import AppContext
 from app.db import make_engine
@@ -96,6 +106,6 @@ def create_app(settings: Settings, engine: Engine | None = None) -> FastAPI:
             {"detail": {"error": exc.code, "message": exc.message}}, status_code=exc.status
         )
 
-    for module in (data, profile, placements, plan, podcast, resources, sessions, stats):
+    for module in (content, data, profile, placements, plan, podcast, resources, sessions, stats):
         app.include_router(module.router)
     return app

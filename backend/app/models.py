@@ -230,6 +230,40 @@ class PlanTask(Base):
     started_at: Mapped[datetime | None] = mapped_column(UTCDateTime)
     completed_at: Mapped[datetime | None] = mapped_column(UTCDateTime)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime)
+    # planner-4 (0007): which content the task opens, e.g. {"kind": "videos", ...}
+    content_json: Mapped[str | None] = mapped_column(Text)
+
+
+CONTENT_KINDS = ("video", "novel", "test")
+
+
+class ContentItem(Base):
+    """A video, novel or practice test from the shipped catalogue (facts only, D-036),
+    with the owner's progress. Catalogue fields are refreshed at start; progress is kept."""
+
+    __tablename__ = "content_items"
+    __table_args__ = (
+        UniqueConstraint("kind", "key", name="uq_content_kind_key"),
+        CheckConstraint("kind IN ('video', 'novel', 'test')", name="kind"),
+        Index("ix_content_kind_sort", "kind", "sort"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    kind: Mapped[str] = mapped_column(String(10))
+    key: Mapped[str] = mapped_column(String(200))
+    title: Mapped[str] = mapped_column(String(300))
+    grp: Mapped[str] = mapped_column(String(20), default="")
+    skill: Mapped[str] = mapped_column(String(12), default="")
+    level: Mapped[str] = mapped_column(String(12), default="")
+    provider: Mapped[str] = mapped_column(String(30), default="")
+    sort: Mapped[int] = mapped_column(Integer)
+    duration_seconds: Mapped[int | None] = mapped_column(Integer)
+    url: Mapped[str] = mapped_column(String(1000))
+    active: Mapped[bool] = mapped_column(Boolean, default=True)
+    started_at: Mapped[datetime | None] = mapped_column(UTCDateTime)
+    completed_at: Mapped[datetime | None] = mapped_column(UTCDateTime)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime)
+    updated_at: Mapped[datetime] = mapped_column(UTCDateTime)
 
 
 PODCAST_FEEDS = ("dalilk_ielts", "dalilk_english")

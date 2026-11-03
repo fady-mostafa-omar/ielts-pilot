@@ -197,6 +197,8 @@ class SettingsIO(BaseModel):
     plan_start: date | None = None
     # One-minute pause between tasks (0 = off).
     interlude_seconds: int | None = Field(default=None, ge=0, le=180)
+    # D-037: the exam's format picks the computer or paper videos and final tests.
+    exam_format: Literal["computer", "paper"] | None = None
 
     @field_validator("study_weekdays")
     @classmethod
@@ -421,6 +423,7 @@ class PlanTaskOut(BaseModel):
     started_at: datetime | None
     completed_at: datetime | None
     done_minutes: float = 0.0
+    content: dict | None = None
 
 
 class SkipIn(BaseModel):

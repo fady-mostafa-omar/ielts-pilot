@@ -67,6 +67,42 @@ Sessions count toward a part by their skill: listening → listening; reading �
 
 Writing and speaking blocks in Track A (W-REV, S-FLU) count toward that skill. Grammar and vocabulary are support skills funded from Track A (§4 step 4).
 
+## 4b. Planner-4 — Dalilk's 90-day method (v0.0.8, D-035, implemented in `backend/app/planner.py`)
+
+Supersedes the daily mix of §4a; the estimate (D-023), the final days (D-024 without the two-weekly mock) and the spelling days stay.
+
+**Day = focus block + development hour.** Development minutes *v* = min(60, half the daily time, rounded to 5). Writing and speaking get 5 min each when *v* ≥ 40; listening = 60 % of the rest (rounded to 5), reading the remainder → 30 / 20 / 5 / 5 for a 3-hour day. Focus minutes = daily − *v*. Tasks run focus first, development hour last (Dalilk advises keeping the development hour at its own time of day).
+
+**Weeks** are calendar weeks from Saturday, counted from the plan start. Study weeks *W* = weeks up to the last study day (exam − 5); with no exam date, *W* = 12 and weeks after 12 repeat the consolidation round.
+
+| *W* | Sequence |
+|---|---|
+| ≥ 8 | development weeks (*W* − 8) → exam round (listening, reading, writing, speaking) → consolidation round (same four) |
+| 4–7 | development weeks (*W* − 4) → exam round; no consolidation round (said on My plan) |
+| < 4 | exam round squeezed: the study days left are split into four equal runs (listening, reading, writing, speaking); no development weeks (said on My plan) |
+
+Development weeks run listening first, then reading, in blocks of two weeks (one week each when only one or two are left, listening first).
+
+**Focus block by week** (*k* = study day of the week, from 0; *n* = study days that week):
+- Development listening: the podcast (Dalilk IELTS podcast, or Daily English Listening below band 5.0). Day 0 starts with "how to listen to podcasts".
+- Development reading: Dalilk novels at the learner's level (below 5.0 beginner; 5.0–6.0 intermediate; 6.5+ upper-intermediate; the next level when a level is finished). Day 0 starts with "how to read".
+- Exam listening / reading: days 0–1 technique videos for that skill (required set + the exam-format set + the low-level set below 5.5 + the high-target set when the target is 7+); later days practice tests of that skill (listening 40 min, reading 75 min each, review included), the rest of the time practice videos.
+- Exam writing: the first ⌈3*n*/7⌉ days Task 1, the rest Task 2; the first day of each starts with its technique videos; Task 1 practice = 20 min writing + 10 min review, Task 2 = 40 + 10; the last study day of the week is a writing test.
+- Exam speaking: day 0 technique videos; later days the expected questions (DLK-19) and speaking practice videos.
+- Consolidation round: the same; videos already watched are not shown again, so technique days move on to the high-target and practice videos; practice tests start with Cambridge IELTS 21 → 19 (engnovate), then ieltsonlinetests.
+
+**Daily caps** (so a long day does not become a wall of tests): technique videos ≤ 3 h, practice tests ≤ 4, practice videos ≤ 2 h, writing answers ≤ 4, speaking practice ≤ 1 h; the rest of the focus time goes to podcast (60 %) and novels (40 %). Videos are taken in catalogue order, skipping any that does not fit the time left (it comes on a day with more time). The development hour's podcast and novel time joins the focus block's when both are the same content.
+
+**Development hour:** listening = podcast; reading = novel; writing = 5 sentences on the writing pad; speaking = speaking aloud, or in development weeks the next video of Dalilk's daily-phrases series (its real length, taken from the focus block). The spelling challenge (15 min) takes listening time on two fixed days in development weeks.
+
+**Final days** (D-024): exam − 4, − 3, − 2 full practice tests — Dalilk's computer-based mock exams A → J in order (for both formats; the British Council familiarisation test on the first final day for the computer format); exam − 1 technique review (watched technique videos may be shown again).
+
+**Content, each item once.** Tasks name a kind of content, not a fixed item; opening a task gives the next unfinished item of that kind (videos by group and skill in catalogue order, tests by provider order, novels by level, podcast episodes as in §4a). Catalogue: `content/catalog/videos.csv` (102 videos, ~61 h), `novels.csv` (98 working links; two broken links on Dalilk's site left out), `practice_tests.csv`.
+
+**Plan header totals** (all study days to the exam, or 12 weeks): videos = the scheduled videos' real durations; tests and writing tasks = counted from the tasks; podcast episodes = podcast minutes ÷ (4 × average episode length — listen, listen and read, shadow, listen again; the average comes from the feed, 11.5 min until it is read); novels = reading minutes ÷ 60 min per novel until the owner's own reading time is measured. Estimates are labelled as such.
+
+**Exam format** (`app_settings.exam_format`: `computer` | `paper`, asked in setup): picks the computer-delivered or paper videos.
+
 ## 4a. Planner-2 (Sprint 2a, implemented in `backend/app/planner.py`)
 
 Replaces planner-1 below for v0.1. Every rule is a pure function with unit tests (`backend/tests/test_planner.py`).

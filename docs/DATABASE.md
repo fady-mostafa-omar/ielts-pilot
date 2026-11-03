@@ -203,6 +203,26 @@ Index `(plan_date, status)`. Planner settings live in `app_settings`: `hours_per
 
 Index `(feed, number)`. Re-importing the feed updates titles and links by `guid` and never touches the owner's progress. `app_settings.podcast_refreshed_<feed>` holds the last import time; the app re-reads the feed when it is older than 12 h.
 
+### content_items (0007)
+| Column | Type | Notes |
+|---|---|---|
+| id | INTEGER PK | |
+| kind | TEXT | `video`, `novel`, `test` (CHECK); unique with `key` |
+| key | TEXT | YouTube id, Publuu book id, or `provider:slug` for tests |
+| title | TEXT | |
+| grp | TEXT | videos: `dev`, `core`, `computer`, `paper`, `low`, `high`, `practice`, `phrases`, `optional`, `skip` |
+| skill | TEXT | videos `L`/`R`/`W1`/`W2`/`S`; tests `listening`…`speaking` or `full`; novels `reading` |
+| level | TEXT | novels: `beginner`, `intermediate`, `upper` |
+| provider | TEXT | `youtube`, `dalilk`, `ieltsonlinetests`, `engnovate`, `britishcouncil` |
+| sort | INTEGER | catalogue order |
+| duration_seconds | INTEGER NULL | videos: real length; tests: planned time |
+| url | TEXT | https only |
+| active | BOOLEAN | false when an item left the catalogue (progress kept) |
+| started_at, completed_at | DATETIME NULL | the owner's progress; never touched by a sync |
+| created_at, updated_at | DATETIME | |
+
+Index `(kind, sort)`. Synced at start from `content/catalog/items/*.csv` (facts only, D-036). `plan_tasks.content_json` holds what a task opens (CURRICULUM §4b), e.g. `{"kind": "videos", "groups": [...], "skills": ["L"], "minutes": 120}`; `app_settings.exam_format` = `computer` | `paper` (D-037).
+
 ### writing_prompts
 `id`, `task_type` (`task1` \| `task2`), `prompt_text`, `source_note`, `created_at`.
 
@@ -306,6 +326,7 @@ Index `(next_review_at)`.
 | 0004 | 2a | add `plan_tasks`; `study_sessions.plan_task_id` (FK, `ON DELETE SET NULL`) |
 | 0005 | 2b-1 | add `podcast_episodes` |
 | 0006 | 0.0.6 | `podcast_episodes.feed` also allows `dalilk_english` (table rebuilt, rows and ids kept; downgrade drops English rows) |
+| 0007 | 0.0.8 | add `content_items`; `plan_tasks.content_json` |
 
 
 - One Alembic revision per schema change; `alembic_version` holds the schema version.

@@ -733,6 +733,9 @@ function AchievementStrip(props: { a: Achievements }) {
       value: String(a.episodes.dalilk_english),
       label: t("ach_ep_english"),
     },
+    { icon: "play", color: "#7C3AED", value: String(a.videos), label: t("ach_videos") },
+    { icon: "book", color: "#0F766E", value: String(a.novels), label: t("ach_novels") },
+    { icon: "target", color: "#B45309", value: String(a.tests), label: t("ach_tests") },
     { icon: "check", color: "#15803D", value: String(a.tasks_done), label: t("ach_tasks") },
     {
       icon: "clock",
@@ -765,7 +768,6 @@ function AchievementStrip(props: { a: Achievements }) {
           </div>
         ))}
       </div>
-      <p className="muted small">{t("ach_more_soon")}</p>
     </section>
   );
 }

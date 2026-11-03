@@ -64,6 +64,7 @@ function safeFileName(original: string): string {
 function parseTarget(value: unknown): PanelTarget {
   if (typeof value === "object" && value !== null) {
     const v = value as Record<string, unknown>;
+    if (typeof v.video === "string") return { video: v.video };
     if (typeof v.url === "string") return { url: v.url };
     if (typeof v.library === "string") return { library: v.library };
   }

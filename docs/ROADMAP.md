@@ -146,16 +146,18 @@ The owner's screenshot showed Daily English Listening (DLK-11) opening the old p
 - Result to the owner as a .md file for approval before any code — sent 2026-11-03: `docs/research/content_map_videos.md` (102 videos, ~61 h) and `docs/research/content_map_part2.md` (tests, novels, words, phrases, podcasts); waiting for the owner's answers
 
 ## v0.0.8 — The plan on Dalilk's method (D-035) and the content
-- Planner-4: fixed development hour + weekly focus (listening → reading → listening/reading/writing/speaking exam weeks, twice), adapted to the time left and the level; honest about what is cut when there are fewer than 12 weeks
-- Plan header: the hours as content (episodes, stories, videos, writing tasks, mock tests), each item once, with links
-- Videos one after another, alone and full screen — technique playlists by level, and the "daily phrases" series (DLK-06) as part of the plan
-- Direct links to each free practice test; IELTS exam simulation in the final days
-- Counters: stories read and videos watched
+- [x] Content map approved by the owner (2026-11-03): videos classified, tests order, broken novels out; exam format asked at the start (D-036, D-037)
+- [x] Catalogue shipped as facts only: 102 videos, 98 novels, 926 practice tests (`content/catalog/items/`), `content_items` with progress (migration 0007)
+- [x] Planner-4 (CURRICULUM §4b): development hour + weekly focus, 12-week sequence adapted to the weeks left, cuts explained, daily caps, no two-weekly mock
+- [x] Each task opens its own content: videos one after another (alone, full screen, YouTube overlays hidden, next on end), the next novel at the level, the next practice tests by direct link; each item once
+- [x] My plan: Dalilk weeks strip, "what these hours hold" (episodes, novels, videos, tests, writing tasks, full tests), exam-format prompt; Home counters for videos, novels, tests
+- [ ] Windows CI build green; v0.0.8 published
+- [ ] Owner checks on the laptop: YouTube videos play in the app (could not be tested here), novels open, tests open
 
 ## v0.0.9 — Words, phrases and stories
 - Dalilk's 350 words first (coloured cards, Arabic and English), then words captured from the podcasts and stories → flashcards (SM-2) → reviews in Today
 - Dalilk's 150 phrases one by one in the pauses between tasks
-- Reading: Dalilk graded stories by level, opened like the podcast player (owner, 2026-11-03): the next story at the owner's level opens directly, text with its audio if the story has one, remembers where he stopped, "finished" moves to the next; how far this is possible depends on the stories site (checked in the content map)
+- Reading: done in 0.0.8 (novels open directly at the level); 0.0.9 adds words captured from them
 
 ## Sprint 3 — Output labs with the AI tutor · v0.0.10
 - Writing Task 1 / Task 2 and Speaking Parts 1–3 with timers (addition 7)

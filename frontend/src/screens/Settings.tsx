@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { api, ApiError } from "../api";
 import {
+  ExamFormatPicker,
   Field,
   GoalsFields,
   LevelsFields,
@@ -23,6 +24,7 @@ import { Icon } from "../icons";
 import {
   SKILLS,
   type AppSettings,
+  type ExamFormat,
   type BackupInfo,
   type Lang,
   type Levels,
@@ -139,6 +141,9 @@ function ProfileTab(props: {
   const [breakEvery, setBreakEvery] = useState(props.settings.break_every_minutes ?? 50);
   const [breakMinutes, setBreakMinutes] = useState(props.settings.break_minutes ?? 10);
   const [interlude, setInterlude] = useState(props.settings.interlude_seconds ?? 60);
+  const [examFormat, setExamFormat] = useState<ExamFormat | null>(
+    props.settings.exam_format ?? null,
+  );
   const [status, setStatus] = useState<"idle" | "saving" | "saved">("idle");
   const [error, setError] = useState<string | null>(null);
   const goalErrors = validateGoals(goals, t);
@@ -158,6 +163,7 @@ function ProfileTab(props: {
           break_every_minutes: breakEvery,
           break_minutes: breakMinutes,
           interlude_seconds: interlude,
+          ...(examFormat ? { exam_format: examFormat } : {}),
         }),
       );
       setStatus("saved");
@@ -222,6 +228,7 @@ function ProfileTab(props: {
               ))}
             </select>
           </Field>
+          <ExamFormatPicker value={examFormat} onChange={setExamFormat} />
           <Field label={t("set_interlude")}>
             <select value={interlude} onChange={(e) => setInterlude(Number(e.target.value))}>
               {[0, 30, 60, 90, 120].map((s) => (

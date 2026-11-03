@@ -1,4 +1,4 @@
-"""Planner-3 rules (docs/CURRICULUM.md §4a) and the plan API."""
+"""Planner-4 rules (docs/CURRICULUM.md §4b, §4a) and the plan API."""
 
 from datetime import UTC, date, datetime, timedelta
 
@@ -131,15 +131,6 @@ def test_rest_days_have_no_tasks() -> None:
     assert blocks == []
 
 
-def test_biweekly_mock_is_last_study_day_of_second_week() -> None:
-    i = inputs()
-    # plan week 0 starts Sat 31 Oct; week 1 starts Sat 7 Nov; Friday is rest -> Thursday
-    assert day_kind(i, date(2026, 11, 12)) == "mock"
-    assert day_kind(i, date(2026, 11, 5)) == "study"
-    assert day_kind(i, date(2026, 11, 19)) == "study"
-    assert day_kind(i, date(2026, 11, 26)) == "mock"
-    assert planner.estimate(i).next_mock_date == date(2026, 11, 12)
-
 
 def test_no_biweekly_mock_close_to_the_exam() -> None:
     i = inputs(exam_date=date(2026, 11, 20))
@@ -149,38 +140,8 @@ def test_no_biweekly_mock_close_to_the_exam() -> None:
 # --------------------------------------------------------------------- day blocks
 
 
-def test_study_day_follows_hegazy_split() -> None:
-    kind, blocks = day_blocks(inputs(exam_date=None), TUE - timedelta(days=1))  # Monday
-    assert kind == "study"
-    by_cat = {b.category: b.minutes for b in blocks}
-    assert len(by_cat) == len(blocks)
-    # development phase: 60% of 180 = 108 -> 55 / 35 / 20, exam 70
-    assert by_cat == {"listening": 55, "reading": 35, "output": 20, "exam": 70}
-    assert sum(by_cat.values()) == 180
-    assert blocks[0].catalog_id == "DLK-20"
-    assert blocks[1].catalog_id == "DLK-07"
 
 
-def test_exam_part_starts_week_with_a_technique() -> None:
-    i = inputs(exam_date=None)
-    saturday = date(2026, 11, 7)
-    _, blocks = day_blocks(i, saturday)
-    assert blocks[-1].activity_code == "T-STRAT"
-    _, blocks = day_blocks(i, saturday + timedelta(days=1))
-    assert blocks[-1].activity_code != "T-STRAT"
-
-
-def test_exam_focus_rotates_biggest_gap_first() -> None:
-    i = inputs(exam_date=None)
-    weeks = [planner.focus_skill(i, date(2026, 10, 31) + timedelta(weeks=n)) for n in range(4)]
-    assert weeks == ["writing", "speaking", "listening", "reading"]
-
-
-def test_output_alternates_speaking_and_writing() -> None:
-    i = inputs(exam_date=None)
-    a = [b for b in day_blocks(i, TUE)[1] if b.category == "output"][0]
-    b = [b for b in day_blocks(i, TUE + timedelta(days=1))[1] if b.category == "output"][0]
-    assert {a.skill, b.skill} == {"speaking", "writing"}
 
 
 def test_short_days_merge_tiny_blocks() -> None:
@@ -188,11 +149,6 @@ def test_short_days_merge_tiny_blocks() -> None:
     assert all(b.minutes >= planner.MIN_BLOCK for b in blocks)
     assert sum(b.minutes for b in blocks) == 30
 
-
-def test_low_level_gets_easier_listening() -> None:
-    low = dict.fromkeys(SKILLS, 4.5)
-    _, blocks = day_blocks(inputs(exam_date=None, current=low), TUE)
-    assert blocks[0].catalog_id == "DLK-11"
 
 
 def test_mock_and_review_blocks() -> None:
@@ -203,10 +159,6 @@ def test_mock_and_review_blocks() -> None:
     kind, blocks = day_blocks(i, date(2027, 1, 1))
     assert kind == "review" and blocks[0].minutes <= planner.REVIEW_MAX_MINUTES
 
-
-def test_english_texts() -> None:
-    _, blocks = day_blocks(inputs(lang="en", exam_date=None), TUE)
-    assert blocks[0].title == "Extended listening"
 
 
 # --------------------------------------------------------------------- API
@@ -347,24 +299,6 @@ def test_hours_done_count_from_latest_measurement(client: TestClient, tmp_path) 
     assert summary.json()["hours_done"] == pytest.approx(25 / 60, abs=0.01)
 
 
-def test_spelling_has_two_fixed_days_outside_the_exam_phase() -> None:
-    i = inputs(exam_date=None)
-    # study days Sat..Thu (Friday rest): 2nd and 4th study day = Sunday and Tuesday
-    assert planner.spelling_weekdays(i) == frozenset({0, 2})
-    _, blocks = day_blocks(i, TUE)
-    codes = [b.activity_code for b in blocks]
-    assert codes[:2] == ["L-EXT", "L-SPELL"]
-    spell = blocks[1]
-    assert spell.catalog_id == "DLK-21" and spell.minutes == planner.SPELL_MINUTES
-    listening = sum(b.minutes for b in blocks if b.category == "listening")
-    assert listening == 55  # spelling comes out of the listening time
-    assert "الأحد" in spell.reason and "التلات" in spell.reason
-    _, monday = day_blocks(i, TUE - timedelta(days=1))
-    assert "L-SPELL" not in [b.activity_code for b in monday]
-    # exam phase (exam within 4 weeks): no spelling
-    _, close = day_blocks(inputs(exam_date=TUE + timedelta(days=20)), TUE)
-    assert "L-SPELL" not in [b.activity_code for b in close]
-
 
 @pytest.mark.parametrize(
     ("weekdays", "expected"),
@@ -460,3 +394,185 @@ def test_self_logged_time_counts_toward_a_task(client: TestClient) -> None:
               "plan_task_id": 99999},
     )
     assert missing.status_code == 404
+
+
+# ------------------------------------------------------------------ planner-4
+
+SAT = date(2026, 11, 7)  # a Saturday: weeks start on Saturday
+EXAM12 = date(2027, 1, 30)  # last study day 2027-01-25 -> 12 study weeks from SAT
+
+
+def p4(**over) -> PlanInputs:
+    base = {"today": SAT, "plan_start": SAT, "exam_date": EXAM12}
+    base.update(over)
+    return inputs(**base)
+
+
+def week(i: int, offset: int = 0) -> date:
+    return SAT + timedelta(days=7 * i + offset)
+
+
+def codes(blocks) -> list[str]:
+    return [b.activity_code for b in blocks]
+
+
+def test_development_hour_is_30_20_5_5() -> None:
+    assert planner.dev_minutes(180) == {"listening": 30, "reading": 20, "writing": 5,
+                                        "speaking": 5}
+    assert planner.dev_minutes(600) == planner.dev_minutes(180)
+    assert planner.dev_minutes(60) == {"listening": 20, "reading": 10, "writing": 0,
+                                       "speaking": 0}
+
+
+def test_twelve_weeks_follow_dalilks_order() -> None:
+    plan = planner.week_plan(p4())
+    assert plan["weeks"] == 12 and plan["notes"] == []
+    assert [t for t, _ in plan["sequence"]] == [
+        "devL", "devL", "devR", "devR", "listening", "reading", "writing", "speaking",
+        "listening", "reading", "writing", "speaking",
+    ]
+    assert [r for _, r in plan["sequence"]][4:] == [1, 1, 1, 1, 2, 2, 2, 2]
+    # more weeks -> more development, two weeks at a time
+    longer = planner.week_plan(p4(exam_date=EXAM12 + timedelta(days=28)))
+    assert [t for t, _ in longer["sequence"][:8]] == [
+        "devL", "devL", "devR", "devR", "devL", "devL", "devR", "devR"]
+
+
+def test_short_plans_say_what_was_cut() -> None:
+    six = planner.week_plan(p4(exam_date=SAT + timedelta(days=45)))
+    assert "no_consolidation" in six["notes"] and "short_plan" in six["notes"]
+    assert [t for t, _ in six["sequence"]][-4:] == list(planner.EXAM_ROUND)
+    tiny = p4(exam_date=SAT + timedelta(days=20))
+    assert "squeezed" in planner.week_plan(tiny)["notes"]
+    seen = {planner.week_info(tiny, SAT + timedelta(days=i))[0] for i in range(16)}
+    assert seen == {"L", "R", "W", "S"}
+
+
+def test_no_two_weekly_mock_any_more() -> None:
+    i = p4()
+    kinds = {day_kind(i, SAT + timedelta(days=n)) for n in range(70)}
+    assert "mock" not in kinds
+
+
+def test_listening_development_week() -> None:
+    kind, blocks = day_blocks(p4(), week(0))
+    assert kind == "study"
+    assert sum(b.minutes for b in blocks) == 180
+    assert codes(blocks)[:2] == ["T-VID", "L-EXT"]  # day 0: "how to listen" first
+    assert blocks[0].content == {"kind": "videos", "groups": ["dev"], "skills": ["L"],
+                                 "minutes": 10}
+    assert blocks[1].content == {"kind": "podcast", "feed": "dalilk_ielts"}
+    # development hour last (its podcast time joins the focus podcast task), with the
+    # daily-phrases video in development weeks
+    assert codes(blocks)[2:] == ["R-EXT", "W-DEV", "S-PHRASE"]
+    assert blocks[-1].content["groups"] == ["phrases"]
+    _, later = day_blocks(p4(), week(0, 2))  # Monday: no intro video
+    assert codes(later)[0] == "L-EXT" and later[0].minutes > 60
+
+
+def test_reading_development_week_uses_novels_at_level() -> None:
+    _, blocks = day_blocks(p4(), week(2))
+    assert codes(blocks)[:2] == ["T-VID", "R-EXT"]
+    assert blocks[1].content == {"kind": "novel", "level": "intermediate"}
+    low = p4(current=dict.fromkeys(SKILLS, 4.5))
+    _, easy = day_blocks(low, week(2, 2))
+    assert easy[0].content == {"kind": "novel", "level": "beginner"}
+    assert [b.content for b in easy if b.activity_code == "L-EXT"][0]["feed"] == "dalilk_english"
+
+
+def test_listening_exam_week_techniques_then_tests() -> None:
+    _, tech = day_blocks(p4(), week(4))
+    assert codes(tech)[0] == "T-VID"
+    assert tech[0].content["groups"] == ["core", "computer", "high"]  # target 7.0
+    assert tech[0].content["skills"] == ["L"]
+    _, paper = day_blocks(p4(exam_format="paper"), week(4))
+    assert "paper" in paper[0].content["groups"]
+    _, practice = day_blocks(p4(), week(4, 2))
+    assert practice[0].activity_code == "P-TEST"
+    assert practice[0].content["providers"] == ["ieltsonlinetests"]
+    assert practice[0].content["count"] == 120 // 40
+    _, round2 = day_blocks(p4(), week(8, 2))
+    assert round2[0].content["providers"] == ["engnovate", "ieltsonlinetests"]
+    # no spelling or phrases outside development weeks
+    assert "L-SPELL" not in codes(practice) and "S-PHRASE" not in codes(practice)
+
+
+def test_writing_week_task1_then_task2_then_a_test() -> None:
+    days = [day_blocks(p4(), week(6, i))[1] for i in (0, 1, 2, 3, 4, 5)]
+    assert days[0][0].content["skills"] == ["W1"]
+    assert days[1][0].activity_code == "W-T1" and days[1][0].content["count"] == 120 // 30
+    assert days[3][0].content["skills"] == ["W2"]
+    assert days[4][0].activity_code == "W-T2"
+    assert days[5][0].activity_code == "P-TEST" and days[5][0].content["skills"] == ["writing"]
+
+
+def test_speaking_week() -> None:
+    _, first = day_blocks(p4(), week(7))
+    assert first[0].content["skills"] == ["S"]
+    _, later = day_blocks(p4(), week(7, 1))
+    assert codes(later)[:2] == ["S-PRAC", "P-VID"]
+
+
+def test_final_days_use_dalilk_mocks_and_the_official_test() -> None:
+    i = p4()
+    _, first = day_blocks(i, EXAM12 - timedelta(days=4))
+    assert first[0].content["providers"] == ["britishcouncil", "dalilk"]
+    _, second = day_blocks(i, EXAM12 - timedelta(days=3))
+    assert second[0].content["providers"] == ["dalilk"]
+    _, paper = day_blocks(p4(exam_format="paper"), EXAM12 - timedelta(days=4))
+    assert paper[0].content["providers"] == ["dalilk"]
+    kind, review = day_blocks(i, EXAM12 - timedelta(days=1))
+    assert kind == "review" and review[0].content["review"] is True
+
+
+def test_spelling_only_in_development_weeks() -> None:
+    i = p4()
+    assert planner.spelling_weekdays(i) == frozenset({0, 2})
+    _, sunday = day_blocks(i, week(0, 1))
+    assert "L-SPELL" in codes(sunday)
+    spell = [b for b in sunday if b.activity_code == "L-SPELL"][0]
+    assert spell.minutes == planner.SPELL_MINUTES
+    assert "الأحد" in spell.reason and "التلات" in spell.reason
+    _, exam_sunday = day_blocks(i, week(4, 1))
+    assert "L-SPELL" not in codes(exam_sunday)
+
+
+def test_english_texts() -> None:
+    _, blocks = day_blocks(p4(lang="en"), week(4))
+    assert blocks[0].title == "Listening technique videos"
+    _, dev = day_blocks(p4(lang="en"), week(0, 2))
+    assert dev[0].title == "Listening hours"
+
+
+def test_content_totals_count_the_plan() -> None:
+    totals = planner.content_minutes(p4())
+    assert totals["days"] > 60
+    assert totals["podcast"] > 0 and totals["novel"] > 0 and totals["video"] > 0
+    assert totals["tests"] > 0 and totals["writing_t1"] > 0 and totals["writing_t2"] > 0
+    assert totals["full_tests"] == 3
+    assert totals["phrase_videos"] > 0
+
+
+def test_summary_has_week_plan_and_content(client: TestClient) -> None:
+    _setup(client)
+    client.put("/api/v1/settings", json={"exam_format": "paper"})
+    data = client.get("/api/v1/plan/summary", params={"today": date.today().isoformat()}).json()
+    assert data["exam_format"] == "paper"
+    assert data["week_plan"]["sequence"]
+    assert {"episodes", "novels", "videos", "video_hours", "tests", "writing_t1"} <= set(
+        data["content"])
+    day = client.get("/api/v1/plan/day", params={"date": date.today().isoformat()}).json()
+    assert any(t["content"] for t in day["tasks"])
+
+
+def test_long_days_are_capped_and_spill_into_input() -> None:
+    long = p4(daily_minutes=630)
+    _, tests_day = day_blocks(long, week(4, 2))
+    assert tests_day[0].content["count"] == planner.MAX_TESTS
+    assert sum(b.minutes for b in tests_day) == 630
+    assert "L-EXT" in codes(tests_day) and "R-EXT" in codes(tests_day)
+    _, tech = day_blocks(long, week(4))
+    assert tech[0].minutes == planner.MAX_TECH_VIDEO
+    _, writing = day_blocks(long, week(6, 1))
+    assert writing[0].content["count"] == planner.MAX_WRITING_TASKS
+    assert sum(b.minutes for b in writing) == 630

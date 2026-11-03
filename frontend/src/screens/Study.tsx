@@ -7,6 +7,13 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNo
 import { api } from "../api";
 import { useI18n } from "../i18n";
 import { Icon, SKILL_STYLE, SkillBadge } from "../icons";
+import {
+  QueueSide,
+  queueTarget,
+  useContentQueue,
+  useVideoEnded,
+  type QueueContent,
+} from "./ContentQueue";
 import { formatClock } from "../plan";
 import {
   ListeningSide,
@@ -33,6 +40,7 @@ export interface StudyTarget {
   activityCode: string | null;
   timer: boolean;
   podcast?: PodcastFeed; // the listening player instead of a web page
+  queue?: QueueContent; // planner-4: videos / novel / practice tests opened directly
 }
 
 export interface FocusOptions {
@@ -52,7 +60,7 @@ export interface FocusOptions {
 const HEARTBEAT_MS = 30_000;
 const ACTIVITY_MS = 5_000;
 const IDLE_LIMIT_S = 300; // no keyboard/mouse for 5 min and no sound -> not counted
-const MIN_WORDS: Record<string, number> = { "W-T1": 150, "W-T2": 250, "W-REV": 120 };
+const MIN_WORDS: Record<string, number> = { "W-T1": 150, "W-T2": 250, "W-REV": 120, "W-DEV": 40 };
 
 /* ---------- the panel area ---------- */
 
@@ -108,6 +116,7 @@ export function PanelArea(props: {
   target: PanelTarget;
   keepSignIn: boolean;
   visible: boolean;
+  minimal?: boolean; // a video shown alone: no address bar
 }) {
   const { t } = useI18n();
   const { holder, state, error, bridge } = useStudyPanel(
@@ -124,7 +133,7 @@ export function PanelArea(props: {
   }
   return (
     <div className="panel-area">
-      <div className="panel-toolbar">
+      <div className={`panel-toolbar${props.minimal ? " hidden" : ""}`}>
         <button
           className="icon-btn"
           title={t("panel_back")}
@@ -390,6 +399,19 @@ export function StudyScreen(props: {
     onBreak,
   );
   const podcast = usePodcast(study.podcast ?? null);
+  const queueContent = study.queue ?? null;
+  const queue = useContentQueue(queueContent);
+  const finishCurrent = queue.finish;
+  const currentItem = queue.current;
+  const onVideoEnded = useCallback(() => {
+    if (currentItem) void finishCurrent(currentItem);
+  }, [currentItem, finishCurrent]);
+  const videoPosition = useVideoEnded(currentItem, onVideoEnded);
+  // videos are watched full screen, without distractions (owner's request)
+  useEffect(() => {
+    if (queueContent?.kind === "videos" && focus && !focus.fullScreen) focus.onToggleFullScreen();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const [step, setStep] = useState<ListenStep>(1);
   const padId = focus ? String(focus.task.id) : "free";
   const usePad = !study.target && !!study.activityCode?.startsWith("W-");
@@ -543,7 +565,7 @@ export function StudyScreen(props: {
         focus?.onBreakTaken(timer.display);
       }}
     />
-  ) : study.target || study.podcast ? null : usePad ? (
+  ) : study.target || study.podcast || queueContent ? null : usePad ? (
     <WritingPad
       value={notes}
       onChange={updateNotes}
@@ -629,6 +651,8 @@ export function StudyScreen(props: {
             onFinish={podcast.finish}
           />
         )}
+
+        {queueContent && <QueueSide content={queueContent} queue={queue} position={videoPosition} />}
 
         {study.timer && !finishing && (
           <>
@@ -716,7 +740,7 @@ export function StudyScreen(props: {
             )}
             {!focus && <p className="muted small">{t("study_idle_hint")}</p>}
 
-            {resource && !study.podcast && (
+            {resource && !study.podcast && !queueContent && (
               <label className="field">
                 <span className="field-label">{t("study_progress")}</span>
                 <input
@@ -742,7 +766,7 @@ export function StudyScreen(props: {
                 />
               </label>
             )}
-            {resource && !study.podcast && (
+            {resource && !study.podcast && !queueContent && (
               <label className="check">
                 <input
                   type="checkbox"
@@ -832,6 +856,38 @@ export function StudyScreen(props: {
                 <PlayerBar key={podcast.episode.id} episode={podcast.episode} hold={onBreak} />
               )}
             </div>
+            {main}
+          </>
+        ) : queueContent ? (
+          <>
+            {queue.current ? (
+              <div className={onBreak ? "hidden-under" : "fill"}>
+                <PanelArea
+                  key={queue.current.id}
+                  target={queueTarget(queue.current)}
+                  keepSignIn={props.keepSignIn}
+                  visible={!onBreak}
+                  minimal={queue.current.kind === "video"}
+                />
+              </div>
+            ) : (
+              <div className="listen-placeholder">
+                {queue.items === null && !queue.error ? (
+                  <div className="spinner" aria-hidden="true" />
+                ) : (
+                  <>
+                    <div className="listen-badge">
+                      <Icon name="check" size={44} color="#15803D" />
+                    </div>
+                    <p className="lead">
+                      {queue.items && queue.items.length > 0
+                        ? t("q_all_done")
+                        : t(`q_empty_${queueContent.kind}`)}
+                    </p>
+                  </>
+                )}
+              </div>
+            )}
             {main}
           </>
         ) : (

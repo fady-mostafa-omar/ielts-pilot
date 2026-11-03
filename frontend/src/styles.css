@@ -2398,3 +2398,121 @@ fieldset.field.plain {
   font-size: 0.9rem;
   color: var(--muted);
 }
+
+/* v0.0.8: content queue (videos / novel / tests of a task) */
+.queue-side {
+  gap: 10px;
+}
+
+.queue-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 260px;
+  overflow-y: auto;
+}
+
+.queue-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--card);
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.queue-list li.now .queue-item {
+  border-color: #2563eb;
+  background: #eff6ff;
+  font-weight: 600;
+}
+
+.queue-list li.done .queue-item {
+  color: var(--muted);
+}
+
+.queue-mark {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--soft-2);
+  color: #15803d;
+}
+
+.queue-title {
+  flex: 1;
+  font-size: 0.9rem;
+  line-height: 1.4;
+}
+
+.queue-time {
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+/* v0.0.8: Dalilk's weeks */
+.weeks-strip {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(118px, 1fr));
+  gap: 8px;
+}
+
+.week-chip {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--soft-2);
+  font-size: 0.9rem;
+}
+
+.week-chip .week-n {
+  font-weight: 700;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.week-chip.wk-devL,
+.week-chip.wk-listening {
+  border-inline-start: 4px solid #2563eb;
+}
+
+.week-chip.wk-devR,
+.week-chip.wk-reading {
+  border-inline-start: 4px solid #0f766e;
+}
+
+.week-chip.wk-writing {
+  border-inline-start: 4px solid #b45309;
+}
+
+.week-chip.wk-speaking {
+  border-inline-start: 4px solid #7c3aed;
+}
+
+.week-chip.past {
+  opacity: 0.55;
+}
+
+.week-chip.now {
+  background: #eff6ff;
+  border-color: #2563eb;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.25);
+  font-weight: 600;
+}

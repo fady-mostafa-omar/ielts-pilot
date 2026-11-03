@@ -120,7 +120,10 @@ export interface AppSettings {
   break_minutes: number | null;
   plan_start: string | null;
   interlude_seconds: number | null; // pause between tasks, 0 = off
+  exam_format: ExamFormat | null; // D-037, asked in setup
 }
+
+export type ExamFormat = "computer" | "paper";
 
 export type SplitKey = "listening" | "reading" | "output" | "exam";
 
@@ -169,6 +172,9 @@ export interface PlanSummary extends Estimate {
   focus_skill: Skill;
   weekdays: number[];
   spelling_weekdays: number[];
+  week_plan: WeekPlan;
+  exam_format: ExamFormat;
+  content: ContentTotals;
   last_study_at: string | null;
   plan_restarted_at: string | null;
 }
@@ -191,6 +197,7 @@ export interface PlanTask {
   started_at: string | null;
   completed_at: string | null;
   done_minutes: number;
+  content: TaskContent | null;
 }
 
 export interface PreviewTask {
@@ -289,7 +296,7 @@ export interface StudySession {
   plan_task_id: number | null;
 }
 
-export type PanelTarget = { url: string } | { library: string };
+export type PanelTarget = { url: string } | { library: string } | { video: string };
 
 export interface PanelState {
   open: boolean;
@@ -310,6 +317,16 @@ export interface PanelBridge {
   openExternally(): Promise<boolean>;
   state(): Promise<PanelState>;
   onState(callback: (state: PanelState) => void): () => void;
+  /** v0.0.8: playing state of a YouTube video shown alone in the panel. */
+  onMedia?(callback: (state: MediaState) => void): () => void;
+}
+
+export interface MediaState {
+  video: string;
+  current: number;
+  duration: number;
+  ended: boolean;
+  paused: boolean;
 }
 
 export interface UpdateBridge {
@@ -380,4 +397,64 @@ export interface Achievements {
   hours: number;
   hours_self_logged: number;
   study_days: number;
+  videos: number;
+  video_hours: number;
+  novels: number;
+  tests: number;
+}
+
+/** planner-4 (v0.0.8): what a plan task opens. */
+export type NovelLevel = "beginner" | "intermediate" | "upper";
+export type TaskContent =
+  | { kind: "podcast"; feed: PodcastFeed }
+  | { kind: "novel"; level: NovelLevel }
+  | {
+      kind: "videos";
+      groups: string[];
+      skills: string[];
+      minutes?: number;
+      count?: number;
+      review?: boolean;
+    }
+  | { kind: "tests"; skills: string[]; providers: string[]; count: number }
+  | { kind: "writing"; task: 0 | 1 | 2; count: number };
+
+export interface ContentItem {
+  id: number;
+  kind: "video" | "novel" | "test";
+  key: string;
+  title: string;
+  grp: string;
+  skill: string;
+  level: string;
+  provider: string;
+  sort: number;
+  duration_seconds: number | null;
+  url: string;
+  started_at: string | null;
+  completed_at: string | null;
+}
+
+export interface ContentTotals {
+  days: number;
+  podcast_minutes: number;
+  episodes: number;
+  episode_minutes: number;
+  episode_measured: boolean;
+  novel_minutes: number;
+  novels: number;
+  videos: number;
+  video_hours: number;
+  tests: number;
+  full_tests: number;
+  writing_t1: number;
+  writing_t2: number;
+}
+
+export interface WeekPlan {
+  weeks: number;
+  default: boolean;
+  sequence: string[]; // "devL:0", "listening:1", …
+  notes: string[]; // no_consolidation, squeezed, short_plan
+  current: number; // index of this week in the sequence
 }

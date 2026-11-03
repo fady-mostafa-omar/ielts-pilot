@@ -14,3 +14,7 @@ extend-exclude = ["build", "dist"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP"]
+
+[tool.ruff.lint.per-file-ignores]
+# user-facing text table (Arabic / English sentences)
+"app/planner.py" = ["E501"]

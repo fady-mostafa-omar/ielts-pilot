@@ -4,6 +4,7 @@
 import { useEffect, useState } from "react";
 import { api, ApiError } from "../api";
 import {
+  ExamFormatPicker,
   GoalsFields,
   LevelsFields,
   TimeFields,
@@ -24,6 +25,7 @@ import { formatHM, todayIso } from "../plan";
 import {
   SKILLS,
   type Estimate,
+  type ExamFormat,
   type Lang,
   type Placement,
   type PlacementTest,
@@ -67,6 +69,7 @@ export function SetupScreen(props: {
   const [placements, setPlacements] = useState<Placement[]>([]);
   const [testOpen, setTestOpen] = useState<PlacementTest | null>(null);
   const [hoursPerBand, setHoursPerBand] = useState(200);
+  const [examFormat, setExamFormat] = useState<ExamFormat | null>(null);
   const [saved, setSaved] = useState<Record<Skill, number | null>>({
     listening: null,
     reading: null,
@@ -140,6 +143,7 @@ export function SetupScreen(props: {
         hours_per_band: hoursPerBand,
         study_weekdays: time.weekdays,
         plan_start: todayIso(),
+        ...(examFormat ? { exam_format: examFormat } : {}),
       });
       props.onDone(profile);
     } catch (e) {
@@ -196,6 +200,7 @@ export function SetupScreen(props: {
               </span>
               <input value={name} maxLength={60} onChange={(e) => setName(e.target.value)} />
             </label>
+            <ExamFormatPicker value={examFormat} onChange={setExamFormat} />
             <div className="consent">
               <label className="check">
                 <input

@@ -1,4 +1,7 @@
-"""Planner-2: hours-to-goal estimate and day-by-day plan (docs/CURRICULUM.md §4a).
+"""Planner-4: hours-to-goal estimate and day-by-day plan (docs/CURRICULUM.md §4b, §4a).
+
+Planner-4 (v0.0.8, D-035) follows Dalilk's 90-day method: a fixed development hour every
+day plus a focus block on one thing per week. The estimate and the final days are planner-2's.
 
 Pure functions over PlanInputs, so every rule is unit-tested and explainable:
 
@@ -18,7 +21,7 @@ import math
 from dataclasses import asdict, dataclass, field
 from datetime import date, timedelta
 
-GENERATOR = "planner-3"
+GENERATOR = "planner-4"
 SKILLS = ("listening", "reading", "writing", "speaking")
 DEV_SHARE = {"foundation": 0.75, "development": 0.6, "exam": 0.35}
 FINAL_MOCK_OFFSETS = (4, 3, 2)  # days before the exam
@@ -26,7 +29,7 @@ REVIEW_OFFSET = 1
 LAST_STUDY_OFFSET = 5
 MOCK_MINUTES = 165  # 30 + 60 + 60 + ~15
 REVIEW_MAX_MINUTES = 120
-MIN_BLOCK = 10
+MIN_BLOCK = 5
 BIWEEKLY_MOCK_QUIET_DAYS = 10  # no extra mock this close to the final ones
 SPELL_MINUTES = 15  # Dalilk spelling challenge, twice a week outside the exam phase
 WEEK_ORDER = (6, 0, 1, 2, 3, 4, 5)  # JS weekdays from Saturday
@@ -74,6 +77,7 @@ class PlanInputs:
     hours_per_band: int
     plan_start: date
     hours_done: float = 0.0
+    exam_format: str = "computer"  # D-037: computer | paper
 
     def key(self) -> dict:
         data = asdict(self)
@@ -115,36 +119,6 @@ def exam_weights(inputs: PlanInputs) -> dict[str, float]:
     if total == 0:
         return dict.fromkeys(SKILLS, 0.25)
     return {s: round(0.10 + 0.60 * g / total, 4) for s, g in gaps.items()}
-
-
-def phase_of(inputs: PlanInputs) -> str:
-    if inputs.exam_date and (inputs.exam_date - inputs.today).days <= 28:
-        return "exam"
-    known = known_bands(inputs)
-    if len(known) < len(SKILLS):
-        return "development"
-    mean = sum(known.values()) / len(known)
-    if mean < 5.5:
-        return "foundation"
-    if mean < 6.5:
-        return "development"
-    return "exam"
-
-
-def daily_split(inputs: PlanInputs) -> dict[str, int]:
-    total = inputs.daily_minutes
-    dev = total * DEV_SHARE[phase_of(inputs)]
-
-    def round5(x: float) -> int:
-        return int(5 * round(x / 5))
-
-    split = {
-        "listening": round5(dev * 30 / 60),
-        "reading": round5(dev * 20 / 60),
-        "output": round5(dev * 10 / 60),
-    }
-    split["exam"] = max(0, total - sum(split.values()))
-    return split
 
 
 # ------------------------------------------------------------------------ calendar
@@ -201,8 +175,6 @@ def day_kind(inputs: PlanInputs, d: date) -> str:
             return "review"
     if not is_study_day(inputs, d):
         return "rest"
-    if is_biweekly_mock(inputs, d):
-        return "mock"
     return "study"
 
 
@@ -364,15 +336,37 @@ TEXT = {
         "L-SPELL.title": "تحدي الإملاء",
         "L-SPELL.do": "اسمع واكتب الكلمات بالحروف الصح — الأسماء والأرقام والتواريخ بتضيّع درجات "
         "في الاستماع لو اتكتبت غلط.",
-        "L-SPELL.reason": "الإملاء ليه يومين ثابتين في الأسبوع ({days}) طول مرحلة التطوير.",
-        "R-EXT.title": "قراءة قصة على مستواك",
-        "R-EXT.do": "اقرأ من قصة على مستواك واستمتع بيها. الكلمات الجديدة اكتبها في الملاحظات.",
+        "L-SPELL.reason": "الإملاء ليه يومين ثابتين في الأسبوع ({days}) في أسابيع التطوير.",
+        "R-EXT.title": "قراءة رواية على مستواك",
+        "R-EXT.do": "كمّل الرواية اللي على مستواك. الكلمات الجديدة اكتبها في الملاحظات.",
         "S-FLU.title": "محادثة بصوت عالي",
         "S-FLU.do": "اختار سؤال أو موقف واتكلم بصوت عالي دقيقتين في كل مرة. كرّر بإجابة أحسن.",
         "W-REV.title": "كتابة حرة",
         "W-REV.do": "اكتب فقرة 120–150 كلمة عن أي موضوع، وبعدين راجعها وصلّح غلطاتك.",
-        "dev.reason": "مرحلة {phase}: {pct}% من وقتك تطوير لغة، وكل ساعة تطوير = 30 دقيقة "
-        "استماع + 20 قراءة + 10 كتابة وتحدث (تقسيم أ. حجازي).",
+        "dev.reason": "ساعة التطوير بتاعة دليلك: كل يوم 30 دقيقة استماع + 20 قراءة + 5 كتابة + 5 محادثة.",
+        "devL.reason": "أسبوع تطوير الاستماع (خطة دليلك): ساعات التركيز كلها بودكاست على مستواك.",
+        "devR.reason": "أسبوع تطوير القراءة (خطة دليلك): ساعات التركيز كلها روايات على مستواك.",
+        "round.reason": "أسبوع {skill} (الدورة {round} من خطة دليلك): أول يومين تكنيكات، وبعدها تدريب.",
+        "overflow.reason": "باقي وقتك النهارده بعد التدريب: استماع وقراءة (العمود الفقري في خطة دليلك).",
+        "FOCUS-L.title": "ساعات الاستماع",
+        "FOCUS-L.do": "اسمع حلقات البودكاست بالخطوات. لو تعبت خد 5 دقايق بريك كل نص ساعة وكمّل.",
+        "FOCUS-R.title": "ساعات القراءة",
+        "FOCUS-R.do": "اقرأ رواية على مستواك واستمتع بيها. الكلمات الجديدة اكتبها في الملاحظات.",
+        "DEVVID.title": "إزاي تبدأ: فيديو قصير",
+        "VID.title": "فيديوهات تكنيكات {skill}",
+        "VID.do": "الفيديوهات بتشتغل ورا بعض ملء الشاشة. اكتب أهم التركات في الملاحظات.",
+        "VID-T1.title": "فيديوهات تكنيكات Task 1",
+        "VID-T2.title": "فيديوهات تكنيكات Task 2",
+        "PVID.title": "تدريب عملي مع الفيديو ({skill})",
+        "PVID.do": "حل مع الفيديو، ووقّف وحل لوحدك قبل ما تشوف الإجابة.",
+        "TEST.title": "اختبار {skill} تجريبي ({n})",
+        "TEST.do": "الاختبار بيفتح على طول. حلّه بالوقت، وبعدين صحّح وارجع لكل غلطة.",
+        "W-T1x.do": "اكتب {n} إجابة Task 1: كل واحدة 20 دقيقة (150 كلمة على الأقل) + 10 دقايق مراجعة.",
+        "W-T2x.do": "اكتب {n} إجابة Task 2: كل واحدة 40 دقيقة (250 كلمة على الأقل) + 10 دقايق مراجعة.",
+        "W-DEV.title": "كتابة 5 دقايق",
+        "W-DEV.do": "اكتب 5 جمل عن يومك أو عن اللي سمعته وقريته النهارده.",
+        "S-PHRASE.title": "العبارات اليومية (فيديو)",
+        "S-PHRASE.do": "فيديو من سلسلة العبارات اليومية بالترتيب. ردّد العبارات بصوت عالي.",
         "T-STRAT.title": "تكنيكات {skill}",
         "T-STRAT.do": "اتفرج على فيديو تكنيكات {skill} من سلسلة أهم التكنيكات، واكتب أهم 3 تركات "
         "في الملاحظات.",
@@ -392,8 +386,8 @@ TEXT = {
         "exam.reason": "أسبوع {skill} في جزء الامتحان (فرقك فيها {gap}). نفس ترتيب جدول دليلك: "
         "تكنيك الأول، وبعدين تدريب.",
         "MOCK.title": "اختبار تجريبي كامل",
-        "MOCK.do": "اختبار كامل بالترتيب وبالوقت: استماع 30 د، قراءة 60 د، كتابة 60 د، محادثة "
-        "11–14 د. سجّل درجاتك بعدها في الإعدادات ← المستوى.",
+        "MOCK.do": "اختبار كامل بالترتيب وبالوقت (استماع، قراءة، كتابة، محادثة) بيفتح على طول. "
+        "سجّل درجاتك بعدها في الإعدادات ← المستوى.",
         "MOCK.reason": "اختبار كل أسبوعين عشان نقيس تقدمك بأرقام حقيقية.",
         "FINAL.reason": "آخر 4 أيام: المفروض تكون وصلت لهدفك، والأيام دي اختبارات كاملة.",
         "REVIEW.title": "مراجعة التكنيكات",
@@ -417,7 +411,7 @@ TEXT = {
         "L-SPELL.title": "Spelling challenge",
         "L-SPELL.do": "Listen and write the words with the right spelling — names, numbers and "
         "dates cost Listening marks when misspelt.",
-        "L-SPELL.reason": "Spelling has two fixed days a week ({days}) outside the exam phase.",
+        "L-SPELL.reason": "Spelling has two fixed days a week ({days}) in the development weeks.",
         "R-EXT.title": "Read a story at your level",
         "R-EXT.do": "Read from a story at your level and enjoy it. Note new words.",
         "S-FLU.title": "Speak out loud",
@@ -425,9 +419,30 @@ TEXT = {
         "Repeat with a better answer.",
         "W-REV.title": "Free writing",
         "W-REV.do": "Write 120–150 words on any topic, then review and fix mistakes.",
-        "dev.reason": "{phase} phase: {pct}% of your time is English development; each "
-        "development hour = 30 min listening + 20 reading + 10 writing and speaking "
-        "(Hegazy's split).",
+        "dev.reason": "Dalilk's development hour: every day 30 min listening + 20 reading + 5 writing + 5 speaking.",
+        "devL.reason": "Listening development week (Dalilk's plan): the focus hours are podcasts at your level.",
+        "devR.reason": "Reading development week (Dalilk's plan): the focus hours are novels at your level.",
+        "round.reason": "{skill} week (round {round} of Dalilk's plan): two days of techniques, then practice.",
+        "overflow.reason": "The rest of today's time after practice: listening and reading (the backbone of Dalilk's plan).",
+        "FOCUS-L.title": "Listening hours",
+        "FOCUS-L.do": "Listen to podcast episodes step by step. If tired, take 5 minutes every half hour.",
+        "FOCUS-R.title": "Reading hours",
+        "FOCUS-R.do": "Read a novel at your level and enjoy it. Note new words.",
+        "DEVVID.title": "How to start: a short video",
+        "VID.title": "{skill} technique videos",
+        "VID.do": "The videos play one after another, full screen. Note the key tricks.",
+        "VID-T1.title": "Task 1 technique videos",
+        "VID-T2.title": "Task 2 technique videos",
+        "PVID.title": "Practice with the video ({skill})",
+        "PVID.do": "Solve along; pause and try on your own before the answer.",
+        "TEST.title": "{skill} practice test ({n})",
+        "TEST.do": "The test opens directly. Do it on time, then check and go back to each mistake.",
+        "W-T1x.do": "Write {n} Task 1 answers: 20 minutes each (at least 150 words) + 10 minutes review.",
+        "W-T2x.do": "Write {n} Task 2 answers: 40 minutes each (at least 250 words) + 10 minutes review.",
+        "W-DEV.title": "Five minutes of writing",
+        "W-DEV.do": "Write 5 sentences about your day or what you heard and read today.",
+        "S-PHRASE.title": "Daily phrases (video)",
+        "S-PHRASE.do": "The next video of the daily-phrases series. Repeat the phrases out loud.",
         "T-STRAT.title": "{skill} techniques",
         "T-STRAT.do": "Watch the {skill} techniques video and note the top 3 tricks.",
         "L-PRAC.title": "Timed listening practice",
@@ -448,8 +463,8 @@ TEXT = {
         "exam.reason": "{skill} week in the exam part (your gap: {gap}). Same order as Dalilk's "
         "plan: technique first, then practice.",
         "MOCK.title": "Full practice test",
-        "MOCK.do": "A full test in order and on time: Listening 30 min, Reading 60, Writing 60, "
-        "Speaking 11–14. Record your scores in Settings → Level afterwards.",
+        "MOCK.do": "A full test in order and on time (Listening, Reading, Writing, Speaking) opens "
+        "directly. Record your scores in Settings → Level afterwards.",
         "MOCK.reason": "A full test every two weeks measures your progress with real numbers.",
         "FINAL.reason": "Last 4 days: you should have reached your goal; "
         "these days are full tests.",
@@ -467,6 +482,23 @@ SPEAK_EASY, SPEAK_IELTS = "DLK-13", "DLK-19"
 TECHNIQUES = "DLK-17"
 PRACTICE_TESTS = ("OFF-01", "ENG-01", "OFF-02")
 
+# planner-4 (CURRICULUM §4b)
+DEV_HOUR = 60
+WRITE_DEV = SPEAK_DEV = 5
+PHRASE_VIDEO_MINUTES = 20  # Dalilk's daily-phrases videos average ~19 min
+TEST_MINUTES = {"listening": 40, "reading": 75, "writing": 70, "speaking": 20}
+# caps per day, so a very long day does not become 14 tests in a row; the rest of the
+# focus time goes to podcast + novels (Dalilk: listening/reading input is the backbone)
+MAX_TECH_VIDEO = 180
+MAX_TESTS = 4
+MAX_PRACTICE_VIDEO = 120
+MAX_WRITING_TASKS = 4
+MAX_SPEAKING = 60
+T1_MINUTES, T2_MINUTES = 30, 50  # 20 + 10 review, 40 + 10 review
+EXAM_ROUND = ("listening", "reading", "writing", "speaking")
+DEFAULT_WEEKS = 12
+SKILL_CODE = {"listening": "L", "reading": "R", "speaking": "S"}
+
 
 @dataclass
 class Block:
@@ -478,6 +510,7 @@ class Block:
     title: str
     instructions: str
     reason: str
+    content: dict | None = None
 
 
 def _mean_level(inputs: PlanInputs) -> float | None:
@@ -485,19 +518,8 @@ def _mean_level(inputs: PlanInputs) -> float | None:
     return sum(known.values()) / len(known) if known else None
 
 
-def focus_skill(inputs: PlanInputs, d: date) -> str:
-    """Skill of the week for the exam part: biggest gap first, then Dalilk's order."""
-    gaps = skill_gaps(inputs)
-    order = sorted(SKILLS, key=lambda s: (-(gaps[s] or 0.0), SKILLS.index(s)))
-    weeks = (week_start(d) - week_start(inputs.plan_start)).days // 7
-    return order[weeks % len(order)]
-
-
-def _first_study_day_of_week(inputs: PlanInputs, d: date) -> bool:
-    start = week_start(d)
-    return not any(
-        is_study_day(inputs, start + timedelta(i)) for i in range((d - start).days)
-    )
+def _round5(x: float) -> int:
+    return int(5 * round(x / 5))
 
 
 def spelling_weekdays(inputs: PlanInputs) -> frozenset[int]:
@@ -514,85 +536,425 @@ def _weekday_names(t: dict, weekdays: frozenset[int]) -> str:
     return t["and"].join(t["weekday"][w] for w in WEEK_ORDER if w in weekdays)
 
 
-def _day_number(inputs: PlanInputs, d: date) -> int:
-    return (d - inputs.plan_start).days
+# ------------------------------------------------------------------ weeks (planner-4)
+
+
+def study_weeks(inputs: PlanInputs) -> int | None:
+    """Calendar weeks (from Saturday) from the plan start to the last study day."""
+    last = last_study_date(inputs)
+    if last is None:
+        return None
+    start = week_start(inputs.plan_start)
+    if last < inputs.plan_start:
+        return 0
+    return (week_start(last) - start).days // 7 + 1
+
+
+def _dev_weeks(count: int) -> list[str]:
+    out: list[str] = []
+    while count > 0:
+        if count >= 4:
+            out += ["devL", "devL", "devR", "devR"]
+            count -= 4
+        elif count == 3:
+            out += ["devL", "devL", "devR"]
+            count = 0
+        elif count == 2:
+            out += ["devL", "devR"]
+            count = 0
+        else:
+            out += ["devL"]
+            count = 0
+    return out
+
+
+def week_plan(inputs: PlanInputs) -> dict:
+    """The sequence of week types and what had to be cut (shown on My plan)."""
+    weeks = study_weeks(inputs)
+    total = DEFAULT_WEEKS if weeks is None else weeks
+    notes: list[str] = []
+    if total >= 8:
+        seq = [(w, 0) for w in _dev_weeks(total - 8)]
+        seq += [(s, 1) for s in EXAM_ROUND] + [(s, 2) for s in EXAM_ROUND]
+    elif total >= 4:
+        seq = [(w, 0) for w in _dev_weeks(total - 4)] + [(s, 1) for s in EXAM_ROUND]
+        notes.append("no_consolidation")
+    else:
+        seq = []
+        notes.append("squeezed")
+    if total < 12:
+        notes.append("short_plan")
+    return {"weeks": total, "default": weeks is None, "sequence": seq, "notes": notes}
+
+
+def _study_days_between(inputs: PlanInputs, start: date, end: date) -> list[date]:
+    return [
+        start + timedelta(i)
+        for i in range((end - start).days + 1)
+        if is_study_day(inputs, start + timedelta(i))
+    ]
+
+
+def week_info(inputs: PlanInputs, d: date) -> tuple[str, int, int, int]:
+    """(week type, round, k = study-day index in that run, n = study days in the run)."""
+    plan = week_plan(inputs)
+    last = last_study_date(inputs)
+    if "squeezed" in plan["notes"] and last is not None:
+        days = _study_days_between(inputs, inputs.plan_start, last)
+        if d not in days:
+            return "L", 1, 0, 1
+        idx = days.index(d)
+        total = len(days)
+        bounds = [round(i * total / 4) for i in range(5)]
+        part = max(i for i in range(4) if bounds[i] <= idx)
+        run = max(1, bounds[part + 1] - bounds[part])
+        return EXAM_ROUND[part][0].upper(), 1, idx - bounds[part], run
+    i = (week_start(d) - week_start(inputs.plan_start)).days // 7
+    seq = plan["sequence"]
+    if i < len(seq):
+        wtype, rnd = seq[i]
+    else:  # no exam date: keep repeating the consolidation round
+        j = (i - len(seq)) % 4
+        wtype, rnd = EXAM_ROUND[j], 2
+    ws = week_start(d)
+    lo = max(ws, inputs.plan_start)
+    hi = ws + timedelta(days=6)
+    if last is not None:
+        hi = min(hi, last)
+    days = _study_days_between(inputs, lo, hi)
+    k = days.index(d) if d in days else 0
+    code = wtype if wtype.startswith("dev") else wtype[0].upper()
+    return code, rnd, k, max(1, len(days))
+
+
+def phase_of(inputs: PlanInputs) -> str:
+    code, _, _, _ = week_info(inputs, inputs.today)
+    if code.startswith("dev"):
+        level = _mean_level(inputs)
+        return "foundation" if level is not None and level < 5.5 else "development"
+    return "exam"
+
+
+def dev_minutes(daily: int) -> dict[str, int]:
+    """Development hour (CURRICULUM §4b): 30/20/5/5 for a 3-hour day."""
+    dev = min(DEV_HOUR, _round5(daily / 2))
+    out_w = WRITE_DEV if dev >= 40 else 0
+    out_s = SPEAK_DEV if dev >= 40 else 0
+    listening = _round5((dev - out_w - out_s) * 0.6)
+    reading = dev - out_w - out_s - listening
+    return {"listening": listening, "reading": reading, "writing": out_w, "speaking": out_s}
+
+
+def daily_split(inputs: PlanInputs) -> dict[str, int]:
+    """Today's minutes by part, for the charts: development hour + focus block."""
+    dev = dev_minutes(inputs.daily_minutes)
+    focus = max(0, inputs.daily_minutes - sum(dev.values()))
+    code, _, _, _ = week_info(inputs, inputs.today)
+    split = {
+        "listening": dev["listening"],
+        "reading": dev["reading"],
+        "output": dev["writing"] + dev["speaking"],
+        "exam": 0,
+    }
+    if code == "devL":
+        split["listening"] += focus
+    elif code == "devR":
+        split["reading"] += focus
+    else:
+        split["exam"] += focus
+    return split
+
+
+def focus_skill(inputs: PlanInputs, d: date) -> str:
+    code, _, _, _ = week_info(inputs, d)
+    return {"devL": "listening", "devR": "reading", "L": "listening", "R": "reading",
+            "W": "writing", "S": "speaking"}[code]
+
+
+# ------------------------------------------------------------------ day blocks
+
+
+def _video_groups(inputs: PlanInputs, rnd: int) -> list[str]:
+    level = _mean_level(inputs)
+    groups = ["core", "computer" if inputs.exam_format == "computer" else "paper"]
+    if level is not None and level < 5.5:
+        groups.append("low")
+    if rnd >= 2 or inputs.target_overall >= 7.0:
+        groups.append("high")
+    if rnd >= 2:
+        groups.append("practice")
+    return groups
+
+
+def _videos(t: dict, skills: list[str], groups: list[str], minutes: int, reason: str,
+            skill: str, title_key: str = "VID.title") -> Block:
+    return Block("exam", skill, "T-VID", minutes, TECHNIQUES,
+                 t[title_key].format(skill=t["skill"].get(skill, skill)),
+                 t["VID.do"], reason,
+                 {"kind": "videos", "groups": groups, "skills": skills, "minutes": minutes})
+
+
+def _overflow(inputs: PlanInputs, t: dict, minutes: int, reason: str) -> list[Block]:
+    """Focus time beyond the day's caps: listening and reading input (60 / 40)."""
+    if minutes < MIN_BLOCK:
+        return []
+    level = _mean_level(inputs)
+    feed = "dalilk_english" if level is not None and level < 5.0 else "dalilk_ielts"
+    listen = _round5(minutes * 0.6)
+    out = [Block("listening", "listening", "L-EXT", listen,
+                 LISTEN_EASY if feed == "dalilk_english" else LISTEN_IELTS,
+                 t["FOCUS-L.title"], t["FOCUS-L.do"], t["overflow.reason"],
+                 {"kind": "podcast", "feed": feed})]
+    if minutes - listen >= MIN_BLOCK:
+        out.append(Block("reading", "reading", "R-EXT", minutes - listen, STORIES,
+                         t["FOCUS-R.title"], t["FOCUS-R.do"], t["overflow.reason"],
+                         {"kind": "novel", "level": novel_level(level)}))
+    del reason
+    return out
+
+
+def _tests(inputs: PlanInputs, t: dict, skill: str, rnd: int, minutes: int,
+           reason: str) -> list[Block]:
+    per = TEST_MINUTES[skill]
+    count = min(MAX_TESTS, max(1, minutes // per))
+    providers = ["engnovate", "ieltsonlinetests"] if rnd >= 2 else ["ieltsonlinetests"]
+    test_minutes = min(minutes, count * per)
+    title = t["TEST.title"].format(skill=t["skill"][skill], n=count)
+    content = {"kind": "tests", "skills": [skill], "providers": providers, "count": count}
+    blocks = [Block("exam", skill, "P-TEST", test_minutes, None, title, t["TEST.do"], reason,
+                    content)]
+    rest = minutes - test_minutes
+    video = min(rest, MAX_PRACTICE_VIDEO)
+    if video >= 10:
+        blocks.append(Block("exam", skill, "P-VID", video, TECHNIQUES,
+                            t["PVID.title"].format(skill=t["skill"][skill]), t["PVID.do"], reason,
+                            {"kind": "videos", "groups": ["practice", "high"],
+                             "skills": [SKILL_CODE.get(skill, "W1")], "minutes": video}))
+        rest -= video
+    return blocks + _overflow(inputs, t, rest, reason)
+
+
+def _techniques(inputs: PlanInputs, t: dict, skills: list[str], groups: list[str],
+                minutes: int, reason: str, skill: str, rnd: int,
+                title_key: str = "VID.title") -> list[Block]:
+    video = min(minutes, MAX_TECH_VIDEO)
+    blocks = [_videos(t, skills, groups, video, reason, skill, title_key)]
+    rest = minutes - video
+    if rest >= MIN_BLOCK:
+        if skill in TEST_MINUTES and skill != "writing":
+            blocks += _tests(inputs, t, skill, rnd, rest, reason)
+        else:
+            blocks += _overflow(inputs, t, rest, reason)
+    return blocks
+
+
+def _focus_blocks(inputs: PlanInputs, t: dict, d: date, focus: int) -> list[Block]:
+    if focus <= 0:
+        return []
+    code, rnd, k, n = week_info(inputs, d)
+    level = _mean_level(inputs)
+    groups = _video_groups(inputs, rnd)
+    if code == "devL":
+        reason = t["devL.reason"]
+        blocks = []
+        if k == 0:
+            blocks.append(_videos(t, ["L"], ["dev"], 10, reason, "listening", "DEVVID.title"))
+            focus -= 10
+        feed = "dalilk_english" if level is not None and level < 5.0 else "dalilk_ielts"
+        blocks.append(Block("listening", "listening", "L-EXT", focus,
+                            LISTEN_EASY if feed == "dalilk_english" else LISTEN_IELTS,
+                            t["FOCUS-L.title"], t["FOCUS-L.do"], reason,
+                            {"kind": "podcast", "feed": feed}))
+        return [b for b in blocks if b.minutes >= MIN_BLOCK]
+    if code == "devR":
+        reason = t["devR.reason"]
+        blocks = []
+        if k == 0:
+            blocks.append(_videos(t, ["R"], ["dev"], 20, reason, "reading", "DEVVID.title"))
+            focus -= 20
+        blocks.append(Block("reading", "reading", "R-EXT", focus, STORIES,
+                            t["FOCUS-R.title"], t["FOCUS-R.do"], reason,
+                            {"kind": "novel", "level": novel_level(level)}))
+        return [b for b in blocks if b.minutes >= MIN_BLOCK]
+
+    skill = {"L": "listening", "R": "reading", "W": "writing", "S": "speaking"}[code]
+    reason = t["round.reason"].format(skill=t["skill"][skill], round=rnd)
+    if code in ("L", "R"):
+        if k <= 1:
+            return _techniques(inputs, t, [code], groups, focus, reason, skill, rnd)
+        return _tests(inputs, t, skill, rnd, focus, reason)
+    if code == "W":
+        t1_days = max(1, -(-3 * n // 7))
+        task = 1 if k < t1_days else 2
+        first = k == 0 or k == t1_days
+        if first:
+            return _techniques(inputs, t, [f"W{task}"], groups, focus, reason, "writing", rnd,
+                               f"VID-T{task}.title")
+        blocks: list[Block] = []
+        if k == n - 1 and n >= 3:
+            per_test = TEST_MINUTES["writing"]
+            blocks.append(Block("exam", "writing", "P-TEST", min(focus, per_test), None,
+                                t["TEST.title"].format(skill=t["skill"]["writing"], n=1),
+                                t["TEST.do"], reason,
+                                {"kind": "tests", "skills": ["writing"],
+                                 "providers": (["engnovate", "ieltsonlinetests"] if rnd >= 2
+                                               else ["ieltsonlinetests"]), "count": 1}))
+            focus -= blocks[0].minutes
+        per = T1_MINUTES if task == 1 else T2_MINUTES
+        count = min(MAX_WRITING_TASKS, focus // per)
+        if count >= 1:
+            blocks.append(Block("exam", "writing", f"W-T{task}", count * per, None,
+                                t[f"W-T{task}.title"], t[f"W-T{task}x.do"].format(n=count),
+                                reason, {"kind": "writing", "task": task, "count": count}))
+            focus -= count * per
+        video = min(focus, MAX_PRACTICE_VIDEO)
+        if video >= 10:
+            blocks.append(Block("exam", "writing", "P-VID", video, TECHNIQUES,
+                                t["PVID.title"].format(skill=t["skill"]["writing"]),
+                                t["PVID.do"], reason,
+                                {"kind": "videos", "groups": ["practice", "high"],
+                                 "skills": [f"W{task}"], "minutes": video}))
+            focus -= video
+        return blocks + _overflow(inputs, t, focus, reason)
+    # speaking
+    if k == 0:
+        return _techniques(inputs, t, ["S"], groups, focus, reason, "speaking", rnd)
+    practice = min(focus, MAX_SPEAKING)
+    blocks = [Block("exam", "speaking", "S-PRAC", practice, SPEAK_IELTS,
+                    t["S-PRAC.title"], t["S-PRAC.do"], reason, None)]
+    focus -= practice
+    video = min(focus, MAX_PRACTICE_VIDEO)
+    if video >= 10:
+        blocks.append(Block("exam", "speaking", "P-VID", video, TECHNIQUES,
+                            t["PVID.title"].format(skill=t["skill"]["speaking"]), t["PVID.do"],
+                            reason, {"kind": "videos", "groups": ["practice", "high"],
+                                     "skills": ["S"], "minutes": video}))
+        focus -= video
+    return blocks + _overflow(inputs, t, focus, reason)
+
+
+def novel_level(mean_band: float | None) -> str:
+    if mean_band is None or mean_band < 5.0:
+        return "beginner"
+    if mean_band <= 6.0:
+        return "intermediate"
+    return "upper"
 
 
 def day_blocks(inputs: PlanInputs, d: date) -> tuple[str, list[Block]]:
     t = TEXT.get(inputs.lang, TEXT["ar"])
     kind = day_kind(inputs, d)
-    n = _day_number(inputs, d)
 
     if kind in ("exam", "after_exam", "rest"):
         return kind, []
-    if kind in ("mock", "final_mock"):
-        test = PRACTICE_TESTS[n % 2]
-        reason = t["FINAL.reason"] if kind == "final_mock" else t["MOCK.reason"]
-        return kind, [Block("exam", "general", "MOCK", MOCK_MINUTES, test, t["MOCK.title"],
-                            t["MOCK.do"], reason)]
+    if kind == "final_mock":
+        offset = (inputs.exam_date - d).days if inputs.exam_date else 0
+        providers = (["britishcouncil", "dalilk"]
+                     if inputs.exam_format == "computer" and offset == max(FINAL_MOCK_OFFSETS)
+                     else ["dalilk"])
+        return kind, [Block("exam", "general", "MOCK", MOCK_MINUTES, None, t["MOCK.title"],
+                            t["MOCK.do"], t["FINAL.reason"],
+                            {"kind": "tests", "skills": ["full"], "providers": providers,
+                             "count": 1})]
     if kind == "review":
         minutes = min(REVIEW_MAX_MINUTES, max(30, inputs.daily_minutes))
         return kind, [Block("exam", "techniques", "T-STRAT", minutes, TECHNIQUES,
-                            t["REVIEW.title"], t["REVIEW.do"], t["REVIEW.reason"])]
+                            t["REVIEW.title"], t["REVIEW.do"], t["REVIEW.reason"],
+                            {"kind": "videos", "groups": ["core"], "skills": ["L", "R", "W1",
+                             "W2", "S"], "minutes": minutes, "review": True})]
 
-    split = daily_split(inputs)
-    phase = phase_of(inputs)
     level = _mean_level(inputs)
-    dev_reason = t["dev.reason"].format(
-        phase=t["phase"][phase], pct=round(DEV_SHARE[phase] * 100)
-    )
-    easy = level is not None and level < 5.5
-    blocks = [
-        Block("listening", "listening", "L-EXT", split["listening"],
-              LISTEN_EASY if level is not None and level < 5.0 else LISTEN_IELTS,
-              t["L-EXT.title"], t["L-EXT.do"], dev_reason),
-        Block("reading", "reading", "R-EXT", split["reading"], STORIES,
-              t["R-EXT.title"], t["R-EXT.do"], dev_reason),
-    ]
+    dev = dev_minutes(inputs.daily_minutes)
+    focus = inputs.daily_minutes - sum(dev.values())
+    code, _, k, _ = week_info(inputs, d)
+    in_dev_week = code.startswith("dev")
+    dev_reason = t["dev.reason"]
+    tail: list[Block] = []
+    feed = "dalilk_english" if level is not None and level < 5.0 else "dalilk_ielts"
+    listen = dev["listening"]
     spell_days = spelling_weekdays(inputs)
-    spell = min(SPELL_MINUTES, split["listening"] - MIN_BLOCK)
-    if phase != "exam" and js_weekday(d) in spell_days and spell >= MIN_BLOCK:
-        blocks[0].minutes -= spell
-        blocks.insert(1, Block("listening", "listening", "L-SPELL", spell, SPELLING,
-                               t["L-SPELL.title"], t["L-SPELL.do"],
-                               t["L-SPELL.reason"].format(days=_weekday_names(t, spell_days))))
-    if n % 2 == 0:
-        blocks.append(Block("output", "speaking", "S-FLU", split["output"],
-                            SPEAK_EASY if easy else SPEAK_IELTS,
-                            t["S-FLU.title"], t["S-FLU.do"], dev_reason))
-    else:
-        blocks.append(Block("output", "writing", "W-REV", split["output"], None,
-                            t["W-REV.title"], t["W-REV.do"], dev_reason))
-
-    if split["exam"] > 0:
-        skill = focus_skill(inputs, d)
-        gap = skill_gaps(inputs)[skill]
-        reason = t["exam.reason"].format(
-            skill=t["skill"][skill], gap="—" if gap is None else f"{gap:.1f}"
-        )
-        if _first_study_day_of_week(inputs, d):
-            blocks.append(Block("exam", "techniques", "T-STRAT", split["exam"], TECHNIQUES,
-                                t["T-STRAT.title"].format(skill=t["skill"][skill]),
-                                t["T-STRAT.do"].format(skill=t["skill"][skill]), reason))
+    spell = min(SPELL_MINUTES, listen - 10)
+    if in_dev_week and js_weekday(d) in spell_days and spell >= 10:
+        listen -= spell
+    tail.append(Block("listening", "listening", "L-EXT", listen,
+                      LISTEN_EASY if feed == "dalilk_english" else LISTEN_IELTS,
+                      t["L-EXT.title"], t["L-EXT.do"], dev_reason,
+                      {"kind": "podcast", "feed": feed}))
+    if listen != dev["listening"]:
+        tail.append(Block("listening", "listening", "L-SPELL", dev["listening"] - listen,
+                          SPELLING, t["L-SPELL.title"], t["L-SPELL.do"],
+                          t["L-SPELL.reason"].format(days=_weekday_names(t, spell_days))))
+    tail.append(Block("reading", "reading", "R-EXT", dev["reading"], STORIES,
+                      t["R-EXT.title"], t["R-EXT.do"], dev_reason,
+                      {"kind": "novel", "level": novel_level(level)}))
+    if dev["writing"]:
+        tail.append(Block("output", "writing", "W-DEV", dev["writing"], None,
+                          t["W-DEV.title"], t["W-DEV.do"], dev_reason,
+                          {"kind": "writing", "task": 0, "count": 1}))
+    if dev["speaking"]:
+        if in_dev_week and focus >= PHRASE_VIDEO_MINUTES:
+            focus -= PHRASE_VIDEO_MINUTES - dev["speaking"]
+            tail.append(Block("output", "speaking", "S-PHRASE", PHRASE_VIDEO_MINUTES, None,
+                              t["S-PHRASE.title"], t["S-PHRASE.do"], dev_reason,
+                              {"kind": "videos", "groups": ["phrases"], "skills": ["S"],
+                               "count": 1}))
         else:
-            code, cat_id = {
-                "listening": ("L-PRAC", PRACTICE_TESTS[n % 2]),
-                "reading": ("R-PRAC", PRACTICE_TESTS[n % 2]),
-                # written on the app's writing pad; official samples are in the library
-                "writing": ("W-T2" if split["exam"] >= 40 else "W-T1", None),
-                "speaking": ("S-PRAC", SPEAK_IELTS),
-            }[skill]
-            blocks.append(Block("exam", skill, code, split["exam"], cat_id,
-                                t[f"{code}.title"], t[f"{code}.do"], reason))
+            tail.append(Block("output", "speaking", "S-FLU", dev["speaking"],
+                              SPEAK_EASY if level is not None and level < 5.5 else SPEAK_IELTS,
+                              t["S-FLU.title"], t["S-FLU.do"], dev_reason))
+    blocks: list[Block] = []
+    for b in _focus_blocks(inputs, t, d, focus) + tail:
+        same = next((x for x in blocks if x.activity_code == b.activity_code
+                     and x.content == b.content and b.activity_code in ("L-EXT", "R-EXT")), None)
+        if same is not None:
+            same.minutes += b.minutes
+        else:
+            blocks.append(b)
+    blocks = [b for b in blocks if b.minutes >= MIN_BLOCK]
+    if not blocks:
+        blocks = [tail[0]]
+        blocks[0].minutes = inputs.daily_minutes
+    return kind, blocks
 
-    # Blocks shorter than MIN_BLOCK minutes go into the longest development block.
-    kept = [b for b in blocks if b.minutes >= MIN_BLOCK]
-    spare = sum(b.minutes for b in blocks if b.minutes < MIN_BLOCK)
-    if not kept:
-        kept = [blocks[0]]
-        kept[0].minutes = inputs.daily_minutes
-    elif spare:
-        longest = max((b for b in kept if b.category != "exam"), key=lambda b: b.minutes,
-                      default=kept[0])
-        longest.minutes += spare
-    return kind, kept
+
+# ------------------------------------------------------------------ content totals
+
+
+def content_minutes(inputs: PlanInputs, max_days: int = 400) -> dict:
+    """Minutes and counts by content kind over the study days left (plan header)."""
+    last = last_study_date(inputs)
+    if last is None:
+        last = week_start(inputs.plan_start) + timedelta(days=7 * DEFAULT_WEEKS - 1)
+    end = inputs.exam_date - timedelta(days=1) if inputs.exam_date else last
+    out = {"podcast": 0, "novel": 0, "video": 0, "phrase_videos": 0, "tests": 0,
+           "test_minutes": 0, "writing_t1": 0, "writing_t2": 0, "full_tests": 0,
+           "days": 0}
+    day = inputs.today
+    for _ in range(max_days):
+        if day > end:
+            break
+        kind, blocks = day_blocks(inputs, day)
+        if blocks:
+            out["days"] += 1
+        for b in blocks:
+            c = b.content or {}
+            ck = c.get("kind")
+            if ck == "podcast":
+                out["podcast"] += b.minutes
+            elif ck == "novel":
+                out["novel"] += b.minutes
+            elif ck == "videos":
+                if c.get("groups") == ["phrases"]:
+                    out["phrase_videos"] += 1
+                elif not c.get("review"):
+                    out["video"] += b.minutes
+            elif ck == "tests":
+                if c.get("skills") == ["full"]:
+                    out["full_tests"] += 1
+                else:
+                    out["tests"] += c.get("count", 1)
+                    out["test_minutes"] += b.minutes
+            elif ck == "writing" and c.get("task") in (1, 2):
+                out[f"writing_t{c['task']}"] += c.get("count", 1)
+        day += timedelta(days=1)
+    return out

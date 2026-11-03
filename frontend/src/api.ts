@@ -25,6 +25,7 @@ import type {
   StudySession,
   SystemInfo,
   Achievements,
+  ContentItem,
 } from "./types";
 
 export class ApiError extends Error {
@@ -183,6 +184,14 @@ export const api = {
     id: number,
     patch: { position_seconds?: number; listened?: boolean; comprehension?: number; started?: boolean },
   ) => request<Episode>(`podcasts/episodes/${id}`, json("PATCH", patch)),
+
+  contentQueue: (params: Record<string, string | number | boolean | undefined>) => {
+    const q = new URLSearchParams();
+    for (const [k, v] of Object.entries(params)) if (v !== undefined) q.set(k, String(v));
+    return request<ContentItem[]>(`content/queue?${q.toString()}`);
+  },
+  contentStart: (id: number) => request<ContentItem>(`content/${id}/start`, { method: "POST" }),
+  contentDone: (id: number) => request<ContentItem>(`content/${id}/done`, { method: "POST" }),
 
   achievements: () =>
     request<Achievements>(`stats/achievements?tz=${new Date().getTimezoneOffset()}`),

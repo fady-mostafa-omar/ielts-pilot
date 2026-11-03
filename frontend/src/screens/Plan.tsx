@@ -3,16 +3,19 @@
 import { useCallback, useEffect, useState } from "react";
 import { api, ApiError } from "../api";
 import { useI18n } from "../i18n";
-import { Icon, SKILL_STYLE } from "../icons";
+import { ExamFormatPicker } from "../forms";
+import { Icon, type IconName, SKILL_STYLE } from "../icons";
 import { addDays, dayKey, formatHM, todayIso, CATEGORY_COLOR } from "../plan";
 import { RestartCard } from "./Restart";
 import {
   SKILLS,
+  type ContentTotals,
   type DayPlan,
   type PlanSummary,
   type PlanTask,
   type Profile,
   type ProfileInput,
+  type WeekPlan,
 } from "../types";
 
 export function profileToInput(p: Profile): ProfileInput {
@@ -170,13 +173,19 @@ export function PlanScreen(props: {
   const [today, setToday] = useState<DayPlan | null>(null);
   const [week, setWeek] = useState<DayPlan[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [formatSet, setFormatSet] = useState(true);
 
   const load = useCallback(async () => {
     try {
       const iso = todayIso();
-      const [s, d] = await Promise.all([api.planSummary(iso), api.planDay(iso, iso)]);
+      const [s, d, settings] = await Promise.all([
+        api.planSummary(iso),
+        api.planDay(iso, iso),
+        api.settings(),
+      ]);
       setSummary(s);
       setToday(d);
+      setFormatSet(!!settings.exam_format);
       const days = await Promise.all(
         [1, 2, 3, 4, 5, 6].map((n) => api.planDay(dayKey(addDays(new Date(), n)), iso)),
       );
@@ -271,6 +280,24 @@ export function PlanScreen(props: {
           </div>
         )}
       </section>
+
+      {!formatSet && (
+        <section className="card notice stack">
+          <ExamFormatPicker
+            value={null}
+            onChange={(f) =>
+              void api
+                .saveSettings({ exam_format: f })
+                .then(load)
+                .catch((e: unknown) => setError(String(e)))
+            }
+          />
+          <p className="muted small">{t("fmt_unknown_body")}</p>
+        </section>
+      )}
+
+      <WeeksStrip plan={summary.week_plan} />
+      <ContentCard content={summary.content} />
 
       <Feasibility
         estimate={summary}
@@ -390,5 +417,94 @@ export function PlanScreen(props: {
         onStartOver={props.onOpenData}
       />
     </div>
+  );
+}
+
+const WEEK_TYPES = ["devL", "devR", "listening", "reading", "writing", "speaking"] as const;
+const PLAN_NOTES = ["no_consolidation", "squeezed", "short_plan"] as const;
+
+/** Dalilk's method week by week (planner-4), this week highlighted, cuts explained. */
+function WeeksStrip(props: { plan: WeekPlan }) {
+  const { t } = useI18n();
+  const { plan } = props;
+  return (
+    <section className="card stack">
+      <h2 className="row">
+        <Icon name="calendar" color="#1D4ED8" /> {t("plan_weeks_title")}
+      </h2>
+      <ol className="weeks-strip">
+        {plan.sequence.map((w, i) => {
+          const [raw, round] = w.split(":");
+          const type = WEEK_TYPES.find((x) => x === raw) ?? "listening";
+          return (
+            <li
+              key={i}
+              className={`week-chip wk-${type}${round === "2" ? " wk-round2" : ""}${
+                i === plan.current ? " now" : i < plan.current ? " past" : ""
+              }`}
+            >
+              <span className="week-n">{i + 1}</span>
+              <span>{t(`week_${type}`)}</span>
+              {round === "2" && <span className="muted small">{t("week_round2")}</span>}
+            </li>
+          );
+        })}
+      </ol>
+      {PLAN_NOTES.filter((n) => plan.notes.includes(n)).map((n) => (
+        <p key={n} className="note small">
+          {t(`plan_note_${n}`, { w: plan.weeks })}
+        </p>
+      ))}
+    </section>
+  );
+}
+
+/** The plan's hours as content (CURRICULUM §4b): each item once, estimates labelled. */
+function ContentCard(props: { content: ContentTotals }) {
+  const { t } = useI18n();
+  const c = props.content;
+  const tiles: { icon: IconName; color: string; n: number; label: string }[] = [
+    { icon: "headphones", color: "#2563EB", n: c.episodes, label: t("plan_content_episodes") },
+    { icon: "book", color: "#0F766E", n: c.novels, label: t("plan_content_novels") },
+    {
+      icon: "play",
+      color: "#7C3AED",
+      n: c.videos,
+      label: t("plan_content_videos", { h: c.video_hours }),
+    },
+    { icon: "target", color: "#B45309", n: c.tests, label: t("plan_content_tests") },
+    {
+      icon: "pen",
+      color: "#BE185D",
+      n: c.writing_t1 + c.writing_t2,
+      label: t("plan_content_writing", { t1: c.writing_t1, t2: c.writing_t2 }),
+    },
+    { icon: "flag", color: "#DC2626", n: c.full_tests, label: t("plan_content_full") },
+  ];
+  return (
+    <section className="card stack">
+      <h2 className="row">
+        <Icon name="trend" color="#15803D" /> {t("plan_content_title")}
+      </h2>
+      <div className="ach-grid">
+        {tiles.map((tile) => (
+          <div className="ach-tile" key={tile.label}>
+            <span className="ach-icon" style={{ color: tile.color }}>
+              <Icon name={tile.icon} size={20} />
+            </span>
+            <strong className="ach-value">
+              <bdi dir="ltr">{tile.n}</bdi>
+            </strong>
+            <span className="ach-label">{tile.label}</span>
+          </div>
+        ))}
+      </div>
+      <p className="muted small">
+        {t("plan_content_note", {
+          m: c.episode_minutes,
+          est: c.episode_measured ? "" : t("plan_content_est"),
+        })}
+      </p>
+    </section>
   );
 }

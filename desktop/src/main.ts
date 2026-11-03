@@ -204,6 +204,10 @@ const SMOKE_PROBE = `(async () => {
     method: 'POST', headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ xml: feedXml.replace('Daily IELTS Listening #1', 'English Listening #1') }),
   });
+  const queue = await fetch('api/v1/content/queue?kind=video&groups=core&skills=L&limit=2');
+  const queueBody = queue.ok ? await queue.json() : [];
+  const novels = await fetch('api/v1/content/queue?kind=novel&level=beginner');
+  const novelBody = novels.ok ? await novels.json() : [];
   let rejected = false;
   try { await window.ipBridge.panel.open({ url: 'file:///C:/Windows/win.ini' }, false); }
   catch { rejected = true; }
@@ -223,6 +227,8 @@ const SMOKE_PROBE = `(async () => {
     planDayOk: planDay.status === 200 && !!planBody && typeof planBody.kind === 'string',
     podcastOk: imported.status === 200 && !!nextBody && nextBody.number === 1 &&
       typeof nextBody.transcript_url === 'string' && englishImport.status === 200,
+    contentOk: queueBody.length === 2 && novelBody.length === 1 &&
+      String(novelBody[0].url).startsWith('https://publuu.com/'),
   };
 })()`;
 
@@ -254,6 +260,7 @@ async function runSmoke(outFile: string): Promise<number> {
       probe.panelShowedLibraryFile === true &&
       probe.panelRejectsFileUrl === true &&
       probe.planDayOk === true &&
+      probe.contentOk === true &&
       probe.podcastOk === true;
   } catch (err) {
     result.error = err instanceof Error ? err.message : String(err);

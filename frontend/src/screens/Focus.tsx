@@ -8,12 +8,36 @@ import { useI18n } from "../i18n";
 import { Icon } from "../icons";
 import { formatHM, todayIso } from "../plan";
 import type { AppSettings, DayKind, PlanTask, Resource } from "../types";
+import { isQueueContent } from "./ContentQueue";
 import { Interlude, interludeSeconds } from "./Interlude";
 import { podcastFeedOf } from "./Library";
 import { StudyScreen, type StudyTarget } from "./Study";
 
 function targetFor(task: PlanTask, resource: Resource | null): StudyTarget {
-  const feed = podcastFeedOf(resource);
+  const content = task.content;
+  if (isQueueContent(content)) {
+    // planner-4: the task's own videos / novel / tests, opened directly
+    return {
+      title: task.title,
+      target: null,
+      resource,
+      skill: task.skill,
+      activityCode: task.activity_code,
+      timer: true,
+      queue: content,
+    };
+  }
+  if (content?.kind === "writing") {
+    return {
+      title: task.title,
+      target: null,
+      resource: null,
+      skill: "writing",
+      activityCode: task.activity_code,
+      timer: true,
+    };
+  }
+  const feed = content?.kind === "podcast" ? content.feed : podcastFeedOf(resource);
   if (feed) {
     return {
       title: task.title,

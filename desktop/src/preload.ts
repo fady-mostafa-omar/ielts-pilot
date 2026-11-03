@@ -3,7 +3,7 @@
 
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from "electron";
 
-type PanelTarget = { url: string } | { library: string };
+type PanelTarget = { url: string } | { library: string } | { video: string };
 type Bounds = { x: number; y: number; width: number; height: number };
 
 contextBridge.exposeInMainWorld("ipBridge", {
@@ -49,6 +49,11 @@ contextBridge.exposeInMainWorld("ipBridge", {
       const handler = (_event: IpcRendererEvent, state: unknown) => callback(state);
       ipcRenderer.on("ip:panel-state", handler);
       return () => ipcRenderer.removeListener("ip:panel-state", handler);
+    },
+    onMedia: (callback: (state: unknown) => void): (() => void) => {
+      const handler = (_event: IpcRendererEvent, state: unknown) => callback(state);
+      ipcRenderer.on("ip:panel-media", handler);
+      return () => ipcRenderer.removeListener("ip:panel-media", handler);
     },
   },
 });

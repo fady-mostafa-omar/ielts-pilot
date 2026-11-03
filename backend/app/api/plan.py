@@ -14,9 +14,11 @@ from app.db import utcnow
 from app.models import (
     SKILLS,
     AppSetting,
+    ContentItem,
     LearnerProfile,
     PlacementResult,
     PlanTask,
+    PodcastEpisode,
     Resource,
     SkillLevel,
     StudySession,
@@ -33,6 +35,7 @@ DEFAULTS = {
     "break_minutes": 10,
     "plan_start": None,
     "interlude_seconds": 60,
+    "exam_format": None,  # D-037: asked in setup; planner-4 assumes "computer" until set
 }
 RESTARTED_KEY = "plan_restarted_at"  # set by "start the plan again"; not an owner setting
 
@@ -172,12 +175,67 @@ def _inputs(session: Session, today: date) -> planner.PlanInputs:
         hours_per_band=settings.hours_per_band or 200,
         plan_start=settings.plan_start or today,
         hours_done=_hours_since(session, _hours_baseline(session)),
+        exam_format=settings.exam_format or "computer",
     )
 
 
-def _estimate_dict(inputs: planner.PlanInputs) -> dict:
+def _content_totals(session: Session | None, inputs: planner.PlanInputs) -> dict:
+    """The plan's hours as content (CURRICULUM §4b, plan header). Estimates are flagged."""
+    minutes = planner.content_minutes(inputs)
+    avg_episode = 11.5
+    measured_episode = False
+    if session is not None:
+        avg = session.scalar(
+            select(func.avg(PodcastEpisode.duration_seconds)).where(
+                PodcastEpisode.feed == "dalilk_ielts", PodcastEpisode.duration_seconds > 0
+            )
+        )
+        if avg:
+            avg_episode, measured_episode = float(avg) / 60, True
+    level = planner._mean_level(inputs)
+    video_groups = ["core", "computer" if inputs.exam_format == "computer" else "paper",
+                    "practice", "high"]
+    if level is not None and level < 5.5:
+        video_groups.append("low")
+    video_seconds = video_count = 0
+    if session is not None:
+        video_seconds, video_count = session.execute(
+            select(func.coalesce(func.sum(ContentItem.duration_seconds), 0), func.count())
+            .where(ContentItem.kind == "video", ContentItem.active.is_(True),
+                   ContentItem.completed_at.is_(None), ContentItem.grp.in_(video_groups))
+        ).one()
+    scheduled = minutes["video"] * 60
+    if video_seconds > scheduled and video_seconds:
+        # only part of the videos fit in the video time of the plan
+        ratio = scheduled / video_seconds
+        video_count, video_seconds = round(video_count * ratio), scheduled
+    return {
+        "days": minutes["days"],
+        "podcast_minutes": minutes["podcast"],
+        "episodes": round(minutes["podcast"] / (4 * avg_episode)),
+        "episode_minutes": round(avg_episode, 1),
+        "episode_measured": measured_episode,
+        "novel_minutes": minutes["novel"],
+        "novels": round(minutes["novel"] / 60),
+        "videos": int(video_count) + minutes["phrase_videos"],
+        "video_hours": round((video_seconds + minutes["phrase_videos"] * 20 * 60) / 3600, 1),
+        "tests": minutes["tests"],
+        "full_tests": minutes["full_tests"],
+        "writing_t1": minutes["writing_t1"],
+        "writing_t2": minutes["writing_t2"],
+    }
+
+
+def _estimate_dict(inputs: planner.PlanInputs, session: Session | None = None) -> dict:
     est = planner.estimate(inputs)
     data = est.__dict__.copy()
+    data["week_plan"] = planner.week_plan(inputs)
+    data["week_plan"]["sequence"] = [f"{t}:{r}" for t, r in data["week_plan"]["sequence"]]
+    data["week_plan"]["current"] = (
+        planner.week_start(inputs.today) - planner.week_start(inputs.plan_start)
+    ).days // 7
+    data["exam_format"] = inputs.exam_format
+    data["content"] = _content_totals(session, inputs)
     data["final_mock_dates"] = [d.isoformat() for d in est.final_mock_dates]
     for key in ("exam_date", "goal_date", "review_date", "earliest_exam_date", "next_mock_date"):
         value = data[key]
@@ -219,6 +277,7 @@ def _task_out(session: Session, task: PlanTask) -> PlanTaskOut:
         .where(StudySession.state.in_(("confirmed", "running", "unconfirmed")))
     )
     out = PlanTaskOut.model_validate(task, from_attributes=True)
+    out.content = json.loads(task.content_json) if task.content_json else None
     out.done_minutes = round(float(seconds or 0) / 60, 1)
     return out
 
@@ -261,6 +320,7 @@ def _ensure_day(session: Session, inputs: planner.PlanInputs, day: date) -> list
             title=block.title,
             instructions=block.instructions,
             reason=block.reason,
+            content_json=json.dumps(block.content) if block.content else None,
             status="pending",
             inputs_hash=digest,
             generator_version=planner.GENERATOR,
@@ -305,7 +365,7 @@ def _streak(session: Session, inputs: planner.PlanInputs, tz_offset: int) -> int
 def plan_summary(ctx: Ctx, today: date, tz: int = TZ_QUERY) -> dict:
     with ctx.session_factory.begin() as session:
         inputs = _inputs(session, today)
-        data = _estimate_dict(inputs)
+        data = _estimate_dict(inputs, session)
         data["today_kind"] = planner.day_kind(inputs, today)
         data["today_minutes"] = round(_day_minutes(session, today, tz), 1)
         data["streak_days"] = _streak(session, inputs, tz)
@@ -342,7 +402,7 @@ def restart_plan(body: RestartIn, ctx: Ctx) -> dict:
         session.execute(delete(PlanTask).where(PlanTask.plan_date >= body.today))
     with ctx.session_factory.begin() as session:
         inputs = _inputs(session, body.today)
-        return _estimate_dict(inputs)
+        return _estimate_dict(inputs, session)
 
 
 @router.get("/plan/day")
@@ -373,7 +433,8 @@ def plan_day(
                 "preview": True,
                 "tasks": [
                     {"title": b.title, "category": b.category, "skill": b.skill,
-                     "activity_code": b.activity_code, "planned_minutes": b.minutes}
+                     "activity_code": b.activity_code, "planned_minutes": b.minutes,
+                     "content": b.content}
                     for b in blocks
                 ],
             }

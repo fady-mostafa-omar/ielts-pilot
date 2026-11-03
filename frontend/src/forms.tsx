@@ -6,6 +6,7 @@ import { Icon } from "./icons";
 import { todayIso } from "./plan";
 import {
   SKILLS,
+  type ExamFormat,
   type ExplanationLang,
   type LevelEntry,
   type Profile,
@@ -409,6 +410,34 @@ export function LevelsFields(props: {
           )}
         </div>
       ))}
+    </div>
+  );
+}
+
+/** D-037: computer or paper exam (picks the format videos and the final-days tests). */
+export function ExamFormatPicker(props: {
+  value: ExamFormat | null;
+  onChange: (value: ExamFormat) => void;
+}) {
+  const { t } = useI18n();
+  return (
+    <div className="stack-xs">
+      <span className="field-label">{t("fmt_title")}</span>
+      <div className="segmented" role="radiogroup" aria-label={t("fmt_title")}>
+        {(["computer", "paper"] as const).map((f) => (
+          <button
+            key={f}
+            type="button"
+            role="radio"
+            aria-checked={props.value === f}
+            className={props.value === f ? "active" : ""}
+            onClick={() => props.onChange(f)}
+          >
+            {t(`fmt_${f}`)}
+          </button>
+        ))}
+      </div>
+      <span className="muted small">{t("fmt_body")}</span>
     </div>
   );
 }
