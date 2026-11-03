@@ -151,7 +151,7 @@ The owner's screenshot showed Daily English Listening (DLK-11) opening the old p
 - [x] Planner-4 (CURRICULUM §4b): development hour + weekly focus, 12-week sequence adapted to the weeks left, cuts explained, daily caps, no two-weekly mock
 - [x] Each task opens its own content: videos one after another (alone, full screen, YouTube overlays hidden, next on end), the next novel at the level, the next practice tests by direct link; each item once
 - [x] My plan: Dalilk weeks strip, "what these hours hold" (episodes, novels, videos, tests, writing tasks, full tests), exam-format prompt; Home counters for videos, novels, tests
-- [ ] Windows CI build green; v0.0.8 published
+- [x] Windows CI build green (167 tests, installer smoke incl. content queue); v0.0.8 published to ielts-pilot-releases (2026-11-03)
 - [ ] Owner checks on the laptop: YouTube videos play in the app (could not be tested here), novels open, tests open
 
 ## v0.0.9 — Words, phrases and stories
