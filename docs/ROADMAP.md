@@ -127,7 +127,7 @@ The owner's screenshot showed Daily English Listening (DLK-11) opening the old p
 - [x] One-minute pause between tasks: original encouraging lines and original illustrations, Next after the countdown, adjustable or off in Settings (D-032)
 - [x] Planner-3: spelling challenge (DLK-21) on two fixed study days a week outside the exam phase, 15 min from the listening time
 - [x] Dalilk's 90-day plan read (owner's PDF): structure and links in `docs/research/dalilk_plans.md` for 0.0.7
-- [ ] Windows CI build green; v0.0.6 published
+- [x] Windows CI build green (152 tests, installer smoke incl. both podcasts); v0.0.6 published to ielts-pilot-releases (2026-11-03)
 - [ ] Owner updates through the Update tab and checks both podcasts on the laptop
 
 ## v0.0.7 — Content map
