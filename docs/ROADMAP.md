@@ -159,7 +159,8 @@ The owner's screenshot showed Daily English Listening (DLK-11) opening the old p
 - [x] One item at a time, like the podcast: lesson n of m, the next video starts on its own; a finished novel asks "next novel" or "next task"; no list to pick from
 - [x] Library: Dalilk's 100 novels, the techniques series and the daily-phrases series open the next item, not the website or the playlist
 - [x] YouTube's player used as it is (0.0.8's CSS changes removed)
-- [ ] Windows CI build green; v0.0.9 published
+- [x] Windows CI build green; v0.0.9 published (2026-11-03)
+- [ ] Owner checks on the laptop: videos one by one with YouTube's controls, novels open directly, the 6-hour split
 
 ## v0.0.10 — Words, phrases and stories
 - Dalilk's 350 words first (coloured cards, Arabic and English), then words captured from the podcasts and stories → flashcards (SM-2) → reviews in Today
