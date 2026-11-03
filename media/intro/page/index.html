@@ -1,0 +1,707 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<title>IELTS Band Up — intro</title>
+<style>
+@font-face { font-family: Plex; font-weight: 400; src: url(fonts/ibm-plex-sans-arabic-arabic-400-normal.woff2) format("woff2"); unicode-range: U+0600-06FF, U+0750-077F, U+08A0-08FF, U+FB50-FDFF, U+FE70-FEFF, U+200C-200F, U+066A-066D; }
+@font-face { font-family: Plex; font-weight: 500; src: url(fonts/ibm-plex-sans-arabic-arabic-500-normal.woff2) format("woff2"); unicode-range: U+0600-06FF, U+0750-077F, U+08A0-08FF, U+FB50-FDFF, U+FE70-FEFF, U+200C-200F; }
+@font-face { font-family: Plex; font-weight: 600; src: url(fonts/ibm-plex-sans-arabic-arabic-600-normal.woff2) format("woff2"); unicode-range: U+0600-06FF, U+0750-077F, U+08A0-08FF, U+FB50-FDFF, U+FE70-FEFF, U+200C-200F; }
+@font-face { font-family: Plex; font-weight: 700; src: url(fonts/ibm-plex-sans-arabic-arabic-700-normal.woff2) format("woff2"); unicode-range: U+0600-06FF, U+0750-077F, U+08A0-08FF, U+FB50-FDFF, U+FE70-FEFF, U+200C-200F; }
+@font-face { font-family: Plex; font-weight: 400; src: url(fonts/ibm-plex-sans-arabic-latin-400-normal.woff2) format("woff2"); unicode-range: U+0000-00FF, U+2000-206F, U+2190-21FF; }
+@font-face { font-family: Plex; font-weight: 500; src: url(fonts/ibm-plex-sans-arabic-latin-500-normal.woff2) format("woff2"); unicode-range: U+0000-00FF, U+2000-206F, U+2190-21FF; }
+@font-face { font-family: Plex; font-weight: 600; src: url(fonts/ibm-plex-sans-arabic-latin-600-normal.woff2) format("woff2"); unicode-range: U+0000-00FF, U+2000-206F, U+2190-21FF; }
+@font-face { font-family: Plex; font-weight: 700; src: url(fonts/ibm-plex-sans-arabic-latin-700-normal.woff2) format("woff2"); unicode-range: U+0000-00FF, U+2000-206F, U+2190-21FF; }
+
+:root {
+  --pink: #e11d48; --deep: #be185d; --plum: #2a0f2e; --yellow: #fde047;
+  --ink: #111827; --muted: #6b7280; --line: #e5e7eb; --bg: #f5f6fa;
+  --blue: #2563eb; --teal: #0f766e; --amber: #b45309; --violet: #7c3aed; --green: #15803d;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { width: 1920px; height: 1080px; overflow: hidden; background: #000; }
+body { font-family: Plex, sans-serif; color: var(--ink); }
+#stage { position: relative; width: 1920px; height: 1080px; overflow: hidden; }
+.scene { position: absolute; inset: 0; opacity: 0; overflow: hidden; }
+.abs { position: absolute; }
+.ltr { direction: ltr; unicode-bidi: isolate; }
+
+/* backgrounds */
+.bg-brand { background: radial-gradient(1400px 900px at 70% 25%, #f43f5e 0%, #e11d48 35%, #be185d 70%, #831843 100%); }
+.bg-plum { background: radial-gradient(1300px 900px at 50% 40%, #4a1239 0%, #2a0f2e 55%, #140716 100%); }
+.bg-light { background: radial-gradient(1500px 900px at 80% 0%, #ffe4ec 0%, #f5f6fa 45%, #eef1f7 100%); }
+
+/* headings on the light scenes */
+.head { position: absolute; top: 64px; right: 120px; left: 120px; display: flex; align-items: center; gap: 28px; }
+.step { width: 92px; height: 92px; border-radius: 28px; background: linear-gradient(160deg, #e11d48, #be185d);
+  color: #fff; font-weight: 700; font-size: 52px; display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 14px 30px rgba(225, 29, 72, .28); flex: none; }
+.head h1 { font-size: 60px; font-weight: 700; line-height: 1.15; letter-spacing: -.5px; }
+.head p { font-size: 32px; color: var(--muted); margin-top: 6px; font-weight: 500; }
+
+/* the app window */
+.win { position: absolute; background: #fff; border-radius: 30px; box-shadow: 0 40px 90px rgba(17, 24, 39, .14), 0 4px 14px rgba(17, 24, 39, .06); overflow: hidden; }
+.win-top { height: 70px; border-bottom: 1px solid var(--line); display: flex; align-items: center; gap: 14px; padding: 0 28px; }
+.win-top .name { font-weight: 700; font-size: 22px; }
+.win-top .nav { display: flex; gap: 8px; margin-inline-start: 22px; }
+.win-top .nav span { font-size: 18px; color: var(--muted); padding: 6px 14px; border-radius: 10px; font-weight: 500; }
+.win-top .nav span.on { background: #eef2ff; color: var(--blue); }
+
+.card { position: absolute; background: #fff; border: 1px solid var(--line); border-radius: 24px; }
+.label { font-size: 22px; color: var(--muted); font-weight: 600; }
+.chip { display: inline-flex; align-items: center; justify-content: center; height: 58px; min-width: 96px; padding: 0 18px;
+  border-radius: 16px; border: 2px solid var(--line); font-size: 26px; font-weight: 600; color: var(--ink); background: #fff; }
+.chip.on { background: var(--blue); border-color: var(--blue); color: #fff; }
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 12px; height: 72px; padding: 0 34px; border-radius: 18px;
+  background: var(--blue); color: #fff; font-weight: 700; font-size: 28px; }
+.pill { display: inline-flex; align-items: center; height: 40px; padding: 0 16px; border-radius: 999px; font-size: 20px; font-weight: 600; }
+
+/* resource cards (scene 2, 3) */
+.res { position: absolute; min-width: 300px; white-space: nowrap; height: 100px; border-radius: 22px; background: #fff; display: flex; align-items: center; gap: 18px;
+  padding: 0 22px; box-shadow: 0 18px 40px rgba(0, 0, 0, .25); font-size: 27px; font-weight: 600; color: var(--ink); }
+.res .ic { width: 58px; height: 58px; border-radius: 16px; display: flex; align-items: center; justify-content: center; flex: none; }
+.qm { position: absolute; font-size: 150px; font-weight: 700; color: var(--yellow); text-shadow: 0 10px 40px rgba(253, 224, 71, .35); }
+
+.toast { position: absolute; background: #ecfdf3; color: var(--green); border: 1px solid #bbf7d0; border-radius: 18px; font-size: 26px; font-weight: 600;
+  padding: 16px 24px; display: flex; align-items: center; gap: 12px; }
+
+.cursor { position: absolute; left: 0; top: 0; width: 46px; height: 46px; z-index: 50; pointer-events: none; filter: drop-shadow(0 6px 10px rgba(0,0,0,.25)); }
+.ripple { position: absolute; left: 0; top: 0; width: 90px; height: 90px; border-radius: 50%; border: 4px solid rgba(37, 99, 235, .55); z-index: 49; }
+</style>
+</head>
+<body>
+<div id="stage">
+
+<!-- ============ 1. logo ============ -->
+<section class="scene bg-brand" id="s1">
+  <div id="s1dots"></div>
+  <svg class="abs" id="s1logo" style="left:810px; top:190px" width="300" height="300" viewBox="0 0 120 120">
+    <path id="s1c1" d="M30 76 L60 46 L90 76" fill="none" stroke="#fff" stroke-width="11" stroke-linecap="round" stroke-linejoin="round"/>
+    <path id="s1c2" d="M40 94 L60 74 L80 94" fill="none" stroke="#fff" stroke-width="8" stroke-linecap="round" stroke-linejoin="round" opacity=".6"/>
+    <circle id="s1dot" cx="60" cy="28" r="8" fill="#fde047"/>
+  </svg>
+  <div class="abs ltr" id="s1name" style="left:0; right:0; top:540px; text-align:center; font-size:120px; font-weight:700; color:#fff; letter-spacing:-2px;">IELTS Band Up</div>
+  <div class="abs" id="s1tag" style="left:0; right:0; top:705px; text-align:center; font-size:46px; font-weight:500; color:#ffe4ec;">طريقك إلى الدرجة التي تريدها</div>
+</section>
+
+<!-- ============ 2. too many resources ============ -->
+<section class="scene bg-plum" id="s2">
+  <div class="abs" id="s2h1" style="left:0; right:0; top:84px; text-align:center; font-size:72px; font-weight:700; color:#fff;">مصادر كثيرة… ومجانية</div>
+  <div class="abs" id="s2h2" style="left:0; right:0; top:182px; text-align:center; font-size:58px; font-weight:700; color:var(--yellow);">لكن: بماذا تبدأ؟ وماذا بعده؟</div>
+  <div id="s2cards"></div>
+  <div id="s2qms"></div>
+</section>
+
+<!-- ============ 3. the maker, order ============ -->
+<section class="scene" id="s3">
+  <div class="abs bg-plum" id="s3dark" style="inset:0"></div>
+  <div class="abs bg-light" id="s3light" style="inset:0; opacity:0"></div>
+  <svg class="abs" id="s3path" style="left:0; top:0" width="1920" height="1080"></svg>
+  <div id="s3cards"></div>
+  <div class="abs" id="s3h" style="right:120px; top:96px; font-size:64px; font-weight:700; color:var(--ink);">الحل: خطة واحدة، يومًا بيوم</div>
+  <div class="card" id="s3card" style="right:100px; top:290px; width:740px; height:580px; border:none; box-shadow:0 40px 90px rgba(17,24,39,.14); padding:56px; ">
+    <div style="display:flex; align-items:center; gap:34px;">
+      <div style="width:150px; height:150px; border-radius:50%; background:linear-gradient(160deg,#f43f5e,#be185d); display:flex; align-items:center; justify-content:center; color:#fff; font-size:62px; font-weight:700; box-shadow:0 16px 34px rgba(225,29,72,.3); flex:none;">ف م</div>
+      <div>
+        <div style="font-size:56px; font-weight:700; line-height:1.1; white-space:nowrap;">م. فادي مصطفى</div>
+        <div style="font-size:30px; color:var(--muted); margin-top:10px; font-weight:500;">مصمّم <span class="ltr">IELTS Band Up</span></div>
+      </div>
+    </div>
+    <div id="s3free" class="pill" style="margin-top:46px; height:64px; font-size:30px; padding:0 26px; background:#fef9c3; color:#854d0e; gap:12px;">
+      <svg width="30" height="30" viewBox="0 0 24 24"><path d="M5 12l5 5L20 7" fill="none" stroke="#854d0e" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      مجاني بالكامل
+    </div>
+    <div id="s3line" style="margin-top:34px; font-size:36px; line-height:1.55; font-weight:500; color:#374151;">صمّمته ليساعدك: يرتّب المصادر المجانية في خطة واحدة، تمشي عليها يومًا بيوم حتى درجتك.</div>
+  </div>
+</section>
+
+<!-- ============ 4. setup ============ -->
+<section class="scene bg-light" id="s4">
+  <div class="head" id="s4head"><div class="step">1</div><div><h1>أخبره بهدفك وموعد امتحانك ووقتك</h1><p>ويحسب لك الساعات التي تحتاجها</p></div></div>
+  <div class="win" id="s4win" style="left:150px; top:270px; width:1620px; height:740px;">
+    <div class="win-top"><svg width="34" height="34" viewBox="0 0 120 120"><rect width="120" height="120" rx="30" fill="#e11d48"/><path d="M30 76 L60 46 L90 76" fill="none" stroke="#fff" stroke-width="13" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="name ltr">IELTS Band Up</span></div>
+    <div class="abs" style="right:60px; top:110px; width:820px;">
+      <div class="label">مستواك الآن</div>
+      <div style="display:flex; gap:14px; margin-top:14px;" id="s4now"><span class="chip">5.0</span><span class="chip">5.5</span><span class="chip">6.0</span><span class="chip">6.5</span></div>
+      <div class="label" style="margin-top:38px;">الدرجة التي تريدها</div>
+      <div style="display:flex; gap:14px; margin-top:14px;" id="s4goal"><span class="chip">6.0</span><span class="chip">6.5</span><span class="chip">7.0</span><span class="chip">7.5</span><span class="chip">8.0</span></div>
+      <div class="label" style="margin-top:38px;">موعد الامتحان</div>
+      <div id="s4date" style="margin-top:14px; height:62px; width:420px; border:2px solid var(--line); border-radius:16px; display:flex; align-items:center; padding:0 20px; font-size:28px; font-weight:600;"><span id="s4datetext"></span><span id="s4caret" style="width:3px; height:32px; background:var(--blue); margin-inline-start:4px;"></span></div>
+      <div class="label" style="margin-top:38px;">وقت المذاكرة في اليوم: <span id="s4hours" style="color:var(--ink);">ساعة</span></div>
+      <div style="margin-top:22px; position:relative; width:640px; height:12px; border-radius:6px; background:#e5e7eb;">
+        <div id="s4fill" style="position:absolute; right:0; top:0; height:12px; border-radius:6px; background:var(--blue); width:0;"></div>
+        <div id="s4knob" style="position:absolute; top:-14px; width:40px; height:40px; border-radius:50%; background:#fff; border:4px solid var(--blue); box-shadow:0 4px 10px rgba(0,0,0,.15);"></div>
+      </div>
+    </div>
+    <div class="card" id="s4res" style="left:60px; top:110px; width:620px; height:560px; background:linear-gradient(170deg,#fff1f4,#ffffff); border-color:#fecdd6; padding:50px;">
+      <svg width="74" height="74" viewBox="0 0 24 24"><path d="M6 2h12M6 22h12M7 2c0 5 5 6 5 10s-5 5-5 10M17 2c0 5-5 6-5 10s5 5 5 10" fill="none" stroke="#e11d48" stroke-width="2" stroke-linecap="round"/></svg>
+      <div style="font-size:32px; color:var(--muted); margin-top:20px; font-weight:600;">تحتاج حوالي</div>
+      <div style="display:flex; align-items:baseline; gap:16px;"><span id="s4num" class="ltr" style="font-size:150px; font-weight:700; color:var(--pink); line-height:1.05;">0</span><span style="font-size:44px; font-weight:700;">ساعة</span></div>
+      <div style="font-size:28px; color:#374151; margin-top:18px; font-weight:500;">من <b class="ltr">5.5</b> إلى <b class="ltr">7.0</b> · <span class="ltr">100</span> ساعة لكل درجة</div>
+      <div style="font-size:28px; color:#374151; margin-top:10px; font-weight:500;">≈ <b class="ltr">50</b> يوم مذاكرة، <b class="ltr">3</b> ساعات في اليوم</div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 5. the plan ============ -->
+<section class="scene bg-light" id="s5">
+  <div class="head" id="s5head"><div class="step">2</div><div><h1>خطة يومًا بيوم</h1><p>ساعة كل يوم لتطوير اللغة، وكل أسبوع تركيز على مهارة</p></div></div>
+  <div class="abs" id="s5weeks" style="right:120px; left:120px; top:280px; height:150px;"></div>
+  <div class="win" id="s5day" style="left:330px; top:470px; width:1260px; height:560px; padding:40px 50px;">
+    <div style="display:flex; align-items:center; justify-content:space-between;">
+      <div style="font-size:36px; font-weight:700;">النهارده · أسبوع الاستماع</div>
+      <div class="pill" style="background:#eef2ff; color:var(--blue); height:52px; font-size:26px;">3 ساعات</div>
+    </div>
+    <div style="display:flex; gap:40px; margin-top:28px;">
+      <div style="flex:1;"><div class="label" style="margin-bottom:14px;">تركيز الأسبوع · ساعتين</div><div id="s5focus"></div></div>
+      <div style="flex:1;"><div class="label" style="margin-bottom:14px;">ساعة التطوير · كل يوم</div><div id="s5dev"></div></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 6. studying ============ -->
+<section class="scene bg-light" id="s6">
+  <div class="head" id="s6head"><div class="step">3</div><div><h1>تضغط «كمّل تعلّم»… والمهام تأتي وراء بعضها</h1><p>والوقت يُحسب وحده</p></div></div>
+  <div class="win" id="s6win" style="left:150px; top:270px; width:1620px; height:740px;">
+    <div id="s6home" class="abs" style="inset:70px 0 0 0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:30px;">
+      <div style="font-size:40px; font-weight:700;">صباح الخير يا فادي 👋</div>
+      <div style="font-size:28px; color:var(--muted);">خطة النهارده جاهزة: 8 مهام · 3 ساعات</div>
+      <div class="btn" id="s6go" style="height:96px; font-size:36px; padding:0 60px; border-radius:24px; background:linear-gradient(160deg,#e11d48,#be185d); box-shadow:0 18px 40px rgba(225,29,72,.3);">كمّل تعلّم ←</div>
+    </div>
+    <div id="s6focus" class="abs" style="inset:0; opacity:0;">
+      <div class="abs" style="right:0; top:0; bottom:0; width:470px; border-left:1px solid var(--line); background:#fafbfc; padding:40px 36px;">
+        <div id="s6dots" style="display:flex; gap:8px;"></div>
+        <div class="label" id="s6kind" style="margin-top:34px;"></div>
+        <div id="s6title" style="font-size:36px; font-weight:700; margin-top:8px; line-height:1.25;"></div>
+        <div style="margin-top:40px; border:1px solid var(--line); border-radius:20px; padding:24px 26px; background:#fff;">
+          <div class="label">الوقت المحسوب</div>
+          <div id="s6timer" class="ltr" style="font-size:64px; font-weight:700; margin-top:6px; text-align:right;">00:00</div>
+          <div style="font-size:22px; color:var(--green); font-weight:600;">بيتحسب لوحده</div>
+        </div>
+        <div class="btn" id="s6next" style="margin-top:36px; width:100%;">التالي ←</div>
+      </div>
+      <div id="s6main" class="abs" style="left:0; top:0; bottom:0; right:470px; background:#f3f4f8;"></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 7. practice ============ -->
+<section class="scene bg-light" id="s7">
+  <div class="head" id="s7head"><div class="step">4</div><div><h1>اختبارات بالاسم في وقتها</h1><p>وتكتب وتتكلم مع المعلّم الذكي، ونتيجتك تُسجَّل في مستواك</p></div></div>
+  <div class="win" id="s7test" style="right:120px; top:280px; width:820px; height:720px; padding:46px 50px;">
+    <span class="pill" style="background:#dcfce7; color:var(--green);">اختبار كامل · بيدخل في مستواك</span>
+    <div class="ltr" style="font-size:38px; font-weight:700; margin-top:22px; line-height:1.25; text-align:right;">Cambridge IELTS 21 Academic<br>Listening Test 1</div>
+    <div class="ltr" style="font-size:22px; color:var(--muted); margin-top:8px; text-align:right;">engnovate</div>
+    <div style="border-top:1px solid var(--line); margin-top:30px; padding-top:28px;">
+      <div class="label">النتيجة</div>
+      <div style="display:flex; align-items:center; gap:18px; margin-top:16px; font-size:30px; font-weight:600;">صح
+        <span id="s7c" class="chip ltr" style="min-width:120px;">&nbsp;</span> من <span class="chip ltr" style="min-width:120px;">40</span></div>
+      <div class="label" style="margin-top:28px;">الدرجة اللي الموقع طلّعها</div>
+      <span id="s7b" class="chip ltr" style="margin-top:14px; min-width:150px;">—</span>
+      <div style="margin-top:34px;"><span class="btn" id="s7save">احفظ النتيجة ←</span></div>
+    </div>
+    <div class="toast" id="s7toast" style="left:50px; right:50px; bottom:40px;"><svg width="30" height="30" viewBox="0 0 24 24"><path d="M5 12l5 5L20 7" fill="none" stroke="#15803d" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>اتسجّلت في مستواك: الاستماع <b class="ltr">6.5</b></div>
+  </div>
+  <div class="win" id="s7lab" style="left:120px; top:280px; width:820px; height:720px; padding:46px 50px;">
+    <span class="pill" style="background:#fdf2f8; color:var(--deep);">معمل الكتابة · المعلّم الذكي</span>
+    <div class="ltr" style="font-size:34px; font-weight:700; margin-top:22px; text-align:right;">Writing Task 2 · Cambridge 21 Test 1</div>
+    <div id="s7lines" style="margin-top:28px;"></div>
+    <div class="label" style="margin-top:26px;">درجات المعلّم الذكي</div>
+    <div id="s7scores" style="display:flex; gap:14px; margin-top:14px;"></div>
+    <div class="toast" id="s7toast2" style="left:50px; right:50px; bottom:40px;"><svg width="30" height="30" viewBox="0 0 24 24"><path d="M5 12l5 5L20 7" fill="none" stroke="#15803d" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>الكتابة <b class="ltr">6.5</b> · من المعلّم الذكي</div>
+  </div>
+</section>
+
+<!-- ============ 8. progress ============ -->
+<section class="scene bg-light" id="s8">
+  <div class="head" id="s8head"><div class="step">5</div><div><h1>تتابع تقدّمك حتى تصل إلى درجتك</h1><p>من صفحة «تقدّمي»</p></div></div>
+  <div class="win" id="s8chart" style="right:120px; top:270px; width:1120px; height:740px; padding:40px;">
+    <svg id="s8svg" width="1040" height="660" viewBox="0 0 1040 660" style="direction:ltr"></svg>
+  </div>
+  <div class="abs" id="s8skills" style="left:120px; top:270px; width:520px; height:740px;"></div>
+</section>
+
+<!-- ============ 9. end ============ -->
+<section class="scene bg-brand" id="s9">
+  <div id="s9dots"></div>
+  <svg class="abs" id="s9logo" style="left:860px; top:110px" width="200" height="200" viewBox="0 0 120 120">
+    <path d="M30 76 L60 46 L90 76" fill="none" stroke="#fff" stroke-width="11" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M40 94 L60 74 L80 94" fill="none" stroke="#fff" stroke-width="8" stroke-linecap="round" stroke-linejoin="round" opacity=".6"/>
+    <circle cx="60" cy="28" r="8" fill="#fde047"/>
+  </svg>
+  <div class="abs ltr" id="s9name" style="left:0; right:0; top:340px; text-align:center; font-size:108px; font-weight:700; color:#fff; letter-spacing:-2px;">IELTS Band Up</div>
+  <div class="abs" id="s9tag" style="left:0; right:0; top:492px; text-align:center; font-size:52px; font-weight:600; color:#fff;">مجاني، وصُنع ليساعدك</div>
+  <div class="abs" id="s9btn" style="left:0; right:0; top:630px; display:flex; justify-content:center;">
+    <div style="height:104px; padding:0 70px; border-radius:28px; background:#fff; color:var(--pink); font-size:44px; font-weight:700; display:flex; align-items:center; box-shadow:0 20px 50px rgba(0,0,0,.2);">هيا نبدأ ←</div>
+  </div>
+  <div class="abs" id="s9by" style="left:0; right:0; top:800px; text-align:center; font-size:32px; font-weight:600; color:#ffe4ec;">م. فادي مصطفى</div>
+  <div class="abs" id="s9note" style="left:0; right:0; top:972px; text-align:center; font-size:22px; color:rgba(255,255,255,.72);">برنامج مستقل، لا علاقة له بـ <span class="ltr">IELTS</span> أو <span class="ltr">British Council</span> أو <span class="ltr">IDP</span> أو <span class="ltr">Cambridge</span>. <span class="ltr">IELTS</span> علامة تجارية مسجّلة لأصحابها.</div>
+</section>
+
+<svg class="cursor" id="cursor" viewBox="0 0 24 24"><path d="M4 2l16 9-7 2-3 7z" fill="#111827" stroke="#fff" stroke-width="1.6" stroke-linejoin="round"/></svg>
+<div class="ripple" id="ripple"></div>
+</div>
+
+<script>
+// ---------------------------------------------------------------- timing
+const SCENES = [
+  ["s1", 0, 5], ["s2", 5, 20], ["s3", 20, 37], ["s4", 37, 53], ["s5", 53, 69],
+  ["s6", 69, 85.5], ["s7", 85.5, 101.1], ["s8", 101.1, 112.1], ["s9", 112.1, 122.1],
+];
+const XF = 0.6; // crossfade
+const TOTAL = 122.1;
+
+const clamp = (x, a = 0, b = 1) => Math.min(b, Math.max(a, x));
+const P = (t, a, b) => clamp((t - a) / (b - a));
+const eo = (x) => 1 - Math.pow(1 - x, 3);
+const eio = (x) => (x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2);
+const back = (x) => { const c1 = 1.70158, c3 = c1 + 1; return 1 + c3 * Math.pow(x - 1, 3) + c1 * Math.pow(x - 1, 2); };
+const lerp = (a, b, p) => a + (b - a) * p;
+const $ = (id) => document.getElementById(id);
+function tf(el, o, x = 0, y = 0, s = 1, r = 0) {
+  el.style.opacity = o;
+  el.style.transform = `translate(${x}px, ${y}px) scale(${s}) rotate(${r}deg)`;
+}
+function rise(el, t, at, dur = 0.7, dy = 40) { const p = eo(P(t, at, at + dur)); tf(el, p, 0, (1 - p) * dy); }
+function pop(el, t, at, dur = 0.5) { const p = P(t, at, at + dur); tf(el, clamp(p * 2), 0, 0, 0.6 + 0.4 * back(p)); }
+const rnd = (i) => { const x = Math.sin(i * 127.1 + 311.7) * 43758.5453; return x - Math.floor(x); };
+
+// ---------------------------------------------------------------- cursor
+const cursor = $("cursor"), ripple = $("ripple");
+let cur = null; // {path: [[t,x,y]...], clicks: [t...]} set by scenes for this frame
+function cursorAt(path, t) {
+  if (t <= path[0][0]) return path[0];
+  for (let i = 1; i < path.length; i++) {
+    if (t <= path[i][0]) {
+      const [t0, x0, y0] = path[i - 1], [t1, x1, y1] = path[i];
+      const p = eio(P(t, t0, t1));
+      return [t, lerp(x0, x1, p), lerp(y0, y1, p)];
+    }
+  }
+  return path[path.length - 1];
+}
+
+// ---------------------------------------------------------------- build DOM
+const ICON = {
+  play: '<path d="M8 5v14l11-7z" fill="currentColor"/>',
+  head: '<path d="M4 15v-3a8 8 0 0116 0v3M4 15a2 2 0 002 2h1v-5H6a2 2 0 00-2 2zm16 0a2 2 0 01-2 2h-1v-5h1a2 2 0 012 2z" fill="none" stroke="currentColor" stroke-width="2"/>',
+  book: '<path d="M4 5a2 2 0 012-2h13v16H6a2 2 0 00-2 2zM4 5v16" fill="none" stroke="currentColor" stroke-width="2"/>',
+  cards: '<rect x="3" y="6" width="14" height="14" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M7 3h12a2 2 0 012 2v12" fill="none" stroke="currentColor" stroke-width="2"/>',
+  target: '<circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="4" fill="currentColor"/>',
+  pen: '<path d="M4 20l4-1 11-11-3-3L5 16zM14 6l3 3" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>',
+  mic: '<rect x="9" y="3" width="6" height="11" rx="3" fill="none" stroke="currentColor" stroke-width="2"/><path d="M5 11a7 7 0 0014 0M12 18v3" fill="none" stroke="currentColor" stroke-width="2"/>',
+  web: '<circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2"/><path d="M3 12h18M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18" fill="none" stroke="currentColor" stroke-width="1.6"/>',
+  chat: '<path d="M4 5h16v11H9l-5 4z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>',
+  grammar: '<path d="M5 19L10 5l5 14M7 14h6M16 9h4M18 7v4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>',
+};
+const svg = (name, size = 32) => `<svg width="${size}" height="${size}" viewBox="0 0 24 24">${ICON[name]}</svg>`;
+const RES = [
+  ["فيديوهات تكنيكات", "play", "#7c3aed", "#f3e8ff"], ["بودكاست", "head", "#2563eb", "#e8eefc"],
+  ["روايات", "book", "#0f766e", "#ddf3ef"], ["350 كلمة", "cards", "#b45309", "#fdf0dc"],
+  ["نماذج رسمية", "target", "#e11d48", "#ffe4e6"], ["Cambridge 19–21", "target", "#be185d", "#fce7f3"],
+  ["مواقع اختبارات", "web", "#0369a1", "#e0f2fe"], ["150 عبارة", "chat", "#15803d", "#dcfce7"],
+  ["Writing Task 2", "pen", "#b45309", "#fdf0dc"], ["Speaking Part 2", "mic", "#7c3aed", "#f3e8ff"],
+  ["قواعد", "grammar", "#4b5563", "#f3f4f6"], ["تكنيكات القراءة", "book", "#0f766e", "#ddf3ef"],
+];
+// messy positions (scene 2) and ordered positions (scene 3: a 3×4 path on the left)
+// spread over the whole screen: a 4×3 grid, each card pushed off its cell at random
+const MESSY = RES.map((_, i) => [
+  110 + (i % 4) * 430 + (rnd(i + 1) - 0.5) * 220, 330 + Math.floor(i / 4) * 230 + (rnd(i + 21) - 0.5) * 120, (rnd(i + 41) - 0.5) * 34,
+]);
+const ORDER = RES.map((_, i) => {
+  const row = Math.floor(i / 3), col = i % 3;
+  const c = row % 2 === 0 ? col : 2 - col; // a snake path
+  return [60 + (2 - c) * 315, 300 + row * 150, 0];
+});
+function resCard(r, i, prefix) {
+  const [label, icon, color, bg] = r;
+  const el = document.createElement("div");
+  el.className = "res";
+  el.id = `${prefix}${i}`;
+  const latin = /^[A-Za-z0-9 –]+$/.test(label);
+  el.innerHTML = `<span class="ic" style="background:${bg}; color:${color}">${svg(icon)}</span><span class="${latin ? "ltr" : ""}">${label}</span>`;
+  return el;
+}
+RES.forEach((r, i) => { $("s2cards").appendChild(resCard(r, i, "s2r")); $("s3cards").appendChild(resCard(r, i, "s3r")); });
+for (let i = 0; i < 6; i++) {
+  const q = document.createElement("div");
+  q.className = "qm"; q.id = `s2q${i}`; q.textContent = "؟";
+  q.style.left = `${200 + rnd(i + 70) * 1500}px`; q.style.top = `${260 + rnd(i + 90) * 640}px`;
+  $("s2qms").appendChild(q);
+}
+// step badges on the ordered path
+{
+  const s = $("s3path");
+  let d = "";
+  ORDER.forEach(([x, y], i) => { d += `${i ? "L" : "M"}${x + 155} ${y + 50} `; });
+  s.innerHTML = `<path id="s3line2" d="${d}" fill="none" stroke="#fda4af" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="14 14"/>`;
+}
+for (const id of ["s1dots", "s9dots"]) {
+  const box = $(id);
+  for (let i = 0; i < 26; i++) {
+    const d = document.createElement("div");
+    const size = 8 + rnd(i + 5) * 26;
+    d.className = "abs";
+    Object.assign(d.style, { width: `${size}px`, height: `${size}px`, borderRadius: "50%", background: i % 5 === 0 ? "#fde047" : "#fff",
+      opacity: 0.12 + rnd(i + 9) * 0.2, left: `${rnd(i + 3) * 1920}px`, top: `${rnd(i + 7) * 1080}px` });
+    d.dataset.i = i;
+    box.appendChild(d);
+  }
+}
+// scene 5: weeks and today's tasks
+const WEEKS = [
+  ["تطوير", "استماع", "#2563eb"], ["تطوير", "قراءة", "#0f766e"], ["امتحان", "استماع", "#2563eb"], ["امتحان", "قراءة", "#0f766e"],
+  ["امتحان", "كتابة", "#b45309"], ["امتحان", "محادثة", "#7c3aed"], ["دورة 2", "استماع", "#2563eb"], ["دورة 2", "قراءة", "#0f766e"],
+  ["دورة 2", "كتابة", "#b45309"], ["دورة 2", "محادثة", "#7c3aed"], ["آخر الأيام", "اختبارات", "#e11d48"],
+];
+WEEKS.forEach(([a, b, c], i) => {
+  const el = document.createElement("div");
+  el.className = "abs"; el.id = `s5w${i}`;
+  Object.assign(el.style, { right: `${i * 153}px`, top: "0px", width: "140px", height: "130px", borderRadius: "20px", background: "#fff",
+    border: "1px solid #e5e7eb", borderTop: `8px solid ${c}`, padding: "16px 14px", boxShadow: "0 10px 24px rgba(17,24,39,.06)" });
+  el.innerHTML = `<div style="font-size:19px;color:#6b7280;font-weight:600">${i < 10 ? `أسبوع ${i + 1}` : "النهاية"}</div><div style="font-size:19px;color:#6b7280;margin-top:4px">${a}</div><div style="font-size:24px;font-weight:700;margin-top:2px;color:${c}">${b}</div>`;
+  $("s5weeks").appendChild(el);
+});
+const TASKS_FOCUS = [["فيديوهات التكنيكات", "play", "#7c3aed", 65], ["نماذج أسئلة رسمية", "target", "#e11d48", 40], ["كلمات النهارده", "cards", "#b45309", 10], ["عبارات النهارده", "chat", "#15803d", 5]];
+const TASKS_DEV = [["بودكاست · 2 مراحل", "head", "#2563eb", 30], ["رواية", "book", "#0f766e", 20], ["كتابة يومية", "pen", "#b45309", 5], ["محادثة · Part 1", "mic", "#7c3aed", 5]];
+function taskRow([label, icon, color, m], id) {
+  const el = document.createElement("div");
+  el.id = id;
+  Object.assign(el.style, { display: "flex", alignItems: "center", gap: "16px", height: "76px", padding: "0 18px", borderRadius: "18px",
+    background: "#f8fafc", marginBottom: "12px" });
+  el.innerHTML = `<span style="width:50px;height:50px;border-radius:14px;background:#fff;color:${color};display:flex;align-items:center;justify-content:center;border:1px solid #e5e7eb">${svg(icon, 28)}</span><span style="flex:1;font-size:27px;font-weight:600">${label}</span><span class="ltr" style="font-size:24px;font-weight:700;color:${color}">${m} د</span>`;
+  return el;
+}
+TASKS_FOCUS.forEach((r, i) => $("s5focus").appendChild(taskRow(r, `s5f${i}`)));
+TASKS_DEV.forEach((r, i) => $("s5dev").appendChild(taskRow(r, `s5d${i}`)));
+// scene 6: the focus screens
+for (let i = 0; i < 8; i++) {
+  const d = document.createElement("span");
+  d.id = `s6d${i}`;
+  Object.assign(d.style, { flex: "1", height: "8px", borderRadius: "4px", background: "#e5e7eb" });
+  $("s6dots").appendChild(d);
+}
+const FOCUS = [
+  { kind: "فيديو", title: "تكنيكات الاستماع · الفيديو 5 من 47", html: `<div style="position:absolute;inset:50px;border-radius:24px;background:linear-gradient(160deg,#1f2937,#111827);display:flex;align-items:center;justify-content:center"><div style="width:150px;height:150px;border-radius:50%;background:#e11d48;display:flex;align-items:center;justify-content:center;color:#fff">${svg("play", 80)}</div><div id="s6vbar" style="position:absolute;left:40px;right:40px;bottom:40px;height:10px;border-radius:5px;background:rgba(255,255,255,.2)"><div id="s6vfill" style="height:10px;border-radius:5px;background:#e11d48;width:0"></div></div></div>` },
+  { kind: "بودكاست", title: "المرحلة 2 من 4: اسمع وانت بتقرا", html: `<div style="position:absolute;inset:50px;border-radius:24px;background:#fff;border:1px solid #e5e7eb;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:30px"><div style="width:120px;height:120px;border-radius:30px;background:#e8eefc;color:#2563eb;display:flex;align-items:center;justify-content:center">${svg("head", 70)}</div><div id="s6wave" style="display:flex;gap:7px;align-items:center;height:140px"></div><div style="display:flex;gap:12px">${[1, 2, 3, 4].map((n) => `<span class="pill" style="background:${n <= 2 ? "#2563eb" : "#e5e7eb"};color:${n <= 2 ? "#fff" : "#6b7280"};height:46px;font-size:22px">المرحلة ${n}</span>`).join("")}</div></div>` },
+  { kind: "رواية", title: "رواية بمستواك · 30 دقيقة", html: `<div style="position:absolute;inset:50px;border-radius:24px;background:#fffdf7;border:1px solid #f1e7d0;padding:60px 80px" class="ltr"><div style="font-family:Georgia,serif;font-size:40px;font-weight:700;color:#3f3424">Chapter 3</div>${[0.95, 0.9, 0.97, 0.7, 0.92, 0.85, 0.96, 0.6].map((w, k) => `<div id="s6l${k}" style="height:18px;border-radius:9px;background:#e9dfc8;margin-top:28px;width:${w * 100}%"></div>`).join("")}</div>` },
+  { kind: "كلمات", title: "كلمات النهارده · 12 من 20", html: `<div style="position:absolute;inset:50px;display:flex;align-items:center;justify-content:center"><div id="s6flip" style="width:640px;height:400px;border-radius:30px;background:#fff;border:1px solid #e5e7eb;box-shadow:0 30px 60px rgba(17,24,39,.10);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px"><div id="s6front" class="ltr" style="font-size:80px;font-weight:700;color:#b45309">abundant</div><div id="s6back" style="font-size:52px;font-weight:700;color:#111827">وفير · كثير جدًا</div></div></div>` },
+];
+FOCUS.forEach((f, i) => {
+  const el = document.createElement("div");
+  el.className = "abs"; el.id = `s6m${i}`; el.style.inset = "0"; el.innerHTML = f.html;
+  $("s6main").appendChild(el);
+});
+for (let i = 0; i < 46; i++) {
+  const b = document.createElement("span");
+  b.id = `s6b${i}`;
+  Object.assign(b.style, { width: "10px", borderRadius: "5px", background: "#2563eb", height: "20px", display: "inline-block" });
+  $("s6wave").appendChild(b);
+}
+// scene 7: writing lines and the tutor's marks
+[1, 0.96, 0.9, 0.98, 0.74, 0.93, 0.6].forEach((w, k) => {
+  const d = document.createElement("div");
+  d.id = `s7l${k}`;
+  Object.assign(d.style, { height: "16px", borderRadius: "8px", background: "#e5e7eb", marginTop: "20px", width: `${w * 100}%` });
+  $("s7lines").appendChild(d);
+});
+[["TR", "6.5"], ["CC", "6.0"], ["LR", "6.5"], ["GRA", "6.0"], ["الكلية", "6.5"]].forEach(([k, v], i) => {
+  const d = document.createElement("div");
+  d.id = `s7s${i}`;
+  Object.assign(d.style, { width: i === 4 ? "150px" : "120px", height: "112px", borderRadius: "18px", border: `2px solid ${i === 4 ? "#e11d48" : "#e5e7eb"}`,
+    display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", background: i === 4 ? "#fff1f4" : "#fff" });
+  d.innerHTML = `<span style="font-size:20px;color:#6b7280;font-weight:600" class="${i < 4 ? "ltr" : ""}">${k}</span><span class="ltr" style="font-size:40px;font-weight:700;color:${i === 4 ? "#e11d48" : "#111827"}">${v}</span>`;
+  $("s7scores").appendChild(d);
+});
+// scene 8: the chart and the skills
+const PTS = [5.5, 5.5, 6.0, 6.0, 6.5, 6.5, 6.5, 7.0];
+const CX = (i) => 90 + i * 128, CY = (b) => 560 - (b - 5) * 170;
+{
+  const s = $("s8svg");
+  let g = "";
+  for (let b = 5; b <= 8; b += 0.5) {
+    g += `<line x1="70" y1="${CY(b)}" x2="1010" y2="${CY(b)}" stroke="#eef1f5" stroke-width="2"/><text x="40" y="${CY(b) + 8}" font-size="22" fill="#6b7280" font-family="Plex">${b.toFixed(1)}</text>`;
+  }
+  g += `<line id="s8target" x1="70" y1="${CY(7)}" x2="1010" y2="${CY(7)}" stroke="#e11d48" stroke-width="3" stroke-dasharray="12 10"/>`;
+  g += `<text x="80" y="${CY(7) - 16}" font-size="26" fill="#e11d48" font-weight="700" text-anchor="start" font-family="Plex">الهدف 7.0</text>`;
+  PTS.forEach((_, i) => { g += `<text x="${CX(i)}" y="620" font-size="20" fill="#6b7280" text-anchor="middle" font-family="Plex">أسبوع ${i + 3}</text>`; });
+  let d = "";
+  PTS.forEach((b, i) => { d += `${i ? "L" : "M"}${CX(i)} ${CY(b)} `; });
+  g += `<path id="s8line" d="${d}" fill="none" stroke="#0f766e" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>`;
+  PTS.forEach((b, i) => { g += `<circle id="s8p${i}" cx="${CX(i)}" cy="${CY(b)}" r="12" fill="${i % 2 ? "#0f766e" : "#fff"}" stroke="#0f766e" stroke-width="5"/>`; });
+  g += `<circle id="s8ring" cx="${CX(7)}" cy="${CY(7)}" r="12" fill="none" stroke="#e11d48" stroke-width="5"/>`;
+  for (let i = 0; i < 22; i++) g += `<rect id="s8k${i}" x="${CX(7)}" y="${CY(7)}" width="12" height="18" rx="3" fill="${["#e11d48", "#fde047", "#2563eb", "#0f766e", "#7c3aed"][i % 5]}"/>`;
+  s.innerHTML = g;
+  const badge = document.createElement("div");
+  badge.id = "s8badge"; badge.className = "toast";
+  Object.assign(badge.style, { left: "380px", top: "60px", background: "#fff1f4", color: "#be185d", borderColor: "#fecdd6", fontSize: "30px" });
+  badge.innerHTML = `${svg("target", 34)} وصلت لهدفك: <b class="ltr">7.0</b>`;
+  $("s8chart").appendChild(badge);
+}
+[["الاستماع", 7.0, "#2563eb", "head"], ["القراءة", 7.0, "#0f766e", "book"], ["الكتابة", 6.5, "#b45309", "pen"], ["المحادثة", 7.0, "#7c3aed", "mic"]].forEach(([n, b, c, ic], i) => {
+  const d = document.createElement("div");
+  d.id = `s8s${i}`; d.className = "abs";
+  Object.assign(d.style, { left: "0", right: "0", top: `${i * 186}px`, height: "164px", borderRadius: "26px", background: "#fff", border: "1px solid #e5e7eb",
+    display: "flex", alignItems: "center", gap: "24px", padding: "0 34px", boxShadow: "0 16px 36px rgba(17,24,39,.06)" });
+  d.innerHTML = `<span style="width:76px;height:76px;border-radius:22px;background:${c}1a;color:${c};display:flex;align-items:center;justify-content:center">${svg(ic, 40)}</span><span style="flex:1;font-size:36px;font-weight:700">${n}</span><span class="ltr" id="s8v${i}" data-b="${b}" style="font-size:66px;font-weight:700;color:${c}">5.5</span>`;
+  $("s8skills").appendChild(d);
+});
+
+// ---------------------------------------------------------------- scenes
+const R = {};
+R.s1 = (t) => {
+  const c1 = $("s1c1"), c2 = $("s1c2");
+  const l1 = 84.9, l2 = 56.6;
+  const p1 = eo(P(t, 0.3, 1.1)), p2 = eo(P(t, 0.6, 1.4));
+  c1.style.strokeDasharray = l1; c1.style.strokeDashoffset = l1 * (1 - p1);
+  c2.style.strokeDasharray = l2; c2.style.strokeDashoffset = l2 * (1 - p2);
+  c1.style.transform = `translateY(${(1 - p1) * 14}px)`; c2.style.transform = `translateY(${(1 - p2) * 14}px)`;
+  const pd = P(t, 1.3, 1.9);
+  const dot = $("s1dot");
+  const y = pd < 1 ? -60 + 60 * (1 - Math.pow(1 - pd, 2)) : 0;
+  const bounce = pd >= 1 ? Math.sin(P(t, 1.9, 2.4) * Math.PI) * -4 * (1 - P(t, 1.9, 2.4)) : 0;
+  dot.style.transform = `translateY(${y + bounce}px)`; dot.style.opacity = pd > 0 ? 1 : 0;
+  rise($("s1name"), t, 2.0, 0.8, 50);
+  rise($("s1tag"), t, 2.6, 0.8, 30);
+  const logo = $("s1logo");
+  logo.style.transform = `scale(${1 + 0.03 * Math.sin(t * 1.4)})`;
+  for (const d of $("s1dots").children) {
+    const i = +d.dataset.i;
+    d.style.transform = `translate(${Math.sin(t * 0.4 + i) * 20}px, ${-t * (6 + rnd(i) * 14)}px)`;
+  }
+};
+R.s2 = (t) => {
+  rise($("s2h1"), t, 0.3, 0.7);
+  rise($("s2h2"), t, 4.6, 0.7);
+  RES.forEach((_, i) => {
+    const el = $(`s2r${i}`);
+    const at = 0.5 + i * 0.28;
+    const p = eo(P(t, at, at + 0.9));
+    const side = i % 4;
+    const fromX = side === 0 ? -400 : side === 1 ? 2100 : MESSY[i][0];
+    const fromY = side === 2 ? -200 : side === 3 ? 1250 : MESSY[i][1];
+    const [mx, my, mr] = MESSY[i];
+    const wob = Math.sin(t * 1.3 + i) * 6;
+    el.style.left = `${lerp(fromX, mx, p)}px`; el.style.top = `${lerp(fromY, my, p) + wob}px`;
+    el.style.opacity = p;
+    el.style.transform = `rotate(${lerp(mr * 3, mr, p) + Math.sin(t + i) * 1.5}deg)`;
+  });
+  for (let i = 0; i < 6; i++) {
+    const q = $(`s2q${i}`);
+    const at = 3.8 + i * 0.6;
+    const p = P(t, at, at + 0.5);
+    q.style.opacity = p * (0.55 + 0.45 * Math.sin(t * 2 + i));
+    q.style.transform = `scale(${0.6 + 0.4 * back(p)}) rotate(${Math.sin(t + i) * 10}deg)`;
+  }
+};
+R.s3 = (t) => {
+  $("s3light").style.opacity = eio(P(t, 0.6, 2.2));
+  const order = eio(P(t, 0.8, 3.0));
+  RES.forEach((_, i) => {
+    const el = $(`s3r${i}`);
+    const [mx, my, mr] = MESSY[i], [ox, oy] = ORDER[i];
+    const wob = Math.sin((t + 15) * 1.3 + i) * 6 * (1 - order);
+    const sc = lerp(1, 0.86, order);
+    el.style.left = `${lerp(mx, ox, order)}px`; el.style.top = `${lerp(my, oy, order) + wob}px`;
+    el.style.opacity = 1;
+    el.style.transform = `rotate(${lerp(mr, 0, order)}deg) scale(${sc})`;
+    el.style.boxShadow = order > 0.5 ? "0 12px 28px rgba(17,24,39,.10)" : "0 18px 40px rgba(0,0,0,.25)";
+  });
+  const line = $("s3line2");
+  line.style.opacity = P(t, 2.6, 3.4);
+  rise($("s3card"), t, 1.2, 0.9, 60);
+  pop($("s3free"), t, 2.6, 0.6);
+  rise($("s3line"), t, 3.6, 0.8, 24);
+  rise($("s3h"), t, 6.8, 0.8, 30);
+};
+function selectChip(container, idx, t, at) {
+  [...$(container).children].forEach((c, i) => c.classList.toggle("on", i === idx && t >= at));
+}
+R.s4 = (t) => {
+  rise($("s4head"), t, 0.2, 0.7);
+  rise($("s4win"), t, 0.5, 0.9, 60);
+  selectChip("s4now", 1, t, 2.0);
+  selectChip("s4goal", 2, t, 4.0);
+  const date = "22 ديسمبر 2026";
+  const n = Math.floor(P(t, 5.6, 6.8) * date.length);
+  $("s4datetext").textContent = date.slice(0, n);
+  $("s4caret").style.opacity = t > 5.2 && t < 7.5 && Math.floor(t * 2.5) % 2 === 0 ? 1 : 0;
+  const hp = eio(P(t, 7.8, 9.2));
+  const hours = lerp(1, 3, hp);
+  const W = 640, pct = (hours - 0.5) / 5.5;
+  $("s4fill").style.width = `${pct * W}px`;
+  $("s4knob").style.right = `${pct * W - 20}px`;
+  const h = Math.round(hours);
+  $("s4hours").textContent = h === 1 ? "ساعة" : h === 2 ? "ساعتين" : `${h} ساعات`;
+  rise($("s4res"), t, 9.8, 0.8, 40);
+  $("s4num").textContent = Math.round(150 * eo(P(t, 10.3, 12.6)));
+  cur = {
+    path: [[0, 1500, 1100], [1.4, 1548, 452], [3.5, 1438, 595], [5.0, 1486, 740], [7.3, 1648, 869], [7.8, 1648, 869], [9.2, 1415, 869], [10.5, 1300, 1150]],
+    clicks: [1.9, 3.9, 5.3, 7.8],
+  };
+};
+R.s5 = (t) => {
+  rise($("s5head"), t, 0.2, 0.7);
+  WEEKS.forEach((_, i) => pop($(`s5w${i}`), t, 0.9 + i * 0.32, 0.5));
+  rise($("s5day"), t, 5.2, 0.9, 60);
+  TASKS_FOCUS.forEach((_, i) => rise($(`s5f${i}`), t, 6.2 + i * 0.35, 0.5, 20));
+  TASKS_DEV.forEach((_, i) => rise($(`s5d${i}`), t, 8.0 + i * 0.35, 0.5, 20));
+  // the current week glows
+  const w = $("s5w2");
+  w.style.boxShadow = t > 5 ? `0 0 0 ${4 + 2 * Math.sin(t * 3)}px rgba(225,29,72,.35), 0 10px 24px rgba(17,24,39,.06)` : "0 10px 24px rgba(17,24,39,.06)";
+};
+R.s6 = (t) => {
+  rise($("s6head"), t, 0.2, 0.7);
+  rise($("s6win"), t, 0.4, 0.9, 60);
+  const start = 2.2; // after the click on "Continue"
+  const goP = P(t, start - 0.2, start + 0.3);
+  $("s6home").style.opacity = 1 - goP;
+  $("s6focus").style.opacity = goP;
+  const LEN = 3.1;
+  const k = clamp(Math.floor((t - start) / LEN), 0, 3);
+  const lt = t - start - k * LEN;
+  FOCUS.forEach((f, i) => {
+    const el = $(`s6m${i}`);
+    const p = i === k ? eo(P(lt, 0, 0.45)) : 0;
+    el.style.opacity = i === k ? p : 0;
+    el.style.transform = `translateX(${(1 - p) * -60}px)`;
+  });
+  $("s6kind").textContent = FOCUS[k].kind;
+  $("s6title").textContent = FOCUS[k].title;
+  for (let i = 0; i < 8; i++) $(`s6d${i}`).style.background = i < k ? "#15803d" : i === k ? "#2563eb" : "#e5e7eb";
+  const secs = Math.max(0, t - start) * 420; // the study time runs fast here
+  const hh = Math.floor(secs / 3600), mm = Math.floor((secs % 3600) / 60), ss = Math.floor(secs % 60);
+  $("s6timer").textContent = `${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}:${String(ss).padStart(2, "0")}`;
+  const vf = document.getElementById("s6vfill");
+  if (vf) vf.style.width = `${clamp(lt / LEN) * 100}%`;
+  for (let i = 0; i < 46; i++) {
+    const b = document.getElementById(`s6b${i}`);
+    if (b) b.style.height = `${20 + 100 * Math.abs(Math.sin(t * 5 + i * 0.7) * Math.sin(i * 0.37 + t))}px`;
+  }
+  for (let i = 0; i < 8; i++) {
+    const l = document.getElementById(`s6l${i}`);
+    if (l) l.style.background = k === 2 && lt > 0.4 + i * 0.25 ? "#c7b98f" : "#e9dfc8";
+  }
+  const fp = eio(P(lt, 1.0, 1.6));
+  const front = $("s6front"), backEl = $("s6back");
+  if (k === 3) {
+    $("s6flip").style.transform = `rotateY(${fp * 180}deg)`;
+    front.style.opacity = fp < 0.5 ? 1 : 0; backEl.style.opacity = fp >= 0.5 ? 1 : 0;
+    backEl.style.transform = "rotateY(180deg)"; front.style.transform = "";
+  } else {
+    backEl.style.opacity = 0;
+  }
+  const nx = 1531, ny = 808;
+  cur = {
+    path: [[0, 1500, 1100], [1.4, 962, 758], [2.1, 962, 758], [3.6, nx, ny], [5.3, nx, ny], [6.6, nx, ny], [8.4, nx, ny], [9.6, nx, ny], [11.4, nx, ny], [13.5, nx, ny + 300]],
+    clicks: [1.9, start + LEN - 0.2, start + 2 * LEN - 0.2, start + 3 * LEN - 0.2],
+  };
+};
+R.s7 = (t) => {
+  rise($("s7head"), t, 0.2, 0.7);
+  rise($("s7test"), t, 0.5, 0.9, 60);
+  rise($("s7lab"), t, 6.6, 0.9, 60);
+  const c = Math.round(28 * eo(P(t, 2.0, 3.0)));
+  $("s7c").innerHTML = t < 2.0 ? "&nbsp;" : String(c);
+  $("s7c").classList.toggle("on", t >= 2.0 && t < 3.2);
+  $("s7b").textContent = t < 3.8 ? "—" : "6.5";
+  $("s7b").classList.toggle("on", t >= 3.8 && t < 4.5);
+  pop($("s7toast"), t, 5.0, 0.5);
+  $("s7save").style.opacity = 1 - P(t, 4.9, 5.2);
+  for (let k = 0; k < 7; k++) {
+    const l = $(`s7l${k}`);
+    const p = P(t, 7.6 + k * 0.3, 7.9 + k * 0.3);
+    l.style.background = `linear-gradient(to left, #9ca3af ${p * 100}%, #e5e7eb ${p * 100}%)`;
+  }
+  for (let i = 0; i < 5; i++) pop($(`s7s${i}`), t, 10.0 + i * 0.35, 0.45);
+  pop($("s7toast2"), t, 12.4, 0.5);
+  cur = {
+    path: [[0, 1500, 1100], [1.6, 1621, 657], [3.4, 1671, 790], [4.4, 1621, 876], [5.8, 1621, 876], [7.0, 1500, 1150]],
+    clicks: [1.9, 3.7, 4.7],
+  };
+};
+R.s8 = (t) => {
+  rise($("s8head"), t, 0.2, 0.7);
+  rise($("s8chart"), t, 0.4, 0.9, 60);
+  const line = $("s8line");
+  const len = line.getTotalLength();
+  const p = eio(P(t, 1.4, 6.2));
+  line.style.strokeDasharray = len; line.style.strokeDashoffset = len * (1 - p);
+  PTS.forEach((_, i) => { const at = 1.4 + (i / (PTS.length - 1)) * 4.8; pop($(`s8p${i}`), t, at - 0.15, 0.35); $(`s8p${i}`).style.transformOrigin = `${CX(i)}px ${CY(PTS[i])}px`; });
+  const rp = P(t, 6.3, 7.5);
+  const ring = $("s8ring");
+  ring.setAttribute("r", 12 + rp * 46); ring.style.opacity = rp > 0 ? 1 - rp : 0;
+  for (let i = 0; i < 22; i++) {
+    const k = $(`s8k${i}`);
+    const a = (i / 22) * Math.PI * 2, sp = 140 + rnd(i + 3) * 160;
+    const q = P(t, 6.3, 8.6);
+    k.setAttribute("x", CX(7) + Math.cos(a) * sp * eo(q) - 6);
+    k.setAttribute("y", CY(7) + Math.sin(a) * sp * eo(q) + 220 * q * q - 9);
+    k.style.opacity = q > 0 ? 1 - q : 0;
+  }
+  pop($("s8badge"), t, 6.6, 0.5);
+  for (let i = 0; i < 4; i++) {
+    rise($(`s8s${i}`), t, 0.8 + i * 0.25, 0.7, 30);
+    const v = $(`s8v${i}`);
+    v.textContent = (Math.round(lerp(5.5, +v.dataset.b, eo(P(t, 1.6, 6.2))) * 2) / 2).toFixed(1);
+  }
+};
+R.s9 = (t) => {
+  const p = eo(P(t, 0.2, 1.0));
+  $("s9logo").style.opacity = p; $("s9logo").style.transform = `translateY(${(1 - p) * 40}px) scale(${1 + 0.03 * Math.sin(t * 1.4)})`;
+  rise($("s9name"), t, 0.5, 0.8, 40);
+  rise($("s9tag"), t, 1.4, 0.8, 30);
+  const bp = P(t, 3.0, 3.6);
+  const btn = $("s9btn");
+  btn.style.opacity = clamp(bp * 2);
+  btn.style.transform = `scale(${(0.7 + 0.3 * back(bp)) * (t > 3.6 ? 1 + 0.025 * Math.sin((t - 3.6) * 4) : 1)})`;
+  rise($("s9by"), t, 4.4, 0.8, 20);
+  rise($("s9note"), t, 5.0, 0.8, 10);
+  for (const d of $("s9dots").children) {
+    const i = +d.dataset.i;
+    d.style.transform = `translate(${Math.sin(t * 0.4 + i) * 20}px, ${-t * (6 + rnd(i) * 14)}px)`;
+  }
+  // the very end: fade to the brand colour
+  $("s9").style.filter = `brightness(${1 - 0.0 * P(t, 9, 10)})`;
+};
+
+// ---------------------------------------------------------------- render(t)
+window.render = (t) => {
+  cur = null;
+  let cursorScene = null;
+  for (const [id, a, b] of SCENES) {
+    const el = $(id);
+    const last = id === "s9";
+    const fadeIn = id === "s1" ? 1 : P(t, a, a + XF);
+    const fadeOut = last ? 1 : 1 - P(t, b, b + XF);
+    const vis = t >= a && (last || t < b + XF);
+    el.style.opacity = vis ? Math.min(fadeIn, fadeOut) : 0;
+    el.style.display = vis ? "block" : "none";
+    if (vis) {
+      cur = null;
+      R[id](t - a);
+      if (cur && t < b) cursorScene = { ...cur, lt: t - a };
+    }
+  }
+  if (cursorScene) {
+    const [, x, y] = cursorAt(cursorScene.path, cursorScene.lt);
+    cursor.style.opacity = 1;
+    cursor.style.transform = `translate(${x}px, ${y}px)`;
+    let rp = -1;
+    for (const c of cursorScene.clicks) { const q = P(cursorScene.lt, c, c + 0.5); if (q > 0 && q < 1) rp = q; }
+    ripple.style.opacity = rp >= 0 ? 1 - rp : 0;
+    ripple.style.transform = `translate(${x - 45 + 6}px, ${y - 45 + 6}px) scale(${0.3 + rp * 0.9})`;
+    const down = cursorScene.clicks.some((c) => cursorScene.lt >= c && cursorScene.lt < c + 0.15);
+    cursor.style.transform += down ? " scale(0.85)" : "";
+  } else {
+    cursor.style.opacity = 0; ripple.style.opacity = 0;
+  }
+  return true;
+};
+window.TOTAL = TOTAL;
+window.SCENES = SCENES;
+document.fonts.ready.then(() => { window.ready = true; });
+render(0);
+</script>
+</body>
+</html>
