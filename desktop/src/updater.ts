@@ -172,9 +172,13 @@ export async function listReleases(): Promise<ReleaseInfo[]> {
     body: string | null;
     draft: boolean;
     prerelease: boolean;
+    assets?: { name: string }[];
   }[];
+  // v0.0.15 (D-046): Linux builds start with 0.0.15; list only the versions that have one
+  const feed = process.platform === "linux" ? "latest-linux.yml" : "latest.yml";
   return data
     .filter((r) => !r.draft && !r.prerelease && /^v\d+\.\d+\.\d+$/.test(r.tag_name))
+    .filter((r) => !r.assets || r.assets.some((a) => a.name === feed))
     .map((r) => ({
       version: r.tag_name.slice(1),
       name: r.name ?? r.tag_name,

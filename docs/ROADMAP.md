@@ -214,6 +214,13 @@ The owner's screenshot showed Daily English Listening (DLK-11) opening the old p
 - [x] Name "IELTS Band Up" and logo 4 in the app, window, installer shortcuts and uninstall entry; data folder, program file and update feed unchanged; "not connected with IELTS" line
 - [x] Windows CI build green; v0.0.14 published (2026-11-03)
 
+## v0.0.15 — Linux (D-046)
+- [x] `.deb` for Ubuntu 22.04+ (and Mint, Zorin, Pop!_OS, Debian 12+), built on Ubuntu 22.04; Chromium sandbox on (AppArmor profile on 24.04+); file permissions fixed in the package
+- [x] Updates in the app on Linux too (`latest-linux.yml`); the version list shows only versions that have a Linux build; a note that installing asks for the password
+- [x] Hints that name Windows keys have Linux versions (screenshot, voice typing, microphone settings)
+- [x] One release workflow: Windows installer, Linux `.deb` installed and started on Ubuntu 22.04 and 24.04, one release with both
+- [ ] v0.0.15 published
+
 ## Sprint 4 — Exam preparation and progress · v0.1
 - Introduction video first, before anything else, on the first start, with skip and "watch again" in Settings (D-040, owner 2026-11-03): Eng. Fady Mostafa made the app free to help people; the app explained from the first step until the target band, on the final screens
 - Content-policy review before the app is given to the public (the personal-use rules change, D-045)
@@ -222,8 +229,8 @@ The owner's screenshot showed Daily English Listening (DLK-11) opening the old p
 
 **Exit = v0.1:** every PRD acceptance criterion passes on the baseline laptop.
 
-## After v0.1 — Linux (D-040)
-A Linux version that installs and updates itself the same way (AppImage with the in-app update).
+## Linux — done in v0.0.15 (D-046)
+A `.deb` that installs and updates itself the same way; an AppImage or rpm only if asked.
 
 ## v0.2 — Personalised engine
 

@@ -5,6 +5,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useI18n } from "../i18n";
+import { LINUX } from "../platform";
 import { Icon } from "../icons";
 import { formatClock } from "../plan";
 
@@ -134,7 +135,7 @@ export function SpeakingRecorder(props: { continueLabel: string; onContinue: () 
       )}
       {state === "error" && (
         <>
-          <p className="error-box">{t("rec_no_mic")}</p>
+          <p className="error-box">{t(LINUX ? "rec_no_mic_linux" : "rec_no_mic")}</p>
           <button className="btn" onClick={() => void start()}>
             <Icon name="mic" size={16} /> {t("rec_start")}
           </button>
@@ -179,7 +180,7 @@ export function CompactRecorder(props: { limit: number; label: string }) {
           <Icon name="mic" size={12} /> {rec.state === "done" ? t("rec_again") : t("rec_start")}
         </button>
       )}
-      {rec.state === "error" && <p className="error-box small">{t("rec_no_mic")}</p>}
+      {rec.state === "error" && <p className="error-box small">{t(LINUX ? "rec_no_mic_linux" : "rec_no_mic")}</p>}
       {rec.state === "done" && rec.audioUrl && (
         <audio className="rec-audio small" controls src={rec.audioUrl} />
       )}

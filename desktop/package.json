@@ -1,9 +1,11 @@
 {
   "name": "ielts-pilot",
   "productName": "IELTS Pilot",
-  "version": "0.0.14",
+  "version": "0.0.15",
   "description": "IELTS Pilot — personal English and IELTS Academic study app",
   "author": "Amr",
+  "homepage": "https://github.com/fady-mostafa-omar/ielts-pilot-releases",
+  "desktopName": "ielts-pilot.desktop",
   "private": true,
   "main": "dist/main.js",
   "scripts": {
@@ -12,7 +14,8 @@
     "copy-ui": "node scripts/copy-ui.mjs",
     "start": "npm run build && electron .",
     "dist:win": "npm run build && npm run copy-ui && electron-builder --win nsis --x64 --publish never",
-    "dist:linux-dir": "npm run build && npm run copy-ui && electron-builder --linux dir --publish never"
+    "dist:linux-dir": "npm run build && npm run copy-ui && electron-builder --linux dir --publish never",
+    "dist:linux": "npm run build && npm run copy-ui && electron-builder --linux deb --x64 --publish never"
   },
   "devDependencies": {
     "@types/node": "24.19.2",

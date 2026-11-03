@@ -20,6 +20,7 @@ import {
   type TimeDraft,
 } from "../forms";
 import { useI18n } from "../i18n";
+import { LINUX } from "../platform";
 import { Icon } from "../icons";
 import {
   SKILLS,
@@ -791,6 +792,7 @@ function UpdateTab() {
           </button>
         )}
         <p className="muted small">{t("upd_how")}</p>
+        {LINUX && <p className="muted small">{t("upd_linux_password")}</p>}
         <p className="muted small">{t("about_independent")}</p>
       </section>
 

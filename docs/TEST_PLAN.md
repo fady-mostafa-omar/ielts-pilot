@@ -8,7 +8,7 @@ Status: **draft for approval** · 2026-11-02
 
 1. **Unit** — backend (pytest), frontend (Vitest).
 2. **Integration** — FastAPI + real SQLite in a temp directory.
-3. **Windows CI smoke** — `build-windows.yml` on a clean GitHub-hosted Windows runner.
+3. **Windows and Linux CI smoke** — `release.yml` on clean GitHub-hosted Windows and Ubuntu 22.04 / 24.04 runners.
 4. **Owner acceptance** — on the baseline laptop (§5).
 
 A feature counts as done only when its unit and integration tests pass in CI and its PRD acceptance criteria pass on the baseline laptop.
@@ -59,13 +59,14 @@ A feature counts as done only when its unit and integration tests pass in CI and
 - Restoring a backup with a newer schema is refused.
 - Low free disk (simulated): backup and recording refuse with a clear message when < 500 MB free.
 
-## 4. Windows CI smoke (`build-windows.yml`)
+## 4. Windows and Linux CI smoke (`release.yml`)
 
 - The PyInstaller backend starts on a clean runner without any system Python on PATH and answers `/health`.
 - Migrations run on a fresh temp data dir.
 - The NSIS installer installs silently per-user; expected files present.
 - The installed backend answers `/health`.
 - Uninstall removes program files and leaves the data directory.
+- Linux (D-046): the packaged app passes `--smoke-test` on Ubuntu 22.04; the `.deb` installs with `apt` on Ubuntu 22.04 and 24.04, the installed app passes `--smoke-test` as the normal user with the Chromium sandbox on, and `apt remove` takes it away.
 
 ## 5. Owner acceptance checklist (baseline laptop)
 

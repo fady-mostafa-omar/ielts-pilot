@@ -9,6 +9,7 @@ files:
   - package.json
 asar: true
 npmRebuild: false
+afterPack: scripts/after-pack.cjs
 extraResources:
   - from: ../backend/dist/ielts_pilot_backend
     to: backend
@@ -36,5 +37,41 @@ nsis:
   perMachine: false
   runAfterFinish: false
   deleteAppDataOnUninstall: false
+# v0.0.15 (D-046): Ubuntu 22.04 and newer (and the distributions built on it: Mint 21+,
+# Zorin 17+, Pop!_OS 22.04+, Debian 12+). A .deb installs the Chromium sandbox properly
+# (an AppArmor profile on Ubuntu 24.04+, where an AppImage would need --no-sandbox) and
+# updates in the app (electron-updater's DebUpdater asks for the password once).
 linux:
-  target: dir
+  target:
+    - target: deb
+      arch: [x64]
+  executableName: ielts-pilot
+  syncDesktopName: true
+  icon: build/icon.png
+  category: Education
+  maintainer: "Fady Mostafa <fady-mostafa-omar@users.noreply.github.com>"
+  vendor: Fady Mostafa
+  synopsis: Free English and IELTS Academic study plan
+  description: >-
+    IELTS Band Up turns free study resources into one day-by-day plan: listening,
+    reading, writing and speaking, technique videos, practice tests by name and a
+    progress page. Independent; not connected with IELTS, the British Council, IDP or
+    Cambridge.
+  artifactName: IELTS-Band-Up-${version}-amd64.${ext}
+  desktop:
+    entry:
+      Name: IELTS Band Up
+      Comment: Free English and IELTS Academic study plan
+      Keywords: IELTS;English;study;exam;
+deb:
+  depends:
+    - libgtk-3-0 | libgtk-3-0t64
+    - libnotify4
+    - libnss3
+    - libxss1
+    - libxtst6
+    - xdg-utils
+    - libatspi2.0-0 | libatspi2.0-0t64
+    - libuuid1
+    - libsecret-1-0
+    - libasound2 | libasound2t64

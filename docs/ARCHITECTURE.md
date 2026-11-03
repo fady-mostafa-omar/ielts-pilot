@@ -157,7 +157,7 @@ ielts-pilot/
   backend/              Python package, tests, Alembic migrations
   content/catalog/      resource metadata only (CSV/JSON) — no third-party files
   docs/                 these documents
-  .github/workflows/    ci.yml, build-windows.yml
+  .github/workflows/    ci.yml, release.yml
 ```
 
 Deviation from the master spec layout: `frontend/` sits at the top level instead of under `desktop/` so the UI can be built and tested without Electron; `content/licensed/` and `assets/audio/` are dropped because third-party files never enter the repo (D-007).
@@ -165,7 +165,7 @@ Deviation from the master spec layout: `frontend/` sits at the top level instead
 ## 11. Build and CI
 
 - **`ci.yml`** — Ubuntu, every push: ruff + pytest (backend); typecheck + Vitest (frontend).
-- **`build-windows.yml`** — windows-latest, on a version tag or manual run:
+- **`release.yml`** (was `build-windows.yml` until v0.0.14) — on a version tag or manual run. Windows job, windows-latest:
   1. Set up Python 3.12 and the current Node LTS.
   2. Build the backend with PyInstaller (onedir).
   3. Smoke-test the backend binary: start it with a temp data dir, `GET /health`, confirm migrations ran, stop it.
@@ -174,6 +174,7 @@ Deviation from the master spec layout: `frontend/` sits at the top level instead
   6. Upload the installer as a workflow artifact.
 
 Scripts: `scripts/ci/backend-smoke.ps1`, `scripts/ci/installer-smoke.ps1`.
+- Linux job (D-046), ubuntu-22.04 (so the build runs on 22.04 and newer): backend tests and PyInstaller build, frontend build, electron-builder `.deb` (an `afterPack` hook sets 0755/0644 on every file, as Electron's zip carries world-writable files), the packaged app's `--smoke-test` under Xvfb. Then the `.deb` is installed on ubuntu-22.04 and ubuntu-24.04, started as the normal user with the Chromium sandbox on, and removed. A publish job puts both installers and both update feeds (`latest.yml`, `latest-linux.yml`) in one release.
 - The owner downloads the artifact and installs it on the baseline laptop for acceptance (`TEST_PLAN.md` §5).
 - Private-repo Actions minutes are limited and Windows minutes count at a higher rate. Windows builds run only on tag/manual trigger; check the current quota before Sprint 1.
 

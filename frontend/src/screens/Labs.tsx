@@ -6,6 +6,7 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { api } from "../api";
 import { useI18n } from "../i18n";
+import { LINUX } from "../platform";
 import { Icon } from "../icons";
 import { formatClock, todayIso } from "../plan";
 import {
@@ -609,7 +610,7 @@ export function WritingLab(props: {
       {!submitted && named && test && (
         <QuestionCard
           test={test}
-          hint={task === 1 ? t("lab_question_hint_t1") : t("lab_question_hint_t2")}
+          hint={task === 1 ? t(LINUX ? "lab_question_hint_t1_linux" : "lab_question_hint_t1") : t("lab_question_hint_t2")}
           onShow={props.onShowQuestion}
         />
       )}
@@ -1009,7 +1010,7 @@ export function SpeakingLab(props: {
             </button>
           </>
         )}
-        {rec.state === "error" && <p className="error-box">{t("rec_no_mic")}</p>}
+        {rec.state === "error" && <p className="error-box">{t(LINUX ? "rec_no_mic_linux" : "rec_no_mic")}</p>}
         {done && rec.audioUrl && (
           <>
             <audio className="rec-audio" controls src={rec.audioUrl} />
@@ -1021,7 +1022,7 @@ export function SpeakingLab(props: {
       {done && (
         <section className="lab-card stack-xs">
           <span className="field-label">{t("lab_transcript")}</span>
-          <p className="muted small">{t("lab_transcript_hint")}</p>
+          <p className="muted small">{t(LINUX ? "lab_transcript_hint_linux" : "lab_transcript_hint")}</p>
           <textarea
             className="lab-answer short"
             dir="ltr"

@@ -1,0 +1,237 @@
+name: Build installers
+
+# Windows and Linux installers. Windows minutes are limited on private repos: build only on
+# a version tag or by hand. A version tag (vX.Y.Z), or a manual run with "release" ticked,
+# also publishes both to the public releases repository (fady-mostafa-omar/ielts-pilot-releases)
+# that the app's Update tab reads (D-027). The version comes from desktop/package.json.
+# Linux (D-046): a .deb built on Ubuntu 22.04 (so it runs on 22.04 and newer), installed and
+# started on Ubuntu 22.04 and 24.04 before anything is published.
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      release:
+        description: "Publish this build as a release (version from desktop/package.json)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: pwsh
+    env:
+      CSC_IDENTITY_AUTO_DISCOVERY: "false"
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: backend/requirements*.txt
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: lts/*
+          cache: npm
+          cache-dependency-path: |
+            frontend/package-lock.json
+            desktop/package-lock.json
+
+      - name: Backend — install and test
+        working-directory: backend
+        run: |
+          python -m pip install -r requirements-build.txt
+          python -m pytest -q
+
+      - name: Backend — build (PyInstaller onedir)
+        working-directory: backend
+        run: python -m PyInstaller ielts_pilot_backend.spec --noconfirm --clean
+
+      - name: Backend — smoke test the binary
+        run: ./scripts/ci/backend-smoke.ps1
+
+      - name: Frontend — build
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run build
+
+      - name: Desktop — package NSIS installer
+        working-directory: desktop
+        run: |
+          npm ci
+          npm run dist:win
+
+      - name: Installer — install, run twice, uninstall
+        run: ./scripts/ci/installer-smoke.ps1
+
+      - name: Upload release files
+        uses: actions/upload-artifact@v7
+        with:
+          name: windows-release
+          path: |
+            desktop/release/IELTS-Pilot-Setup-*.exe
+            desktop/release/IELTS-Pilot-Setup-*.exe.blockmap
+            desktop/release/latest.yml
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Upload smoke-test results and logs
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: smoke-results-windows
+          path: |
+            ${{ runner.temp }}/ip-ci/**
+          if-no-files-found: ignore
+          retention-days: 14
+
+  linux:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: backend/requirements*.txt
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: lts/*
+          cache: npm
+          cache-dependency-path: |
+            frontend/package-lock.json
+            desktop/package-lock.json
+
+      - name: Backend — install and test
+        working-directory: backend
+        run: |
+          python -m pip install -r requirements-build.txt
+          python -m pytest -q
+
+      - name: Backend — build (PyInstaller onedir)
+        working-directory: backend
+        run: python -m PyInstaller ielts_pilot_backend.spec --noconfirm --clean
+
+      - name: Frontend — build
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run build
+
+      - name: Desktop — package .deb
+        working-directory: desktop
+        run: |
+          npm ci
+          npm run dist:linux
+          ls -la release
+
+      - name: Packaged app — smoke test (no install)
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q xvfb
+          mkdir -p "$RUNNER_TEMP/ip-ci"
+          HOME="$RUNNER_TEMP/ip-ci/home" xvfb-run -a desktop/release/linux-unpacked/ielts-pilot \
+            --smoke-test="$RUNNER_TEMP/ip-ci/smoke-unpacked.json"
+          python3 -c "import json,sys; d=json.load(open(sys.argv[1])); print(d); sys.exit(0 if d.get('ok') else 1)" \
+            "$RUNNER_TEMP/ip-ci/smoke-unpacked.json"
+
+      - name: Upload release files
+        uses: actions/upload-artifact@v7
+        with:
+          name: linux-release
+          path: |
+            desktop/release/IELTS-Band-Up-*-amd64.deb
+            desktop/release/latest-linux.yml
+          if-no-files-found: error
+          retention-days: 30
+
+  linux-install:
+    needs: linux
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, ubuntu-24.04]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/download-artifact@v7
+        with:
+          name: linux-release
+          path: pkg
+
+      - name: Install the .deb, start the app, remove it
+        run: |
+          set -euo pipefail
+          sudo apt-get update -q
+          sudo apt-get install -y -q xvfb
+          sudo apt-get install -y -q ./pkg/IELTS-Band-Up-*-amd64.deb
+          ls -la "/opt/IELTS Pilot/chrome-sandbox"
+          ls /etc/apparmor.d/ | grep -i ielts || echo "no AppArmor profile (not needed here)"
+          mkdir -p "$RUNNER_TEMP/ip-ci"
+          # as the normal user, with the Chromium sandbox on (no --no-sandbox)
+          HOME="$RUNNER_TEMP/ip-ci/home" xvfb-run -a ielts-pilot \
+            --smoke-test="$RUNNER_TEMP/ip-ci/smoke-installed.json"
+          python3 -c "import json,sys; d=json.load(open(sys.argv[1])); print(d); sys.exit(0 if d.get('ok') else 1)" \
+            "$RUNNER_TEMP/ip-ci/smoke-installed.json"
+          sudo apt-get remove -y -q ielts-pilot
+          test ! -e /usr/bin/ielts-pilot
+
+      - name: Upload smoke-test results
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: smoke-results-${{ matrix.os }}
+          path: ${{ runner.temp }}/ip-ci/*.json
+          if-no-files-found: ignore
+          retention-days: 14
+
+  publish:
+    needs: [windows, linux, linux-install]
+    if: startsWith(github.ref, 'refs/tags/v') || inputs.release == true
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/download-artifact@v7
+        with:
+          name: windows-release
+          path: files
+
+      - uses: actions/download-artifact@v7
+        with:
+          name: linux-release
+          path: files
+
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ secrets.RELEASES_TOKEN }}
+        run: |
+          set -euo pipefail
+          PKG=$(node -p "require('./desktop/package.json').version")
+          VERSION="$PKG"
+          if [ "$GITHUB_REF_TYPE" = "tag" ] && [ "${GITHUB_REF_NAME#v}" != "$PKG" ]; then
+            echo "Tag $GITHUB_REF_NAME does not match desktop/package.json version $PKG"
+            exit 1
+          fi
+          cd files
+          ls -la
+          test -f latest.yml
+          test -f latest-linux.yml
+          gh release create "v$VERSION" \
+            "IELTS-Pilot-Setup-$VERSION.exe" \
+            "IELTS-Pilot-Setup-$VERSION.exe.blockmap" \
+            latest.yml \
+            "IELTS-Band-Up-$VERSION-amd64.deb" \
+            latest-linux.yml \
+            --repo fady-mostafa-omar/ielts-pilot-releases \
+            --title "IELTS Band Up $VERSION" \
+            --notes-file ../desktop/build/release-notes.md
