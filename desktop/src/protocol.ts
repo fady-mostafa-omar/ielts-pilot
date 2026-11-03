@@ -28,6 +28,9 @@ const CSP = [
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data:",
   "connect-src 'self'",
+  // the listening player streams podcast audio (SoundCloud feeds redirect to CDN hosts
+  // that change over time, so any https source is allowed for audio only)
+  "media-src 'self' https:",
   "object-src 'none'",
   "base-uri 'none'",
   "frame-ancestors 'none'",

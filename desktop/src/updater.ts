@@ -131,9 +131,11 @@ export async function downloadUpdate(): Promise<UpdateState> {
   return state;
 }
 
-/** Quits (the normal quit path stops the backend first) and runs the installer. */
-export function installUpdate(): boolean {
+/** Stops the backend first (so no file of the install folder is in use), then quits
+ *  and runs the installer, which reopens the app. */
+export async function installUpdate(beforeQuit: () => Promise<void>): Promise<boolean> {
   if (state.status !== "downloaded") return false;
+  await beforeQuit();
   setImmediate(() => autoUpdater.quitAndInstall(false, true));
   return true;
 }

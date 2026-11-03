@@ -317,8 +317,37 @@ export interface UpdateBridge {
   onState(callback: (state: UpdateState) => void): () => void;
 }
 
+export type PodcastFeed = "dalilk_ielts";
+
+export interface Episode {
+  id: number;
+  feed: PodcastFeed;
+  number: number | null;
+  title: string;
+  published_at: string | null;
+  duration_seconds: number | null;
+  audio_url: string;
+  page_url: string | null;
+  transcript_url: string | null;
+  summary: string;
+  position_seconds: number;
+  plays: number;
+  comprehension: number | null;
+  listened_at: string | null;
+}
+
+export interface EpisodeList {
+  feed: PodcastFeed;
+  refreshed_at: string | null;
+  total: number;
+  listened: number;
+  episodes: Episode[];
+}
+
 export interface Bridge {
   restartBackend(options?: { restoreCompatible?: boolean }): Promise<string>;
+  podcastFeed(feed: PodcastFeed): Promise<string>;
+  openExternal(url: string): Promise<boolean>;
   setFullScreen(on: boolean): Promise<boolean>;
   updates: UpdateBridge;
   openFolder(which: "data" | "backups"): Promise<boolean>;

@@ -190,6 +190,16 @@ const SMOKE_PROBE = `(async () => {
   const iso = new Date().toISOString().slice(0, 10);
   const planDay = await fetch('api/v1/plan/day?date=' + iso + '&today=' + iso);
   const planBody = planDay.ok ? await planDay.json() : null;
+  const feedXml = '<?xml version="1.0"?><rss><channel><title>t</title><item><guid>g1</guid>' +
+    '<title>Daily IELTS Listening #1</title><description>https://drive.google.com/file/d/' +
+    'ABCDEFGHIJKLMNOP/view</description><enclosure url="https://feeds.soundcloud.com/x.mp3" ' +
+    'type="audio/mpeg"/></item></channel></rss>';
+  const imported = await fetch('api/v1/podcasts/dalilk_ielts/import', {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ xml: feedXml }),
+  });
+  const nextEp = await fetch('api/v1/podcasts/dalilk_ielts/next');
+  const nextBody = nextEp.ok ? await nextEp.json() : null;
   let rejected = false;
   try { await window.ipBridge.panel.open({ url: 'file:///C:/Windows/win.ini' }, false); }
   catch { rejected = true; }
@@ -207,6 +217,8 @@ const SMOKE_PROBE = `(async () => {
     panelShowedLibraryFile: !!panelUrl && panelUrl.endsWith('smoke-panel.txt'),
     panelRejectsFileUrl: rejected,
     planDayOk: planDay.status === 200 && !!planBody && typeof planBody.kind === 'string',
+    podcastOk: imported.status === 200 && !!nextBody && nextBody.number === 1 &&
+      typeof nextBody.transcript_url === 'string',
   };
 })()`;
 
@@ -237,7 +249,8 @@ async function runSmoke(outFile: string): Promise<number> {
       probe.sessionRecorded === true &&
       probe.panelShowedLibraryFile === true &&
       probe.panelRejectsFileUrl === true &&
-      probe.planDayOk === true;
+      probe.planDayOk === true &&
+      probe.podcastOk === true;
   } catch (err) {
     result.error = err instanceof Error ? err.message : String(err);
   }
@@ -261,6 +274,15 @@ async function main(): Promise<void> {
     restartBackend,
     documentsDir: () => app.getPath("documents"),
     panel: () => panel,
+    mainAudible: () =>
+      BrowserWindow.getAllWindows().some(
+        (w) => !w.isDestroyed() && w.webContents.isCurrentlyAudible(),
+      ),
+    beforeUpdateInstall: async () => {
+      shuttingDown = true;
+      await shutdown();
+      log("stopped the backend for an update");
+    },
   });
   log(`starting ${app.getName()} ${app.getVersion()} packaged=${app.isPackaged}`);
 

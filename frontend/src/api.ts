@@ -5,7 +5,10 @@ import type {
   AppSettings,
   BackupInfo,
   DayPlan,
+  Episode,
+  EpisodeList,
   Estimate,
+  PodcastFeed,
   PlanSummary,
   PlanTask,
   Skill,
@@ -165,6 +168,18 @@ export const api = {
   taskSkip: (id: number, reason: string) =>
     request<PlanTask>(`plan/tasks/${id}/skip`, json("POST", { reason })),
   taskReset: (id: number) => request<PlanTask>(`plan/tasks/${id}/reset`, { method: "POST" }),
+
+  podcastImport: (feed: PodcastFeed, xml: string) =>
+    request<{ added: number; updated: number; total: number; in_feed: number }>(
+      `podcasts/${feed}/import`,
+      json("POST", { xml }),
+    ),
+  podcastList: (feed: PodcastFeed) => request<EpisodeList>(`podcasts/${feed}`),
+  podcastNext: (feed: PodcastFeed) => request<Episode>(`podcasts/${feed}/next`),
+  podcastPatch: (
+    id: number,
+    patch: { position_seconds?: number; listened?: boolean; comprehension?: number; started?: boolean },
+  ) => request<Episode>(`podcasts/episodes/${id}`, json("PATCH", patch)),
 
   logManual: (skill: ResourceSkill, startedAt: Date, minutes: number, notes: string) =>
     request<StudySession>(

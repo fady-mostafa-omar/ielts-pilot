@@ -179,6 +179,28 @@ Rules: a heartbeat adds at most 120 s and never more than the wall time since th
 
 Index `(plan_date, status)`. Planner settings live in `app_settings`: `hours_per_band`, `study_weekdays` (JavaScript numbering, 0 = Sunday), `break_every_minutes`, `break_minutes`, `plan_start`.
 
+### podcast_episodes (0005)
+| Column | Type | Notes |
+|---|---|---|
+| id | INTEGER PK | |
+| feed | TEXT | `dalilk_ielts` (CHECK); unique with `guid` |
+| guid | TEXT | the feed's item id |
+| number | INTEGER NULL | from "#N" in the title |
+| title | TEXT | |
+| published_at | DATETIME NULL | |
+| duration_seconds | INTEGER NULL | |
+| audio_url | TEXT | https only; streamed, never downloaded |
+| page_url | TEXT NULL | SoundCloud page (fallback when audio fails) |
+| transcript_id | TEXT NULL | Google Drive file id from the description; shown as `drive.google.com/file/d/<id>/preview` |
+| summary | TEXT NULL | description without HTML, ≤ 2000 chars |
+| position_seconds | INTEGER | ≥ 0, where the owner stopped |
+| plays | INTEGER | times started |
+| comprehension | INTEGER NULL | 1–5, owner's own rating |
+| listened_at | DATETIME NULL | |
+| created_at, updated_at | DATETIME | |
+
+Index `(feed, number)`. Re-importing the feed updates titles and links by `guid` and never touches the owner's progress. `app_settings.podcast_refreshed_<feed>` holds the last import time; the app re-reads the feed when it is older than 12 h.
+
 ### writing_prompts
 `id`, `task_type` (`task1` \| `task2`), `prompt_text`, `source_note`, `created_at`.
 
@@ -278,12 +300,13 @@ Index `(next_review_at)`.
 |---|---|---|
 | 0001 | 0 | `spike_kv` (packaging spike) |
 | 0002 | 1a | drop `spike_kv`; add `learner_profile`, `skill_levels`, `app_settings` |
-| 0004 | 2a | add `plan_tasks`; `study_sessions.plan_task_id` (FK, `ON DELETE SET NULL`) |
 | 0003 | 1b | study time in half hours, 30–840 min (existing values rounded to the nearest half hour and clamped); `placement_quiz` level source; add `placement_results`, `resources`, `study_sessions` |
+| 0004 | 2a | add `plan_tasks`; `study_sessions.plan_task_id` (FK, `ON DELETE SET NULL`) |
+| 0005 | 2b-1 | add `podcast_episodes` |
 
 
 - One Alembic revision per schema change; `alembic_version` holds the schema version.
-- The backend runs pending migrations at startup, immediately after an automatic `pre-migration` backup. A database whose revision this app does not know (made by a newer version) is never touched: the backend refuses to start.
+- The backend runs pending migrations at startup, immediately after an automatic `pre-migration` backup. A database whose revision this app does not know (made by a newer version) is never touched: the backend refuses to start, and the app offers to restore the newest backup this version can read (D-027).
 - Downgrades are not supported in packaged builds; recovery is by restoring the pre-migration backup.
 
 ## 6. Backup format

@@ -194,6 +194,18 @@ const PATHS = {
       <path d="M12 7.5v.5" />
     </>
   ),
+  rewind: (
+    <>
+      <path d="M3 12a9 9 0 1 0 3-6.7" />
+      <path d="M3 4v5h5" />
+    </>
+  ),
+  forward: (
+    <>
+      <path d="M21 12a9 9 0 1 1-3-6.7" />
+      <path d="M21 4v5h-5" />
+    </>
+  ),
   coffee: (
     <>
       <path d="M4 9h13v5a5 5 0 0 1-5 5H9a5 5 0 0 1-5-5z" />

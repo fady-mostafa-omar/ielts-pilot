@@ -84,16 +84,28 @@ Status: **draft for approval** · 2026-11-02
 - [x] Focus mode with "Continue learning", full screen, breaks, skip with reason, writing pad, celebrations (additions 5–6)
 - [x] Dalilk routine PDFs read (2026-11-03): trackers without a minute split; the 30-day plan's order (input → technique → practice, one skill per week) is used for the exam part
 - [x] Windows CI build green; v0.0.4 published to ielts-pilot-releases (2026-11-03)
-- [ ] Owner acceptance; first in-app update (to v0.0.5) tested on the laptop
+- [x] Owner installed v0.0.4 on the laptop; everything works (2026-11-03)
 
 **Exit:** the owner studies daily from Today, and new versions arrive through the Update tab.
 
-## Sprint 2b — Active listening, reading, vocabulary · v0.0.5
-- Listening in 4 steps on the Dalilk IELTS podcast: listen only → listen + transcript (PDF beside the player) → shadowing → listen again and rate comprehension
+## Order after v0.0.4 (owner, 2026-11-03)
+
+The owner asked for the podcast player first, as soon as possible. Versions from here: 0.0.5 player → 0.0.6 stories and flashcards → 0.0.7 writing/speaking with the AI tutor → 0.1 exams and progress → optional "Pro" add-on (D-029).
+
+## Sprint 2b-1 — Podcast player · v0.0.5
+- [x] Dalilk IELTS podcast from its public feed (D-028): episode list, next episode, resume position, listened / comprehension 1–5
+- [x] Player: play/pause, back / forward 5 s (also ← / → / Space), seek, speed 0.75–1.25×; break pauses the audio
+- [x] Transcript PDF (Google Drive) beside the player; 4 steps: listen only → listen + read → shadowing → listen and rate
+- [x] Opens from the Library and from the plan's podcast task (DLK-20)
+- [ ] Windows CI build green; v0.0.5 published
+- [ ] Owner installs v0.0.5 through the Update tab (first real in-app update) and confirms audio + transcript play on the laptop
+
+## Sprint 2b-2 — Stories and vocabulary · v0.0.6
 - Reading: Dalilk graded stories by level
 - Capture new words while listening/reading → flashcards (SM-2) → reviews in Today
+- Listening extras: words from the episode, shadowing with recording if the owner wants it
 
-## Sprint 3 — Output labs with the AI tutor · v0.0.6
+## Sprint 3 — Output labs with the AI tutor · v0.0.7
 - Writing Task 1 / Task 2 and Speaking Parts 1–3 with timers (addition 7)
 - Shadowing with recording; sentence building from flashcard words (write / say); phrase bank by IELTS topic
 - Mistakes notebook fed by the owner from the tutor's feedback
@@ -116,3 +128,5 @@ Interactive Listening/Reading practice with in-app question sets (original, or o
 ## v0.4+ — Optional
 
 AI feedback provider interface; local speech-to-text add-on; report export.
+
+"Pro" add-on (D-029): a local open-source model for simple tasks (word meanings, example sentences, grammar hints), only if a speed test on the owner's laptop is acceptable.

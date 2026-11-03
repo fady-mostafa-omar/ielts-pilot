@@ -83,6 +83,8 @@ Replaces planner-1 below for v0.1. Every rule is a pure function with unit tests
 
 **Focus mode (D-025).** "Continue learning" opens the first unfinished task in a full-window view; Next finishes it and opens the next; a break of *b* minutes is offered after every *e* minutes of real study (defaults 10 and 50, Settings), and break time is not counted.
 
+**Podcast listening (D-028).** The L-EXT task on the Dalilk IELTS podcast opens the player on the next episode: the one started and not finished, else the lowest-numbered one not yet listened. Four steps, all on the same episode: 1 listen only, transcript hidden (general idea); 2 listen with the transcript, note unknown words; 3 shadowing — pause and repeat sentences after the speaker, transcript shown; 4 listen once more without the transcript and rate understanding 1–5 (self-rating, never a band). "Finished the episode" marks it listened and moves to the next. Below band 5.0 the plan still uses Daily English Listening (DLK-11), which opens in the panel as before.
+
 ## 4. Weekly planning rules (`planner-1`, superseded by §4a)
 
 **Inputs:** days/week *D*, minutes/day *M*, per-skill targets *T*ₛ, current levels *C*ₛ (latest `skill_levels` row), phase (§2).

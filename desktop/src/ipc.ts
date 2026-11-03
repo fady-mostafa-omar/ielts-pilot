@@ -4,6 +4,7 @@ import {
   BrowserWindow,
   dialog,
   ipcMain,
+  net,
   powerMonitor,
   shell,
   type IpcMainInvokeEvent,
@@ -22,8 +23,16 @@ import {
 
 const BACKUP_NAME = /^ielts-pilot-[A-Za-z0-9._-]+\.zip$/;
 
+// Podcast feeds the listening player may download (public RSS, as podcast apps use).
+const FEEDS: Record<string, string> = {
+  dalilk_ielts: "https://feeds.soundcloud.com/users/soundcloud:users:672776474/sounds.rss",
+};
+const MAX_FEED_BYTES = 30_000_000;
+
 export interface IpcDeps {
   dataDir: () => string;
+  mainAudible: () => boolean;
+  beforeUpdateInstall: () => Promise<void>;
   restartBackend: (restoreCompatible?: boolean) => Promise<string>;
   documentsDir: () => string;
   panel: () => StudyPanel | null;
@@ -115,7 +124,7 @@ export function registerIpc(deps: IpcDeps): void {
     "ip:activity",
     guard(async () => ({
       idleSeconds: powerMonitor.getSystemIdleTime(),
-      audible: deps.panel()?.isAudible() ?? false,
+      audible: (deps.panel()?.isAudible() ?? false) || deps.mainAudible(),
     })),
   );
   ipcMain.handle("ip:clear-web-data", guard(async () => clearWebData()));
@@ -174,7 +183,32 @@ export function registerIpc(deps: IpcDeps): void {
   ipcMain.handle("ip:update-state", guard(async () => updateState()));
   ipcMain.handle("ip:update-check", guard(async (_e, version: unknown) => checkForUpdate(version)));
   ipcMain.handle("ip:update-download", guard(async () => downloadUpdate()));
-  ipcMain.handle("ip:update-install", guard(async () => installUpdate()));
+  ipcMain.handle(
+    "ip:update-install",
+    guard(async () => installUpdate(deps.beforeUpdateInstall)),
+  );
+
+  ipcMain.handle(
+    "ip:podcast-feed",
+    guard(async (_event, feed: unknown) => {
+      const url = typeof feed === "string" ? FEEDS[feed] : undefined;
+      if (!url) throw new Error("unknown feed");
+      const res = await net.fetch(url, { headers: { "user-agent": "IELTS-Pilot" } });
+      if (!res.ok) throw new Error(`feed answered ${res.status}`);
+      const text = await res.text();
+      if (text.length > MAX_FEED_BYTES) throw new Error("feed too large");
+      return text;
+    }),
+  );
+
+  ipcMain.handle(
+    "ip:open-external",
+    guard(async (_event, url: unknown) => {
+      if (typeof url !== "string" || !/^https:\/\/[^\s]+$/.test(url)) return false;
+      await shell.openExternal(url);
+      return true;
+    }),
+  );
   ipcMain.handle("ip:update-releases", guard(async () => listReleases()));
 
   ipcMain.handle(

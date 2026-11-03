@@ -8,10 +8,18 @@ import { api } from "../api";
 import { useI18n } from "../i18n";
 import { Icon, SKILL_STYLE, SkillBadge } from "../icons";
 import { formatClock } from "../plan";
+import {
+  ListeningSide,
+  PlayerBar,
+  STEP_SHOWS_TRANSCRIPT,
+  usePodcast,
+  type ListenStep,
+} from "./Listening";
 import type {
   PanelState,
   PanelTarget,
   PlanTask,
+  PodcastFeed,
   Resource,
   ResourceSkill,
   StudySession,
@@ -24,6 +32,7 @@ export interface StudyTarget {
   skill: ResourceSkill;
   activityCode: string | null;
   timer: boolean;
+  podcast?: PodcastFeed; // the listening player instead of a web page
 }
 
 export interface FocusOptions {
@@ -95,7 +104,11 @@ function shownUrl(url: string): string {
   }
 }
 
-function PanelArea(props: { target: PanelTarget; keepSignIn: boolean; visible: boolean }) {
+export function PanelArea(props: {
+  target: PanelTarget;
+  keepSignIn: boolean;
+  visible: boolean;
+}) {
   const { t } = useI18n();
   const { holder, state, error, bridge } = useStudyPanel(
     props.target,
@@ -376,6 +389,8 @@ export function StudyScreen(props: {
     focus?.task.id ?? null,
     onBreak,
   );
+  const podcast = usePodcast(study.podcast ?? null);
+  const [step, setStep] = useState<ListenStep>(1);
   const padId = focus ? String(focus.task.id) : "free";
   const usePad = !study.target && !!study.activityCode?.startsWith("W-");
   const [resource, setResource] = useState<Resource | null>(study.resource);
@@ -503,7 +518,7 @@ export function StudyScreen(props: {
         focus?.onBreakTaken(timer.display);
       }}
     />
-  ) : study.target ? null : usePad ? (
+  ) : study.target || study.podcast ? null : usePad ? (
     <WritingPad
       value={notes}
       onChange={updateNotes}
@@ -575,6 +590,20 @@ export function StudyScreen(props: {
         )}
 
         {props.sidebar}
+
+        {study.podcast && (
+          <ListeningSide
+            list={podcast.list}
+            episode={podcast.episode}
+            step={step}
+            onStep={setStep}
+            onPick={(id) => {
+              podcast.pick(id);
+              setStep(1);
+            }}
+            onFinish={podcast.finish}
+          />
+        )}
 
         {study.timer && !finishing && (
           <>
@@ -652,7 +681,7 @@ export function StudyScreen(props: {
             )}
             {!focus && <p className="muted small">{t("study_idle_hint")}</p>}
 
-            {resource && (
+            {resource && !study.podcast && (
               <label className="field">
                 <span className="field-label">{t("study_progress")}</span>
                 <input
@@ -678,7 +707,7 @@ export function StudyScreen(props: {
                 />
               </label>
             )}
-            {resource && (
+            {resource && !study.podcast && (
               <label className="check">
                 <input
                   type="checkbox"
@@ -721,12 +750,65 @@ export function StudyScreen(props: {
         )}
       </aside>
       <section className="study-main">
-        {study.target && (
-          <div className={onBreak ? "hidden-under" : "fill"}>
-            <PanelArea target={study.target} keepSignIn={props.keepSignIn} visible={!onBreak} />
-          </div>
+        {study.podcast ? (
+          <>
+            <div className={onBreak ? "hidden-under" : "listen-main"}>
+              {podcast.episode?.transcript_url && (
+                <div className={STEP_SHOWS_TRANSCRIPT[step] ? "fill" : "hidden-under"}>
+                  <PanelArea
+                    key={podcast.episode.id}
+                    target={{ url: podcast.episode.transcript_url }}
+                    keepSignIn={props.keepSignIn}
+                    visible={STEP_SHOWS_TRANSCRIPT[step] && !onBreak}
+                  />
+                </div>
+              )}
+              {(!podcast.episode?.transcript_url || !STEP_SHOWS_TRANSCRIPT[step]) && (
+                <div className="listen-placeholder">
+                  {podcast.loading && !podcast.episode ? (
+                    <div className="spinner" aria-hidden="true" />
+                  ) : podcast.error && !podcast.episode ? (
+                    <>
+                      <p className="error-box">
+                        {t("pl_feed_error")} <bdi dir="ltr">{podcast.error}</bdi>
+                      </p>
+                      <button className="btn" onClick={() => void podcast.refresh(true)}>
+                        {t("retry")}
+                      </button>
+                    </>
+                  ) : !podcast.episode ? (
+                    <p className="lead">{t("pl_all_done")}</p>
+                  ) : (
+                    <>
+                      <div className="listen-badge">
+                        <Icon name="headphones" size={44} color="#2563EB" />
+                      </div>
+                      <h2 dir="auto">{podcast.episode.title}</h2>
+                      <p className="muted">
+                        {podcast.episode.transcript_url
+                          ? t("pl_hidden_transcript")
+                          : t("pl_no_transcript")}
+                      </p>
+                    </>
+                  )}
+                </div>
+              )}
+              {podcast.episode && (
+                <PlayerBar key={podcast.episode.id} episode={podcast.episode} hold={onBreak} />
+              )}
+            </div>
+            {main}
+          </>
+        ) : (
+          <>
+            {study.target && (
+              <div className={onBreak ? "hidden-under" : "fill"}>
+                <PanelArea target={study.target} keepSignIn={props.keepSignIn} visible={!onBreak} />
+              </div>
+            )}
+            {main}
+          </>
         )}
-        {main}
       </section>
     </div>
   );

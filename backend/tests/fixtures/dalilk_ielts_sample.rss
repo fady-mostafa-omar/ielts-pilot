@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd" xmlns:atom="http://www.w3.org/2005/Atom">
+  <channel>
+    <title>بودكاست دليلك للايلتس IELTS</title>
+    <link>https://soundcloud.com/dalilk-podcast</link>
+    <item>
+      <guid isPermaLink="false">tag:soundcloud,2010:tracks/3003</guid>
+      <title>Daily IELTS Listening #3</title>
+      <pubDate>Thu, 04 Jan 2024 08:00:00 +0000</pubDate>
+      <link>https://soundcloud.com/dalilk-podcast/daily-ielts-listening-3</link>
+      <itunes:duration>00:11:40</itunes:duration>
+      <description>في هذي الحلقة راح تسمع محادثة.&lt;br&gt;السكريبت: https://drive.google.com/file/d/1BZsikJ3kl6SmXgSGl0eLYioJ_9Y6M1dJ/view?usp=drive_link</description>
+      <enclosure type="audio/mpeg" url="https://feeds.soundcloud.com/stream/3003-dalilk-podcast-daily-ielts-listening-3.mp3" length="0"/>
+    </item>
+    <item>
+      <guid isPermaLink="false">tag:soundcloud,2010:tracks/3001</guid>
+      <title>Daily IELTS Listening #1</title>
+      <pubDate>Tue, 02 Jan 2024 08:00:00 +0000</pubDate>
+      <link>https://soundcloud.com/dalilk-podcast/daily-ielts-listening-1</link>
+      <itunes:duration>725</itunes:duration>
+      <description>الحلقة الأولى. السكريبت: https://drive.google.com/file/d/1AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA/view</description>
+      <enclosure type="audio/mpeg" url="https://feeds.soundcloud.com/stream/3001-dalilk-podcast-daily-ielts-listening-1.mp3" length="0"/>
+    </item>
+    <item>
+      <guid isPermaLink="false">tag:soundcloud,2010:tracks/3002</guid>
+      <title>Daily IELTS Listening # 2</title>
+      <pubDate>Wed, 03 Jan 2024 08:00:00 +0000</pubDate>
+      <itunes:duration>00:12:05</itunes:duration>
+      <description>حلقة من غير رابط سكريبت.</description>
+      <enclosure type="audio/mpeg" url="https://feeds.soundcloud.com/stream/3002-dalilk-podcast-daily-ielts-listening-2.mp3" length="0"/>
+    </item>
+    <item>
+      <guid isPermaLink="false">tag:soundcloud,2010:tracks/9999</guid>
+      <title>Broken enclosure</title>
+      <enclosure type="audio/mpeg" url="javascript:alert(1)" length="0"/>
+    </item>
+  </channel>
+</rss>

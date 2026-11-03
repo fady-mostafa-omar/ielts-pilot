@@ -230,3 +230,39 @@ class PlanTask(Base):
     started_at: Mapped[datetime | None] = mapped_column(UTCDateTime)
     completed_at: Mapped[datetime | None] = mapped_column(UTCDateTime)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime)
+
+
+PODCAST_FEEDS = ("dalilk_ielts",)
+
+
+class PodcastEpisode(Base):
+    """An episode of a podcast feed the listening player knows (imported from its RSS)."""
+
+    __tablename__ = "podcast_episodes"
+    __table_args__ = (
+        UniqueConstraint("feed", "guid", name="uq_podcast_feed_guid"),
+        CheckConstraint("feed IN ('dalilk_ielts')", name="feed"),
+        CheckConstraint(
+            "comprehension IS NULL OR comprehension BETWEEN 1 AND 5", name="comprehension"
+        ),
+        CheckConstraint("position_seconds >= 0", name="position"),
+        Index("ix_podcast_feed_number", "feed", "number"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    feed: Mapped[str] = mapped_column(String(30))
+    guid: Mapped[str] = mapped_column(String(300))
+    number: Mapped[int | None] = mapped_column(Integer)
+    title: Mapped[str] = mapped_column(String(300))
+    published_at: Mapped[datetime | None] = mapped_column(UTCDateTime)
+    duration_seconds: Mapped[int | None] = mapped_column(Integer)
+    audio_url: Mapped[str] = mapped_column(String(1000))
+    page_url: Mapped[str | None] = mapped_column(String(1000))
+    transcript_id: Mapped[str | None] = mapped_column(String(100))  # Google Drive file id
+    summary: Mapped[str] = mapped_column(Text, default="")
+    position_seconds: Mapped[int] = mapped_column(Integer, default=0)
+    plays: Mapped[int] = mapped_column(Integer, default=0)
+    comprehension: Mapped[int | None] = mapped_column(Integer)  # owner's 1–5 rating
+    listened_at: Mapped[datetime | None] = mapped_column(UTCDateTime)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime)
+    updated_at: Mapped[datetime] = mapped_column(UTCDateTime)

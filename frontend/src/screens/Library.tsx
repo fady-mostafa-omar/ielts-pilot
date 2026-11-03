@@ -31,8 +31,22 @@ function formatInfo(format: string) {
   return format in FORMATS ? FORMATS[format as keyof typeof FORMATS] : FORMATS.web;
 }
 
+/** The Dalilk IELTS podcast opens the listening player (Sprint 2b-1). */
+export const PODCAST_RESOURCE = "DLK-20";
+
 export function studyTargetFor(r: Resource): StudyTarget {
   const exam = r.resource_type === "practice_test" || r.resource_type === "placement_test";
+  if (r.catalog_id === PODCAST_RESOURCE) {
+    return {
+      title: r.title,
+      target: null,
+      resource: r,
+      skill: r.skill,
+      activityCode: "L-EXT",
+      timer: true,
+      podcast: "dalilk_ielts",
+    };
+  }
   return {
     title: r.title,
     target: r.local_path ? { library: r.local_path } : { url: r.url ?? "" },

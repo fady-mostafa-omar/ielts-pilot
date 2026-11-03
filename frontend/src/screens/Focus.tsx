@@ -8,9 +8,21 @@ import { useI18n } from "../i18n";
 import { Icon } from "../icons";
 import { formatHM, todayIso } from "../plan";
 import type { AppSettings, DayKind, PlanTask, Resource } from "../types";
+import { PODCAST_RESOURCE } from "./Library";
 import { StudyScreen, type StudyTarget } from "./Study";
 
 function targetFor(task: PlanTask, resource: Resource | null): StudyTarget {
+  if (resource?.catalog_id === PODCAST_RESOURCE) {
+    return {
+      title: task.title,
+      target: null,
+      resource,
+      skill: task.skill,
+      activityCode: task.activity_code,
+      timer: true,
+      podcast: "dalilk_ielts",
+    };
+  }
   return {
     title: task.title,
     target: resource
