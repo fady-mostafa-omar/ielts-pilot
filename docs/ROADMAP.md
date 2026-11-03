@@ -168,7 +168,7 @@ The owner's screenshot showed Daily English Listening (DLK-11) opening the old p
 - [x] Novel = 30 min: "novel n of m", the same novel carries on the next day, at its last page when the link shows it
 - [x] One-minute pause: "Next" at once; a short "lesson done" line when a video ends
 - [x] Speaking tasks start with a one-minute recording (microphone for our UI only, audio only; file kept in the data folder)
-- [ ] Windows CI build green; v0.0.10 published
+- [x] Windows CI build green; v0.0.10 published (2026-11-03)
 - [ ] Owner checks on the laptop: podcast stages, novel count, recording with his microphone
 
 ## v0.0.11 — Words and phrases
