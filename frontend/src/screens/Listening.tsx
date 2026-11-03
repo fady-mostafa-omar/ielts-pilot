@@ -8,6 +8,7 @@ import { useI18n } from "../i18n";
 import { Icon } from "../icons";
 import { formatClock } from "../plan";
 import type { Episode, EpisodeList, PodcastFeed } from "../types";
+import { CompactRecorder } from "./Recorder";
 
 const STALE_MS = 12 * 3600 * 1000;
 export const STEPS = [1, 2, 3, 4] as const;
@@ -372,6 +373,7 @@ export function ListeningSide(props: {
         ))}
       </div>
       <p className="task-brief">{t(`pl_step${props.step}_do`)}</p>
+      {props.step === 3 && <CompactRecorder limit={180} label={t("pl_shadow_rec")} />}
       {ep && !ep.transcript_url && <p className="note small">{t("pl_no_transcript")}</p>}
       {ep && props.step < 4 && (
         <button

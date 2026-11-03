@@ -34,8 +34,10 @@ import {
   type ReleaseInfo,
   type SourceType,
   type SystemInfo,
+  type TutorSite,
   type UpdateState,
 } from "../types";
+import { TUTOR_SITES } from "../tutor";
 import { PlacementCards } from "./Placement";
 import type { StudyTarget } from "./Study";
 
@@ -144,6 +146,7 @@ function ProfileTab(props: {
   const [examFormat, setExamFormat] = useState<ExamFormat | null>(
     props.settings.exam_format ?? null,
   );
+  const [tutor, setTutor] = useState<TutorSite>(props.settings.tutor ?? "chatgpt");
   const [status, setStatus] = useState<"idle" | "saving" | "saved">("idle");
   const [error, setError] = useState<string | null>(null);
   const goalErrors = validateGoals(goals, t);
@@ -163,6 +166,7 @@ function ProfileTab(props: {
           break_every_minutes: breakEvery,
           break_minutes: breakMinutes,
           interlude_seconds: interlude,
+          tutor,
           ...(examFormat ? { exam_format: examFormat } : {}),
         }),
       );
@@ -229,6 +233,15 @@ function ProfileTab(props: {
             </select>
           </Field>
           <ExamFormatPicker value={examFormat} onChange={setExamFormat} />
+          <Field label={t("set_tutor")} hint={t("set_tutor_hint")}>
+            <select value={tutor} onChange={(e) => setTutor(e.target.value as TutorSite)}>
+              {(Object.keys(TUTOR_SITES) as TutorSite[]).map((k) => (
+                <option key={k} value={k}>
+                  {TUTOR_SITES[k].name}
+                </option>
+              ))}
+            </select>
+          </Field>
           <Field label={t("set_interlude")}>
             <select value={interlude} onChange={(e) => setInterlude(Number(e.target.value))}>
               {[0, 30, 60, 90, 120].map((s) => (

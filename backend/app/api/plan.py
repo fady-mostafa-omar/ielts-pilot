@@ -36,6 +36,7 @@ DEFAULTS = {
     "plan_start": None,
     "interlude_seconds": 60,
     "exam_format": None,  # D-037: asked in setup; planner-4 assumes "computer" until set
+    "tutor": "chatgpt",  # D-026/D-042: the AI site the tutor prompt is pasted into
 }
 RESTARTED_KEY = "plan_restarted_at"  # set by "start the plan again"; not an owner setting
 

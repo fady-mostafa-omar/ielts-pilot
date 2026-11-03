@@ -10,23 +10,26 @@ import { formatClock } from "../plan";
 
 const LIMIT_SECONDS = 60;
 
-type RecState = "idle" | "recording" | "done" | "error";
+export type RecState = "idle" | "recording" | "done" | "error";
 
-export function SpeakingRecorder(props: { continueLabel: string; onContinue: () => void }) {
-  const { t } = useI18n();
+/** Records from the microphone up to `limit` seconds; the file is kept in the data folder
+ *  (the desktop app saves it and gives back its name). */
+export function useRecorder(limit: number, kind: "speaking" | "shadow" = "speaking") {
   const [state, setState] = useState<RecState>("idle");
-  const [left, setLeft] = useState(LIMIT_SECONDS);
+  const [left, setLeft] = useState(limit);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
-  const [saved, setSaved] = useState(false);
+  const [fileName, setFileName] = useState<string | null>(null);
+  const [seconds, setSeconds] = useState(0);
   const recorder = useRef<MediaRecorder | null>(null);
   const stream = useRef<MediaStream | null>(null);
   const chunks = useRef<Blob[]>([]);
+  const startedAt = useRef(0);
 
   const stop = useCallback(() => {
     if (recorder.current && recorder.current.state !== "inactive") recorder.current.stop();
   }, []);
 
-  // release the microphone and the recording when leaving
+  // release the microphone when leaving
   useEffect(
     () => () => {
       if (recorder.current && recorder.current.state !== "inactive") recorder.current.stop();
@@ -51,7 +54,7 @@ export function SpeakingRecorder(props: { continueLabel: string; onContinue: () 
     if (state === "recording" && left <= 0) stop();
   }, [state, left, stop]);
 
-  async function start() {
+  const start = useCallback(async () => {
     try {
       const media = await navigator.mediaDevices.getUserMedia({ audio: true });
       stream.current = media;
@@ -63,23 +66,43 @@ export function SpeakingRecorder(props: { continueLabel: string; onContinue: () 
       rec.onstop = () => {
         media.getTracks().forEach((track) => track.stop());
         const blob = new Blob(chunks.current, { type: rec.mimeType || "audio/webm" });
+        setSeconds(Math.round((Date.now() - startedAt.current) / 1000));
         setAudioUrl(URL.createObjectURL(blob));
         setState("done");
-        setSaved(false);
+        setFileName(null);
         void blob
           .arrayBuffer()
-          .then((data) => window.ipBridge?.saveRecording?.(data))
-          .then((name) => setSaved(!!name))
-          .catch(() => setSaved(false));
+          .then((data) => window.ipBridge?.saveRecording?.(data, kind))
+          .then((name) => setFileName(name ?? null))
+          .catch(() => setFileName(null));
       };
       recorder.current = rec;
       rec.start();
-      setLeft(LIMIT_SECONDS);
+      startedAt.current = Date.now();
+      setLeft(limit);
       setState("recording");
     } catch {
       setState("error");
     }
-  }
+  }, [limit, kind]);
+
+  const reset = useCallback(() => {
+    setState("idle");
+    setAudioUrl(null);
+    setFileName(null);
+    setSeconds(0);
+    setLeft(limit);
+  }, [limit]);
+
+  return { state, left, audioUrl, fileName, seconds, start, stop, reset };
+}
+
+export function SpeakingRecorder(props: { continueLabel: string; onContinue: () => void }) {
+  const { t } = useI18n();
+  const rec = useRecorder(LIMIT_SECONDS);
+  const { state, left, audioUrl, stop } = rec;
+  const saved = !!rec.fileName;
+  const start = rec.start;
 
   return (
     <div className="recorder">
@@ -135,6 +158,30 @@ export function SpeakingRecorder(props: { continueLabel: string; onContinue: () 
         <button className="btn subtle small" onClick={props.onContinue}>
           {t("rec_skip")}
         </button>
+      )}
+    </div>
+  );
+}
+
+/** v0.0.12: a small recorder for shadowing (podcast stage 3): record yourself, listen back. */
+export function CompactRecorder(props: { limit: number; label: string }) {
+  const { t } = useI18n();
+  const rec = useRecorder(props.limit, "shadow");
+  return (
+    <div className="compact-rec stack-xs">
+      <span className="field-label">{props.label}</span>
+      {rec.state === "recording" ? (
+        <button className="btn danger small self-start" onClick={rec.stop}>
+          <Icon name="stop" size={12} /> {t("rec_stop")} · <bdi dir="ltr">{formatClock(props.limit - rec.left)}</bdi>
+        </button>
+      ) : (
+        <button className="btn small self-start" onClick={() => void rec.start()}>
+          <Icon name="mic" size={12} /> {rec.state === "done" ? t("rec_again") : t("rec_start")}
+        </button>
+      )}
+      {rec.state === "error" && <p className="error-box small">{t("rec_no_mic")}</p>}
+      {rec.state === "done" && rec.audioUrl && (
+        <audio className="rec-audio small" controls src={rec.audioUrl} />
       )}
     </div>
   );

@@ -36,8 +36,13 @@ contextBridge.exposeInMainWorld("ipBridge", {
   openExternal: (url: string): Promise<boolean> => ipcRenderer.invoke("ip:open-external", url),
   dalilkPage: (which: "words" | "phrases", rendered: boolean): Promise<string> =>
     ipcRenderer.invoke("ip:dalilk-page", which, rendered),
-  saveRecording: (data: ArrayBuffer): Promise<string> =>
-    ipcRenderer.invoke("ip:save-recording", data),
+  saveRecording: (data: ArrayBuffer, kind?: "speaking" | "shadow"): Promise<string> =>
+    ipcRenderer.invoke("ip:save-recording", data, kind ?? "speaking"),
+  readRecording: (name: string): Promise<ArrayBuffer> =>
+    ipcRenderer.invoke("ip:read-recording", name),
+  deleteRecording: (name: string): Promise<boolean> =>
+    ipcRenderer.invoke("ip:delete-recording", name),
+  copyText: (text: string): Promise<boolean> => ipcRenderer.invoke("ip:copy-text", text),
   panel: {
     open: (target: PanelTarget, keepSignIn: boolean): Promise<unknown> =>
       ipcRenderer.invoke("ip:panel-open", target, keepSignIn),

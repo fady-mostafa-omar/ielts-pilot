@@ -27,6 +27,9 @@ import type {
   Achievements,
   Card,
   CardDeck,
+  MistakeInput,
+  SpeakingAttempt,
+  WritingAttempt,
   CardImportItem,
   CardStats,
   ContentItem,
@@ -214,6 +217,58 @@ export const api = {
   cardAdd: (front: string, meaning: string) =>
     request<Card>("cards", json("POST", { front, meaning })),
   phraseNext: () => request<Card>("cards/phrase/next"),
+  cardsRecent: () => request<Card[]>("cards/recent"),
+  mistakesAdd: (items: MistakeInput[], source: string, today: string) =>
+    request<Card[]>("cards/mistakes", json("POST", { items, source, today })),
+  mistakes: () => request<Card[]>("cards/mistakes"),
+  cardDelete: (id: number) => request<null>(`cards/${id}`, { method: "DELETE" }),
+
+  writingList: (params: { task?: number; plan_task_id?: number; limit?: number }) => {
+    const q = new URLSearchParams();
+    for (const [k, v] of Object.entries(params)) if (v !== undefined) q.set(k, String(v));
+    return request<WritingAttempt[]>(`writing?${q.toString()}`);
+  },
+  writingNew: (task: 0 | 1 | 2, prompt: string, planTaskId: number | null) =>
+    request<WritingAttempt>("writing", json("POST", { task, prompt, plan_task_id: planTaskId })),
+  writingPatch: (
+    id: number,
+    patch: Partial<{
+      prompt: string;
+      text: string;
+      seconds_used: number;
+      checklist: string[];
+      tutor_reply: string;
+      tutor_overall: number | null;
+      submit: boolean;
+    }>,
+  ) => request<WritingAttempt>(`writing/${id}`, json("PATCH", patch)),
+  writingDelete: (id: number) => request<null>(`writing/${id}`, { method: "DELETE" }),
+  speakingList: () => request<SpeakingAttempt[]>("speaking"),
+  speakingNew: (input: {
+    part: 0 | 1 | 2 | 3;
+    prompt: string;
+    recording: string | null;
+    seconds: number;
+    transcript: string;
+    self_rating: Record<string, number>;
+    notes: string;
+    plan_task_id: number | null;
+  }) => request<SpeakingAttempt>("speaking", json("POST", input)),
+  speakingPatch: (
+    id: number,
+    patch: Partial<{
+      prompt: string;
+      transcript: string;
+      self_rating: Record<string, number>;
+      notes: string;
+      tutor_reply: string;
+      tutor_overall: number | null;
+    }>,
+  ) => request<SpeakingAttempt>(`speaking/${id}`, json("PATCH", patch)),
+  speakingDelete: (id: number) =>
+    request<{ deleted: number; recording: string | null }>(`speaking/${id}`, {
+      method: "DELETE",
+    }),
   phraseShown: (id: number) => request<Card>(`cards/${id}/shown`, { method: "POST" }),
   contentPosition: (id: number, url: string) =>
     request<ContentItem>(`content/${id}/position`, json("POST", { url })),

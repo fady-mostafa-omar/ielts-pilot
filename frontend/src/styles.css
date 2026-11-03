@@ -2807,3 +2807,290 @@ fieldset.field.plain {
 .pp-back p {
   margin: 0;
 }
+
+/* v0.0.12: writing and speaking labs (D-042) */
+.lab-scroll {
+  overflow-y: auto;
+  background: #f4f6fa;
+}
+
+.lab {
+  width: 100%;
+  box-sizing: border-box;
+  max-width: 860px;
+  margin: 0 auto;
+  padding: 20px 24px 40px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.lab-head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.lab-card {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  padding: 14px 16px;
+}
+
+.lab-card h3 {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 1rem;
+}
+
+.lab-clock {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  font-size: 1.1rem;
+  color: #1d4ed8;
+}
+
+.lab-clock.over {
+  color: #dc2626;
+}
+
+.seg {
+  display: inline-flex;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  overflow: hidden;
+  background: #fff;
+}
+
+.seg button {
+  border: 0;
+  background: transparent;
+  padding: 6px 14px;
+  cursor: pointer;
+  font: inherit;
+  color: #334155;
+}
+
+.seg button.on {
+  background: #1d4ed8;
+  color: #fff;
+}
+
+.seg button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.lab-question,
+.lab-answer,
+.tutor-reply {
+  width: 100%;
+  font: inherit;
+  line-height: 1.6;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  padding: 10px 12px;
+  resize: vertical;
+  background: #fff;
+}
+
+.lab-question {
+  min-height: 84px;
+}
+
+.lab-answer {
+  min-height: 320px;
+  font-size: 1.02rem;
+}
+
+.lab-answer.short {
+  min-height: 140px;
+}
+
+.tutor-reply {
+  min-height: 160px;
+}
+
+.lab-question[readonly],
+.lab-answer[readonly] {
+  background: #f8fafc;
+}
+
+.chk-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-top: 6px;
+}
+
+.chk-item {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+}
+
+.tutor-steps {
+  margin: 0;
+  padding-inline-start: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.opinion {
+  margin: 0;
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+}
+
+.mistake-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.mistake-list label {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.mistake-list p {
+  margin: 2px 0 0 26px;
+}
+
+.m-wrong {
+  color: #b91c1c;
+  text-decoration: line-through;
+  text-decoration-color: rgba(185, 28, 28, 0.5);
+}
+
+.m-right {
+  color: #15803d;
+  font-weight: 600;
+}
+
+.manual-mistake summary {
+  cursor: pointer;
+  color: #1d4ed8;
+  font-size: 0.9rem;
+}
+
+.mistake-form input,
+.mistake-form select {
+  width: 100%;
+}
+
+.mistake-form .row select {
+  width: auto;
+  flex: 1;
+}
+
+.lab-history {
+  padding: 10px 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+}
+
+.history-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.85rem;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: 8px;
+  background: #f8fafc;
+  text-align: start;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.history-row.static {
+  cursor: default;
+}
+
+.history-row:hover:not(.static) {
+  background: #eff6ff;
+}
+
+.rating-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.lab-tabs-area {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+.lab-tabs {
+  align-self: center;
+  margin: 10px 0;
+}
+
+.lab-tabs-area > .lab-scroll,
+.lab-tabs-area > .fill {
+  flex: 1;
+  min-height: 0;
+}
+
+.lab-rec {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  text-align: center;
+}
+
+.rec-clock.prep {
+  color: #1d4ed8;
+}
+
+.compact-rec {
+  padding: 8px 10px;
+  border: 1px dashed #c4b5fd;
+  border-radius: 10px;
+  background: #faf5ff;
+}
+
+.rec-audio.small {
+  width: 100%;
+  height: 36px;
+}
+
+.pad-words {
+  gap: 6px;
+  align-items: center;
+}
+
+.fc-mistake strong {
+  font-size: 1.6rem;
+}
+
+.fc-right {
+  color: #15803d;
+}
+
+.self-center {
+  align-self: center;
+}

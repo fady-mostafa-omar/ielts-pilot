@@ -228,7 +228,7 @@ Index `(kind, sort)`. Synced at start from `content/catalog/items/*.csv` (facts 
 | Column | Type | Notes |
 |---|---|---|
 | id | INTEGER PK | |
-| kind | TEXT | `word` (Dalilk's 350), `phrase` (Dalilk's 150), `mine` (the owner's own) — CHECK; unique with `key` |
+| kind | TEXT | `word` (Dalilk's 350), `phrase` (Dalilk's 150), `mine` (the owner's own), `mistake` (the mistakes notebook, 0010) — CHECK; unique with `key` |
 | key | TEXT | words `basic-12`, `nouns-3`…; phrases `1`…`150`; own words `mine-<random>` |
 | section | TEXT | `basic`, `nouns`, `verbs`, `adjectives`, `emails`, `meetings`, `mine` (the card's colour) |
 | situation | TEXT | phrases: Dalilk's situation heading |
@@ -242,9 +242,40 @@ Index `(kind, sort)`. Synced at start from `content/catalog/items/*.csv` (facts 
 | due | DATE NULL | next review; NULL = not learned yet |
 | learned_on | DATE NULL | first review (today's new-card allowance) |
 | reviewed_at, shown_at | DATETIME NULL | last review; phrases: last pause shown |
+| code | TEXT | 0010, mistakes: error code (CURRICULUM §6) |
+| source | TEXT | 0010, mistakes: e.g. "AI tutor (ChatGPT) — opinion" |
 | created_at, updated_at | DATETIME | |
 
-Index `(kind, due)`. Read on the owner's computer from Dalilk's two pages (D-041); re-reading updates the text by `key` and never touches the progress.
+Index `(kind, due)`. Read on the owner's computer from Dalilk's two pages (D-041); re-reading updates the text by `key` and never touches the progress. A mistake card (PRD F8): `front` = what I wrote, `meaning` = the right form, `example` = why, `situation` = context, `section` = writing / speaking / …; logging the same `code` again brings that code's older mistakes back the next day.
+
+### writing_attempts (0010)
+| Column | Type | Notes |
+|---|---|---|
+| id | INTEGER PK | |
+| task | INTEGER | 1 = Task 1, 2 = Task 2, 0 = free writing (CHECK) |
+| prompt, text | TEXT | the question; the answer (autosaved draft) |
+| words, seconds_used | INTEGER | |
+| status | TEXT | `draft` / `submitted` (CHECK) |
+| checklist_json | TEXT | self-review items ticked |
+| tutor_reply | TEXT | the AI tutor's reply, pasted by the owner |
+| tutor_overall | REAL NULL | the reply's overall mark — an AI opinion only, never a level (D-026, D-008) |
+| plan_task_id | INTEGER FK NULL | `ON DELETE SET NULL` |
+| submitted_at, created_at, updated_at | DATETIME | |
+
+### speaking_attempts (0010)
+| Column | Type | Notes |
+|---|---|---|
+| id | INTEGER PK | |
+| part | INTEGER | 1–3, 0 = free speaking (CHECK) |
+| prompt | TEXT | the question or cue card |
+| recording | TEXT NULL | file name in `recordings\` (only names this app writes); the UI deletes the file with the attempt |
+| seconds | INTEGER | |
+| transcript | TEXT | typed by the owner or with Windows voice typing (Win+H) |
+| self_rating_json | TEXT | 1–5 for fluency, lexical, grammar, pronunciation |
+| notes, tutor_reply | TEXT | |
+| tutor_overall | REAL NULL | AI opinion only |
+| plan_task_id | INTEGER FK NULL | `ON DELETE SET NULL` |
+| created_at, updated_at | DATETIME | |
 
 ### writing_prompts
 `id`, `task_type` (`task1` \| `task2`), `prompt_text`, `source_note`, `created_at`.
@@ -352,6 +383,7 @@ Index `(next_review_at)`.
 | 0007 | 0.0.8 | add `content_items`; `plan_tasks.content_json` |
 | 0008 | 0.0.10 | `podcast_episodes.stage` (1–4, default 1); `content_items.position_url` |
 | 0009 | 0.0.11 | add `cards` (flashcards, SM-2) |
+| 0010 | 0.0.12 | `cards` rebuilt (kind `mistake`, columns `code`, `source`; rows and ids kept; downgrade drops mistakes); add `writing_attempts`, `speaking_attempts` |
 
 - One Alembic revision per schema change; `alembic_version` holds the schema version.
 - The backend runs pending migrations at startup, immediately after an automatic `pre-migration` backup. A database whose revision this app does not know (made by a newer version) is never touched: the backend refuses to start, and the app offers to restore the newest backup this version can read (D-027).

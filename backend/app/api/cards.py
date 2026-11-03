@@ -40,6 +40,8 @@ class CardOut(BaseModel):
     due: date | None
     learned_on: date | None
     reviewed_at: datetime | None
+    code: str = ""
+    source: str = ""
 
 
 class ImportItem(BaseModel):
@@ -82,7 +84,8 @@ def _out(card: Card) -> CardOut:
 
 
 def _kinds(deck: str) -> tuple[str, ...]:
-    return ("word", "mine") if deck == "word" else ("phrase",)
+    # the daily cards hold Dalilk's words, the owner's own words and his mistakes (0010)
+    return ("word", "mine", "mistake") if deck == "word" else ("phrase",)
 
 
 def sm2(card: Card, grade: int, today: date) -> None:
@@ -154,6 +157,7 @@ def card_stats(ctx: Ctx, today: date) -> dict:
         return {
             "word": _stats(session, ("word",), today),
             "mine": _stats(session, ("mine",), today),
+            "mistake": _stats(session, ("mistake",), today),
             "phrase": _stats(session, ("phrase",), today),
         }
 
@@ -180,7 +184,7 @@ def cards_today(
         room = max(0, new_limit - started)
         fresh = list(session.scalars(
             select(Card).where(Card.kind.in_(kinds), Card.due.is_(None))
-            .order_by(Card.kind != "mine", Card.sort, Card.id).limit(room)
+            .order_by(Card.kind.notin_(("mistake", "mine")), Card.sort, Card.id).limit(room)
         )) if room else []
         return [_out(c) for c in due + fresh]
 
@@ -210,11 +214,73 @@ def add_mine(body: MineIn, ctx: Ctx) -> CardOut:
         return _out(card)
 
 
+class MistakeIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    wrong: str = Field(min_length=1, max_length=300)
+    right: str = Field(min_length=1, max_length=500)
+    why: str = Field(default="", max_length=500)
+    code: str = Field(default="", max_length=20, pattern=r"^([A-Z]{2}-[A-Z]{2,8})?$")
+    context: str = Field(default="", max_length=200)
+    skill: Literal["writing", "speaking", "reading", "listening", "general"] = "general"
+
+
+class MistakesIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    items: list[MistakeIn] = Field(min_length=1, max_length=50)
+    source: str = Field(default="", max_length=100)
+    today: date
+
+
+@router.post("/cards/mistakes", response_model=list[CardOut], status_code=201)
+def add_mistakes(body: MistakesIn, ctx: Ctx) -> list[CardOut]:
+    """The mistakes notebook (PRD F8): each mistake becomes a card. Logging an error code
+    again brings that code's older mistakes back tomorrow (interval reset to one day)."""
+    now = utcnow()
+    tomorrow = body.today + timedelta(days=1)
+    with ctx.session_factory.begin() as session:
+        codes = {m.code for m in body.items if m.code}
+        if codes:
+            for old in session.scalars(select(Card).where(
+                    Card.kind == "mistake", Card.code.in_(codes), Card.due.is_not(None),
+                    Card.due > tomorrow)):
+                old.interval_days, old.due, old.updated_at = 1, tomorrow, now
+        cards = []
+        for m in body.items:
+            card = Card(kind="mistake", key=f"mistake-{uuid4().hex[:12]}", section=m.skill,
+                        situation=m.context.strip(), sort=0, front=m.wrong.strip(),
+                        meaning=m.right.strip(), example=m.why.strip(), code=m.code,
+                        source=body.source, created_at=now, updated_at=now)
+            session.add(card)
+            cards.append(card)
+        session.flush()
+        return [_out(c) for c in cards]
+
+
+@router.get("/cards/recent", response_model=list[CardOut])
+def recent_words(ctx: Ctx, limit: Annotated[int, Query(ge=1, le=30)] = 8) -> list[CardOut]:
+    """Words recalled lately (Dalilk's and the owner's), to use in the day's writing."""
+    with ctx.session_factory() as session:
+        rows = session.scalars(select(Card).where(Card.kind.in_(("word", "mine")), Card.reps > 0)
+                               .order_by(Card.reviewed_at.desc(), Card.id.desc()).limit(limit))
+        return [_out(c) for c in rows]
+
+
+@router.get("/cards/mistakes", response_model=list[CardOut])
+def list_mistakes(ctx: Ctx, limit: Annotated[int, Query(ge=1, le=500)] = 100) -> list[CardOut]:
+    with ctx.session_factory() as session:
+        rows = session.scalars(select(Card).where(Card.kind == "mistake")
+                               .order_by(Card.created_at.desc(), Card.id.desc()).limit(limit))
+        return [_out(c) for c in rows]
+
+
 @router.delete("/cards/{card_id}", status_code=204)
 def delete_mine(card_id: int, ctx: Ctx) -> None:
+    """The owner's own cards only: his words and his mistakes."""
     with ctx.session_factory.begin() as session:
         card = session.get(Card, card_id)
-        if card is None or card.kind != "mine":
+        if card is None or card.kind not in ("mine", "mistake"):
             raise HTTPException(404, {"error": "not_found", "message": "no such card of yours"})
         session.delete(card)
 

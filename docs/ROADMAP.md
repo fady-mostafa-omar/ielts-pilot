@@ -179,10 +179,15 @@ The owner's screenshot showed Daily English Listening (DLK-11) opening the old p
 - [x] Windows CI build green; v0.0.11 published (2026-11-03)
 - [ ] Owner checks on the laptop: the words and phrases are read from Dalilk's pages, the voice speaks
 
-## Sprint 3 — Output labs with the AI tutor · v0.0.12
-- Writing Task 1 / Task 2 and Speaking Parts 1–3 with timers (addition 7)
-- Shadowing with recording; sentence building from flashcard words (write / say); phrase bank by IELTS topic
-- Mistakes notebook fed by the owner from the tutor's feedback
+## Sprint 3 — Output labs with the AI tutor · v0.0.12 (D-042)
+- [x] Writing lab: Task 1 / Task 2, 20 / 40-minute clock, word count, autosaved drafts, submit, self-review checklist (own wording), history (migration 0010)
+- [x] Speaking lab: Part 1 / 2 / 3, Part 2 one-minute preparation then up to two minutes recorded, playback and delete, transcript (typed or Win+H), self-rating
+- [x] AI tutor through a copied prompt (ChatGPT / Claude / Gemini in Settings): ask for a question, ask for feedback, paste the reply back; the mark shown as "AI opinion" only
+- [x] Mistakes notebook: mistakes read from the reply (or added by hand) become cards in "Today's words"; same error code → older ones back tomorrow; list in the Library
+- [x] Shadowing recorder in the podcast's stage 3; recent words suggested in the daily writing
+- [ ] Phrase bank by IELTS topic — needs a content source (later)
+- [ ] Windows CI build green; v0.0.12 published
+- [ ] Owner checks on the laptop: prompt copied and the site opened, reply read back, recording with his microphone
 
 ## Sprint 4 — Exam preparation and progress · v0.0.13 → v0.1
 - Practice tests with result entry → levels and the overall chart, the plan adapts (technique videos and tests already in the plan since 0.0.8)

@@ -99,3 +99,12 @@ def test_phrases_one_per_pause_in_order_then_again(client: TestClient) -> None:
     phrase_deck = client.get("/api/v1/cards/today",
                              params={"deck": "phrase", "today": TODAY.isoformat()}).json()
     assert len(phrase_deck) == 3
+
+
+def test_recent_words_for_the_days_writing(client: TestClient) -> None:
+    client.post("/api/v1/cards/import", json=words(3))
+    assert client.get("/api/v1/cards/recent").json() == []
+    first = today_cards(client)[0]
+    review(client, first["id"], 4)
+    recent = client.get("/api/v1/cards/recent").json()
+    assert [c["front"] for c in recent] == ["word1"]

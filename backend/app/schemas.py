@@ -199,6 +199,8 @@ class SettingsIO(BaseModel):
     interlude_seconds: int | None = Field(default=None, ge=0, le=180)
     # D-037: the exam's format picks the computer or paper videos and final tests.
     exam_format: Literal["computer", "paper"] | None = None
+    # D-042: where the copied tutor prompt is pasted
+    tutor: Literal["chatgpt", "claude", "gemini"] | None = None
 
     @field_validator("study_weekdays")
     @classmethod

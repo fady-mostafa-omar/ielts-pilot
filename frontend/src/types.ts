@@ -121,6 +121,51 @@ export interface AppSettings {
   plan_start: string | null;
   interlude_seconds: number | null; // pause between tasks, 0 = off
   exam_format: ExamFormat | null; // D-037, asked in setup
+  tutor: TutorSite | null; // D-042: where the copied tutor prompt is pasted
+}
+
+export type TutorSite = "chatgpt" | "claude" | "gemini";
+
+/** v0.0.12 (D-042): the writing and speaking labs. */
+export interface WritingAttempt {
+  id: number;
+  task: 0 | 1 | 2;
+  prompt: string;
+  text: string;
+  words: number;
+  seconds_used: number;
+  status: "draft" | "submitted";
+  checklist: string[];
+  tutor_reply: string;
+  tutor_overall: number | null; // the AI tutor's opinion, never a level
+  plan_task_id: number | null;
+  submitted_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+export type SpeakingCriterion = "fluency" | "lexical" | "grammar" | "pronunciation";
+export interface SpeakingAttempt {
+  id: number;
+  part: 0 | 1 | 2 | 3;
+  prompt: string;
+  recording: string | null;
+  seconds: number;
+  transcript: string;
+  self_rating: Partial<Record<SpeakingCriterion, number>>;
+  notes: string;
+  tutor_reply: string;
+  tutor_overall: number | null;
+  plan_task_id: number | null;
+  created_at: string;
+  updated_at: string;
+}
+export interface MistakeInput {
+  wrong: string;
+  right: string;
+  why: string;
+  code: string;
+  context?: string;
+  skill?: "writing" | "speaking" | "reading" | "listening" | "general";
 }
 
 export type ExamFormat = "computer" | "paper";
@@ -373,7 +418,12 @@ export interface Bridge {
   podcastFeed(feed: PodcastFeed): Promise<string>;
   openExternal(url: string): Promise<boolean>;
   /** v0.0.10: keeps a speaking recording in the data folder; returns its file name */
-  saveRecording?(data: ArrayBuffer): Promise<string>;
+  saveRecording?(data: ArrayBuffer, kind?: "speaking" | "shadow"): Promise<string>;
+  /** v0.0.12: a recording this app wrote, to play it again */
+  readRecording?(name: string): Promise<ArrayBuffer>;
+  deleteRecording?(name: string): Promise<boolean>;
+  /** v0.0.12: the tutor prompt goes to the clipboard (D-026) */
+  copyText?(text: string): Promise<boolean>;
   /** v0.0.11: one of Dalilk's two card pages, as served or as a browser shows it */
   dalilkPage?(which: "words" | "phrases", rendered: boolean): Promise<string>;
   setFullScreen(on: boolean): Promise<boolean>;
@@ -414,7 +464,7 @@ export interface Achievements {
 export type CardDeck = "word" | "phrase";
 export interface Card {
   id: number;
-  kind: "word" | "phrase" | "mine";
+  kind: "word" | "phrase" | "mine" | "mistake";
   key: string;
   section: string;
   situation: string;
@@ -430,6 +480,8 @@ export interface Card {
   due: string | null;
   learned_on: string | null;
   reviewed_at: string | null;
+  code?: string; // mistakes: CURRICULUM §6 error code
+  source?: string;
 }
 export interface CardCounts {
   total: number;
@@ -441,6 +493,7 @@ export interface CardCounts {
 export interface CardStats {
   word: CardCounts;
   mine: CardCounts;
+  mistake: CardCounts;
   phrase: CardCounts;
 }
 export interface CardImportItem {

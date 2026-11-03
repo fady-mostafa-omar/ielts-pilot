@@ -21,7 +21,7 @@ import math
 from dataclasses import asdict, dataclass, field
 from datetime import date, timedelta
 
-GENERATOR = "planner-7"  # v0.0.11: 10 min of word cards a day (D-041)
+GENERATOR = "planner-8"  # v0.0.12: writing and speaking labs with the AI tutor (D-042)
 SKILLS = ("listening", "reading", "writing", "speaking")
 DEV_SHARE = {"foundation": 0.75, "development": 0.6, "exam": 0.35}
 FINAL_MOCK_OFFSETS = (4, 3, 2)  # days before the exam
@@ -366,8 +366,8 @@ TEXT = {
         "PVID.do": "حل مع الفيديو، ووقّف وحل لوحدك قبل ما تشوف الإجابة.",
         "TEST.title": "اختبار {skill} تجريبي ({n})",
         "TEST.do": "الاختبار بيفتح على طول. حلّه بالوقت، وبعدين صحّح وارجع لكل غلطة.",
-        "W-T1x.do": "اكتب {n} إجابة Task 1: كل واحدة 20 دقيقة (150 كلمة على الأقل) + 10 دقايق مراجعة.",
-        "W-T2x.do": "اكتب {n} إجابة Task 2: كل واحدة 40 دقيقة (250 كلمة على الأقل) + 10 دقايق مراجعة.",
+        "W-T1x.do": "اكتب {n} إجابة Task 1 في معمل الكتابة: كل واحدة 20 دقيقة (150 كلمة على الأقل) + 10 دقايق مراجعة مع المدرّس الذكي، وضيف غلطاتك للكراسة.",
+        "W-T2x.do": "اكتب {n} إجابة Task 2 في معمل الكتابة: كل واحدة 40 دقيقة (250 كلمة على الأقل) + 10 دقايق مراجعة مع المدرّس الذكي، وضيف غلطاتك للكراسة.",
         "W-DEV.title": "كتابة يومية",
         "W-DEV.do": "اكتب 5 جمل أو أكتر عن يومك أو عن اللي سمعته وقريته النهارده.",
         "S-PHRASE.title": "العبارات اليومية (فيديو)",
@@ -387,7 +387,7 @@ TEXT = {
         "W-T2.do": "اكتب Task 2 في 40 دقيقة (250 كلمة على الأقل). بعدها قارنها بنموذج رسمي "
         "من المكتبة.",
         "S-PRAC.title": "تدريب Speaking بالوقت",
-        "S-PRAC.do": "ابدأ بتسجيل دقيقة عن يومك أو عرّف نفسك. وبعدين جاوب أسئلة Part 1 و2 و3 بصوت عالي بالوقت: Part 2 دقيقة تحضير ودقيقتين كلام.",
+        "S-PRAC.do": "ابدأ بتسجيل دقيقة عن يومك أو عرّف نفسك. وبعدين في معمل المحادثة: جاوب أسئلة Part 1 و2 و3 بالوقت (Part 2 دقيقة تحضير ودقيقتين كلام)، اسمع نفسك، واكتب كلامك عشان المدرّس الذكي يصحّحه.",
         "exam.reason": "أسبوع {skill} في جزء الامتحان (فرقك فيها {gap}). نفس ترتيب جدول دليلك: "
         "تكنيك الأول، وبعدين تدريب.",
         "MOCK.title": "اختبار تجريبي كامل",
@@ -447,8 +447,8 @@ TEXT = {
         "PVID.do": "Solve along; pause and try on your own before the answer.",
         "TEST.title": "{skill} practice test ({n})",
         "TEST.do": "The test opens directly. Do it on time, then check and go back to each mistake.",
-        "W-T1x.do": "Write {n} Task 1 answers: 20 minutes each (at least 150 words) + 10 minutes review.",
-        "W-T2x.do": "Write {n} Task 2 answers: 40 minutes each (at least 250 words) + 10 minutes review.",
+        "W-T1x.do": "Write {n} Task 1 answers in the writing lab: 20 minutes each (at least 150 words) + 10 minutes reviewing with the AI tutor; add your mistakes to the notebook.",
+        "W-T2x.do": "Write {n} Task 2 answers in the writing lab: 40 minutes each (at least 250 words) + 10 minutes reviewing with the AI tutor; add your mistakes to the notebook.",
         "W-DEV.title": "Daily writing",
         "W-DEV.do": "Write 5 sentences or more about your day or what you heard and read today.",
         "S-PHRASE.title": "Daily phrases (video)",
@@ -468,9 +468,9 @@ TEXT = {
         "W-T2.do": "Write Task 2 in 40 minutes (at least 250 words), then compare with an "
         "official sample from the library.",
         "S-PRAC.title": "Timed speaking practice",
-        "S-PRAC.do": "Start with a one-minute recording about your day or yourself. Then answer "
-        "Part 1, 2 and 3 questions out loud on time: Part 2 is one minute to prepare and two "
-        "to speak.",
+        "S-PRAC.do": "Start with a one-minute recording about your day or yourself. Then, in the "
+        "speaking lab, answer Part 1, 2 and 3 questions on time (Part 2: one minute to prepare, "
+        "two to speak), listen to yourself, and write what you said for the AI tutor.",
         "exam.reason": "{skill} week in the exam part (your gap: {gap}). Same order as Dalilk's "
         "plan: technique first, then practice.",
         "MOCK.title": "Full practice test",

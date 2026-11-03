@@ -16,6 +16,13 @@ import {
   type QueueContent,
 } from "./ContentQueue";
 import { AddWordForm, CardsSession, CardsSide, useCardDeck } from "./Cards";
+import {
+  SpeakingArea,
+  SpeakingHistory,
+  SpeakingLab,
+  WritingHistory,
+  WritingLab,
+} from "./Labs";
 import { SpeakingRecorder } from "./Recorder";
 import { formatClock } from "../plan";
 import {
@@ -28,6 +35,7 @@ import {
 import type {
   CardDeck,
   PanelState,
+  WritingAttempt,
   PanelTarget,
   PlanTask,
   PodcastFeed,
@@ -46,6 +54,9 @@ export interface StudyTarget {
   podcast?: PodcastFeed; // the listening player instead of a web page
   podcastStages?: number; // v0.0.10: the task's time in 15-minute stages
   cards?: CardDeck; // v0.0.11: flashcards instead of a web page
+  lab?: "writing" | "speaking"; // v0.0.12: the writing / speaking lab (D-042)
+  labTask?: 0 | 1 | 2 | null; // writing: Task 1 / Task 2; null lets the owner pick
+  labCount?: number; // answers planned in the task
   queue?: QueueContent; // planner-4: videos / novel / practice tests opened directly
 }
 
@@ -223,9 +234,15 @@ function countWords(text: string): number {
   return text.trim() ? text.trim().split(/\s+/).length : 0;
 }
 
-function WritingPad(props: { value: string; onChange: (v: string) => void; minWords: number }) {
+function WritingPad(props: {
+  value: string;
+  onChange: (v: string) => void;
+  minWords: number;
+  suggestions?: string[]; // v0.0.12: words from the cards to use in the day's sentences
+}) {
   const { t } = useI18n();
   const words = countWords(props.value);
+  const used = props.value.toLowerCase();
   return (
     <div className="writing-pad">
       <div className="writing-head">
@@ -245,6 +262,20 @@ function WritingPad(props: { value: string; onChange: (v: string) => void; minWo
         placeholder={t("pad_ph")}
         onChange={(e) => props.onChange(e.target.value)}
       />
+      {props.suggestions && props.suggestions.length > 0 && (
+        <div className="row wrap pad-words">
+          <span className="muted small">{t("pad_use_words")}</span>
+          {props.suggestions.map((w) => (
+            <span
+              key={w}
+              className={`pill${used.includes(w.toLowerCase()) ? " pill-ok" : ""}`}
+              dir="ltr"
+            >
+              {w}
+            </span>
+          ))}
+        </div>
+      )}
       <p className="muted small">{t("pad_hint")}</p>
     </div>
   );
@@ -413,6 +444,19 @@ export function StudyScreen(props: {
   const podcast = usePodcast(study.podcast ?? null);
   const queueContent = study.queue ?? null;
   const cards = useCardDeck(study.cards ?? null);
+  // v0.0.12: the labs' side lists refresh after a change; an earlier answer can be reopened
+  const [labRefresh, setLabRefresh] = useState(0);
+  const [openedWriting, setOpenedWriting] = useState<WritingAttempt | null>(null);
+  const labChanged = useCallback(() => setLabRefresh((n) => n + 1), []);
+  // v0.0.12: the day's short writing suggests words from the cards
+  const [suggestions, setSuggestions] = useState<string[]>([]);
+  useEffect(() => {
+    if (study.activityCode !== "W-DEV") return;
+    void api
+      .cardsRecent()
+      .then((c) => setSuggestions(c.map((x) => x.front).slice(0, 6)))
+      .catch(() => undefined);
+  }, [study.activityCode]);
   const queue = useContentQueue(queueContent);
   const finishCurrent = queue.finish;
   const currentItem = queue.current;
@@ -622,11 +666,12 @@ export function StudyScreen(props: {
         focus?.onBreakTaken(timer.display);
       }}
     />
-  ) : study.target || study.podcast || queueContent || study.cards ? null : usePad ? (
+  ) : study.target || study.podcast || queueContent || study.cards || study.lab ? null : usePad ? (
     <WritingPad
       value={notes}
       onChange={updateNotes}
       minWords={MIN_WORDS[study.activityCode ?? ""] ?? 120}
+      suggestions={suggestions}
     />
   ) : (
     <div className="panel-empty">
@@ -712,6 +757,15 @@ export function StudyScreen(props: {
         )}
 
         {study.cards && <CardsSide deck={study.cards} cards={cards} />}
+
+        {study.lab === "writing" && (
+          <WritingHistory
+            task={study.labTask ?? null}
+            refresh={labRefresh}
+            onOpen={setOpenedWriting}
+          />
+        )}
+        {study.lab === "speaking" && <SpeakingHistory refresh={labRefresh} />}
 
         {(study.podcast || queueContent?.kind === "novel") && <AddWordForm />}
 
@@ -811,7 +865,7 @@ export function StudyScreen(props: {
             )}
             {!focus && <p className="muted small">{t("study_idle_hint")}</p>}
 
-            {resource && !study.podcast && !queueContent && !study.cards && (
+            {resource && !study.podcast && !queueContent && !study.cards && !study.lab && (
               <label className="field">
                 <span className="field-label">{t("study_progress")}</span>
                 <input
@@ -837,7 +891,7 @@ export function StudyScreen(props: {
                 />
               </label>
             )}
-            {resource && !study.podcast && !queueContent && !study.cards && (
+            {resource && !study.podcast && !queueContent && !study.cards && !study.lab && (
               <label className="check">
                 <input
                   type="checkbox"
@@ -887,6 +941,40 @@ export function StudyScreen(props: {
             }
             onContinue={() => setRecorded(true)}
           />
+        ) : study.lab === "writing" ? (
+          <>
+            <div className={onBreak ? "hidden-under" : "fill lab-scroll"}>
+              <WritingLab
+                task={study.labTask ?? null}
+                count={study.labCount ?? 1}
+                planTaskId={focus?.task.id ?? null}
+                opened={openedWriting}
+                onChanged={labChanged}
+              />
+            </div>
+            {main}
+          </>
+        ) : study.lab === "speaking" ? (
+          <>
+            <div className={onBreak ? "hidden-under" : "fill"}>
+              <SpeakingArea
+                hidden={onBreak}
+                page={
+                  study.target
+                    ? (visible) => (
+                        <PanelArea
+                          target={study.target!}
+                          keepSignIn={props.keepSignIn}
+                          visible={visible}
+                        />
+                      )
+                    : null
+                }
+                lab={<SpeakingLab planTaskId={focus?.task.id ?? null} onChanged={labChanged} />}
+              />
+            </div>
+            {main}
+          </>
         ) : study.cards ? (
           <>
             <div className={onBreak ? "hidden-under" : "fill cards-area"}>

@@ -318,7 +318,7 @@ class Card(Base):
     __tablename__ = "cards"
     __table_args__ = (
         UniqueConstraint("kind", "key", name="uq_card_kind_key"),
-        CheckConstraint("kind IN ('word', 'phrase', 'mine')", name="kind"),
+        CheckConstraint("kind IN ('word', 'phrase', 'mine', 'mistake')", name="kind"),
         CheckConstraint("ease >= 1.3", name="ease"),
         Index("ix_card_kind_due", "kind", "due"),
     )
@@ -341,5 +341,65 @@ class Card(Base):
     learned_on: Mapped[date | None] = mapped_column(Date)  # the day it was first reviewed
     reviewed_at: Mapped[datetime | None] = mapped_column(UTCDateTime)
     shown_at: Mapped[datetime | None] = mapped_column(UTCDateTime)  # phrases: last pause shown
+    # 0010: mistakes notebook (kind "mistake": front = what I wrote, meaning = the right form,
+    # example = why, situation = context, section = writing / speaking)
+    code: Mapped[str] = mapped_column(String(20), default="")  # CURRICULUM §6 error code
+    source: Mapped[str] = mapped_column(String(100), default="")  # e.g. "AI tutor (opinion)"
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime)
+    updated_at: Mapped[datetime] = mapped_column(UTCDateTime)
+
+
+class WritingAttempt(Base):
+    """An answer written in the writing lab (0010, PRD F6): the question, the text, time used,
+    the self-review, and the AI tutor's reply kept as an opinion (D-026, D-008)."""
+
+    __tablename__ = "writing_attempts"
+    __table_args__ = (
+        CheckConstraint("task IN (0, 1, 2)", name="task"),
+        CheckConstraint("status IN ('draft', 'submitted')", name="status"),
+        Index("ix_writing_created", "created_at"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    task: Mapped[int] = mapped_column(Integer)  # 1 = Task 1, 2 = Task 2, 0 = free writing
+    prompt: Mapped[str] = mapped_column(Text, default="")
+    text: Mapped[str] = mapped_column(Text, default="")
+    words: Mapped[int] = mapped_column(Integer, default=0)
+    seconds_used: Mapped[int] = mapped_column(Integer, default=0)
+    status: Mapped[str] = mapped_column(String(10), default="draft")
+    checklist_json: Mapped[str] = mapped_column(Text, default="[]")
+    tutor_reply: Mapped[str] = mapped_column(Text, default="")
+    tutor_overall: Mapped[float | None] = mapped_column(Float)  # AI opinion only
+    plan_task_id: Mapped[int | None] = mapped_column(
+        ForeignKey("plan_tasks.id", ondelete="SET NULL")
+    )
+    submitted_at: Mapped[datetime | None] = mapped_column(UTCDateTime)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime)
+    updated_at: Mapped[datetime] = mapped_column(UTCDateTime)
+
+
+class SpeakingAttempt(Base):
+    """A recorded answer in the speaking lab (0010, PRD F7). The audio file stays in the data
+    folder ("recordings"); deleting the attempt deletes it (done by the desktop app)."""
+
+    __tablename__ = "speaking_attempts"
+    __table_args__ = (
+        CheckConstraint("part IN (0, 1, 2, 3)", name="part"),
+        Index("ix_speaking_created", "created_at"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    part: Mapped[int] = mapped_column(Integer)  # 0 = free speaking
+    prompt: Mapped[str] = mapped_column(Text, default="")
+    recording: Mapped[str | None] = mapped_column(String(100))  # file name in recordings/
+    seconds: Mapped[int] = mapped_column(Integer, default=0)
+    transcript: Mapped[str] = mapped_column(Text, default="")
+    self_rating_json: Mapped[str] = mapped_column(Text, default="{}")
+    notes: Mapped[str] = mapped_column(Text, default="")
+    tutor_reply: Mapped[str] = mapped_column(Text, default="")
+    tutor_overall: Mapped[float | None] = mapped_column(Float)  # AI opinion only
+    plan_task_id: Mapped[int | None] = mapped_column(
+        ForeignKey("plan_tasks.id", ondelete="SET NULL")
+    )
     created_at: Mapped[datetime] = mapped_column(UTCDateTime)
     updated_at: Mapped[datetime] = mapped_column(UTCDateTime)

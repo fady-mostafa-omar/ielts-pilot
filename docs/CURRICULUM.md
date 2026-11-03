@@ -77,6 +77,8 @@ Supersedes the daily mix of §4a; the estimate (D-023), the final days (D-024 wi
 
 **Word cards** (v0.0.11, D-041, `planner-7`): "Today's words" (`V-CARDS`, 10 min) every study day, taken from the focus time (from the novel on a day with no focus time); development keeps Dalilk's ratio. SM-2: reviews first, then up to 15 new cards a day (the owner's own words before Dalilk's 350). One of Dalilk's 150 phrases in each pause between tasks.
 
+**Writing and speaking labs** (v0.0.12, D-042, `planner-8`): W-T1 / W-T2 tasks open the writing lab (the task's number of answers, 20 / 40 minutes each, then the tutor's feedback and the mistakes to the notebook); S-PRAC opens the speaking lab after the one-minute recording, with Dalilk's expected questions one tab away; W-DEV suggests words recently recalled from the cards.
+
 **Weeks** are calendar weeks from Saturday, counted from the plan start. Study weeks *W* = weeks up to the last study day (exam − 5); with no exam date, *W* = 12 and weeks after 12 repeat the consolidation round.
 
 | *W* | Sequence |

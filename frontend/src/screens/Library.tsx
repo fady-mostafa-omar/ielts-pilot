@@ -14,6 +14,7 @@ import {
   type ResourceSkill,
 } from "../types";
 import { libraryQueue } from "./ContentQueue";
+import { MistakesNotebook } from "./Labs";
 import type { StudyTarget } from "./Study";
 
 type Filter = "all" | ResourceSkill;
@@ -126,6 +127,7 @@ export function LibraryScreen(props: {
   const [url, setUrl] = useState("");
   const [skill, setSkill] = useState<ResourceSkill>("reading");
   const [error, setError] = useState<string | null>(null);
+  const [notebook, setNotebook] = useState(false); // v0.0.12: the mistakes notebook
 
   const load = () =>
     api
@@ -193,6 +195,44 @@ export function LibraryScreen(props: {
           <p className="muted">{t("lib_sub")}</p>
         </div>
         <div className="row wrap">
+          {/* v0.0.12: the writing and speaking labs (D-042) */}
+          <button
+            className="btn"
+            onClick={() =>
+              props.onStudy({
+                title: t("lib_writing_lab"),
+                target: null,
+                resource: null,
+                skill: "writing",
+                activityCode: "W-T2",
+                timer: true,
+                lab: "writing",
+                labTask: null,
+                labCount: 1,
+              })
+            }
+          >
+            <Icon name="pen" size={16} /> {t("lib_writing_lab")}
+          </button>
+          <button
+            className="btn"
+            onClick={() =>
+              props.onStudy({
+                title: t("lib_speaking_lab"),
+                target: null,
+                resource: null,
+                skill: "speaking",
+                activityCode: "S-PRAC",
+                timer: true,
+                lab: "speaking",
+              })
+            }
+          >
+            <Icon name="mic" size={16} /> {t("lib_speaking_lab")}
+          </button>
+          <button className="btn" onClick={() => setNotebook((v) => !v)}>
+            <Icon name="flag" size={16} /> {t("nb_title")}
+          </button>
           <button className="btn" onClick={() => setAdding("link")}>
             <Icon name="link" size={16} /> {t("lib_add_link")}
           </button>
@@ -201,6 +241,8 @@ export function LibraryScreen(props: {
           </button>
         </div>
       </header>
+
+      {notebook && <MistakesNotebook onClose={() => setNotebook(false)} />}
 
       {adding && (
         <section className="card stack">

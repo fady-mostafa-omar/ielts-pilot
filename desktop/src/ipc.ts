@@ -2,6 +2,7 @@
 
 import {
   BrowserWindow,
+  clipboard,
   dialog,
   ipcMain,
   net,
@@ -9,7 +10,7 @@ import {
   shell,
   type IpcMainInvokeEvent,
 } from "electron";
-import { copyFile, mkdir, writeFile } from "node:fs/promises";
+import { copyFile, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { basename, extname, join } from "node:path";
 import {
   clearWebData,
@@ -135,6 +136,9 @@ function guard<A extends unknown[], R>(
 }
 
 const MAX_RECORDING_BYTES = 20 * 1024 * 1024; // a minute of speech is well under 1 MB
+// v0.0.12: only files this app wrote can be read back or deleted
+const RECORDING_NAME = /^(speaking|shadow)-[0-9]{8}-[0-9]{6}(-[0-9]+)?\.webm$/;
+const MAX_COPY_CHARS = 200_000;
 
 function stamp(): string {
   return new Date().toISOString().replace(/[-:]/g, "").replace("T", "-").slice(0, 15);
@@ -207,18 +211,44 @@ export function registerIpc(deps: IpcDeps): void {
   );
 
   // v0.0.10: the speaking recorder's one-minute recordings stay in the data folder
+  const recordingsDir = () => join(deps.dataDir(), "recordings");
   ipcMain.handle(
     "ip:save-recording",
-    guard(async (_event, data: unknown) => {
+    guard(async (_event, data: unknown, kind: unknown) => {
       if (!(data instanceof ArrayBuffer) || data.byteLength === 0) {
         throw new Error("invalid recording");
       }
       if (data.byteLength > MAX_RECORDING_BYTES) throw new Error("recording too large");
-      const dir = join(deps.dataDir(), "recordings");
-      await mkdir(dir, { recursive: true });
-      const fileName = `speaking-${stamp()}.webm`;
-      await writeFile(join(dir, fileName), Buffer.from(data));
+      await mkdir(recordingsDir(), { recursive: true });
+      const prefix = kind === "shadow" ? "shadow" : "speaking";
+      const fileName = `${prefix}-${stamp()}.webm`;
+      await writeFile(join(recordingsDir(), fileName), Buffer.from(data));
       return fileName;
+    }),
+  );
+  ipcMain.handle(
+    "ip:read-recording",
+    guard(async (_event, name: unknown) => {
+      if (typeof name !== "string" || !RECORDING_NAME.test(name)) throw new Error("bad name");
+      const data = await readFile(join(recordingsDir(), name));
+      return data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength);
+    }),
+  );
+  ipcMain.handle(
+    "ip:delete-recording",
+    guard(async (_event, name: unknown) => {
+      if (typeof name !== "string" || !RECORDING_NAME.test(name)) throw new Error("bad name");
+      await rm(join(recordingsDir(), name), { force: true });
+      return true;
+    }),
+  );
+  // v0.0.12: the tutor prompt goes to the clipboard; the owner pastes it himself (D-026)
+  ipcMain.handle(
+    "ip:copy-text",
+    guard(async (_event, text: unknown) => {
+      if (typeof text !== "string" || text.length > MAX_COPY_CHARS) throw new Error("bad text");
+      clipboard.writeText(text);
+      return true;
     }),
   );
 

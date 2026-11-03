@@ -19,17 +19,33 @@ export const SECTION_COLORS: Record<string, { color: string; bg: string }> = {
   mine: { color: "#DB2777", bg: "#FDF2F8" },
   emails: { color: "#0891B2", bg: "#ECFEFF" },
   meetings: { color: "#4F46E5", bg: "#EEF2FF" },
+  // v0.0.12: the mistakes notebook
+  writing: { color: "#DC2626", bg: "#FEF2F2" },
+  speaking: { color: "#C2410C", bg: "#FFF7ED" },
+  general: { color: "#B91C1C", bg: "#FEF2F2" },
 };
 
 export function sectionStyle(section: string) {
   return SECTION_COLORS[section] ?? SECTION_COLORS.basic;
 }
 
-const SECTION_KEYS = ["basic", "nouns", "verbs", "adjectives", "mine", "emails", "meetings"];
+const SECTION_KEYS = [
+  "basic",
+  "nouns",
+  "verbs",
+  "adjectives",
+  "mine",
+  "emails",
+  "meetings",
+  "writing",
+  "speaking",
+  "general",
+] as const;
+type SectionKey = (typeof SECTION_KEYS)[number];
 
 export function sectionLabelKey(section: string) {
-  const s = SECTION_KEYS.includes(section) ? section : "basic";
-  return `cards_sec_${s}` as `cards_sec_${"basic" | "nouns" | "verbs" | "adjectives" | "mine" | "emails" | "meetings"}`;
+  const s = (SECTION_KEYS as readonly string[]).includes(section) ? section : "basic";
+  return `cards_sec_${s as SectionKey}` as const;
 }
 
 /** The computer's own English voice (Windows speech); nothing is downloaded. */
@@ -133,6 +149,7 @@ function CardFace(props: { card: Card; flipped: boolean; onFlip: () => void }) {
   const { t } = useI18n();
   const c = props.card;
   const style = sectionStyle(c.section);
+  const mistake = c.kind === "mistake";
   return (
     <div
       className={`flashcard${props.flipped ? " flipped" : ""}`}
@@ -150,20 +167,37 @@ function CardFace(props: { card: Card; flipped: boolean; onFlip: () => void }) {
         {c.situation && <span className="fc-situation">{c.situation}</span>}
         {c.reps === 0 && c.due === null && <span className="fc-new">{t("cards_new")}</span>}
       </div>
-      <div className="fc-front" dir="ltr">
+      <div className={`fc-front${mistake ? " fc-mistake" : ""}`} dir="ltr">
         <strong style={{ color: style.color }}>{c.front}</strong>
-        <SpeakButton text={c.front} />
+        {!mistake && <SpeakButton text={c.front} />}
       </div>
+      {mistake && c.situation && (
+        <p className="muted small" dir="auto">
+          {c.situation}
+        </p>
+      )}
       {props.flipped ? (
         <div className="fc-back">
-          <p className="fc-meaning" dir="rtl">
-            {c.meaning}
-          </p>
-          {c.example && (
+          {mistake ? (
+            <p className="fc-meaning fc-right" dir="ltr">
+              ✓ {c.meaning} <SpeakButton text={c.meaning} small />
+            </p>
+          ) : (
+            <p className="fc-meaning" dir="rtl">
+              {c.meaning}
+            </p>
+          )}
+          {c.example && !mistake && (
             <p className="fc-example" dir="ltr">
               {c.example} <SpeakButton text={c.example} small />
             </p>
           )}
+          {c.example && mistake && (
+            <p className="fc-example" dir="auto">
+              {c.example}
+            </p>
+          )}
+          {mistake && c.code && <span className="pill self-center">{c.code}</span>}
           {c.example_ar && (
             <p className="fc-example-ar" dir="rtl">
               {c.example_ar}
@@ -171,7 +205,9 @@ function CardFace(props: { card: Card; flipped: boolean; onFlip: () => void }) {
           )}
         </div>
       ) : (
-        <p className="fc-hint muted small">{t("cards_flip_hint")}</p>
+        <p className="fc-hint muted small">
+          {mistake ? t("cards_mistake_hint") : t("cards_flip_hint")}
+        </p>
       )}
     </div>
   );
@@ -316,6 +352,11 @@ export function CardsSide(props: { deck: CardDeck; cards: ReturnType<typeof useC
       )}
       {props.deck === "word" && stats && stats.mine.total > 0 && (
         <span className="muted small">{t("cards_mine_count", { n: stats.mine.total })}</span>
+      )}
+      {props.deck === "word" && stats && stats.mistake.total > 0 && (
+        <span className="muted small">
+          {t("cards_mistakes_count", { n: stats.mistake.total })}
+        </span>
       )}
       <p className="muted small">{t("cards_keys")}</p>
       {s && s.total > 0 && (

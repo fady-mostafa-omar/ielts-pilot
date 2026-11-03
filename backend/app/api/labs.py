@@ -1,0 +1,282 @@
+"""Writing and speaking labs (v0.0.12, PRD F6/F7, D-042): attempts with the question, the
+answer, time used, the self-review and the AI tutor's reply — kept as an opinion only
+(D-026, D-008: it never changes the levels). Recordings stay in the data folder; the UI
+asks the desktop app to delete a file when its attempt is deleted."""
+
+import json
+import re
+from datetime import datetime
+from typing import Annotated, Literal
+
+from fastapi import APIRouter, HTTPException, Query
+from pydantic import BaseModel, ConfigDict, Field, field_validator
+from sqlalchemy import select
+
+from app.context import Ctx
+from app.db import utcnow
+from app.models import PlanTask, SpeakingAttempt, WritingAttempt
+
+router = APIRouter(prefix="/api/v1")
+
+RECORDING = re.compile(r"^(speaking|shadow)-[0-9]{8}-[0-9]{6}(-[0-9]+)?\.webm$")
+CRITERIA = Literal["task", "coherence", "lexical", "grammar", "fluency", "pronunciation"]
+
+
+def count_words(text: str) -> int:
+    """Same rule as the writing pad: words are separated by white space."""
+    return len(text.split())
+
+
+def _band(value: float | None) -> float | None:
+    if value is None:
+        return None
+    if not 0 <= value <= 9 or value * 2 != int(value * 2):
+        raise ValueError("an opinion is 0–9 in steps of 0.5")
+    return value
+
+
+class WritingIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    task: Literal[0, 1, 2]
+    prompt: str = Field(default="", max_length=5000)
+    plan_task_id: int | None = None
+
+
+class WritingPatch(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    prompt: str | None = Field(default=None, max_length=5000)
+    text: str | None = Field(default=None, max_length=30000)
+    seconds_used: int | None = Field(default=None, ge=0, le=24 * 3600)
+    checklist: list[str] | None = Field(default=None, max_length=40)
+    tutor_reply: str | None = Field(default=None, max_length=60000)
+    tutor_overall: float | None = None
+    submit: bool | None = None
+
+    _overall = field_validator("tutor_overall")(classmethod(lambda cls, v: _band(v)))
+
+
+class WritingOut(BaseModel):
+    id: int
+    task: int
+    prompt: str
+    text: str
+    words: int
+    seconds_used: int
+    status: str
+    checklist: list[str]
+    tutor_reply: str
+    tutor_overall: float | None
+    plan_task_id: int | None
+    submitted_at: datetime | None
+    created_at: datetime
+    updated_at: datetime
+
+
+def _writing_out(row: WritingAttempt) -> WritingOut:
+    data = {c: getattr(row, c) for c in WritingOut.model_fields if hasattr(row, c)}
+    data["checklist"] = json.loads(row.checklist_json or "[]")
+    return WritingOut(**data)
+
+
+def _check_task(session, plan_task_id: int | None) -> None:
+    if plan_task_id is not None and session.get(PlanTask, plan_task_id) is None:
+        raise HTTPException(422, {"error": "bad_task", "message": "no such plan task"})
+
+
+@router.post("/writing", response_model=WritingOut, status_code=201)
+def new_writing(body: WritingIn, ctx: Ctx) -> WritingOut:
+    now = utcnow()
+    with ctx.session_factory.begin() as session:
+        _check_task(session, body.plan_task_id)
+        row = WritingAttempt(task=body.task, prompt=body.prompt, plan_task_id=body.plan_task_id,
+                             created_at=now, updated_at=now)
+        session.add(row)
+        session.flush()
+        return _writing_out(row)
+
+
+@router.get("/writing", response_model=list[WritingOut])
+def list_writing(
+    ctx: Ctx,
+    limit: Annotated[int, Query(ge=1, le=200)] = 30,
+    plan_task_id: int | None = None,
+    task: Annotated[int | None, Query(ge=0, le=2)] = None,
+) -> list[WritingOut]:
+    with ctx.session_factory() as session:
+        q = select(WritingAttempt)
+        if plan_task_id is not None:
+            q = q.where(WritingAttempt.plan_task_id == plan_task_id)
+        if task is not None:
+            q = q.where(WritingAttempt.task == task)
+        rows = session.scalars(q.order_by(WritingAttempt.created_at.desc(),
+                                          WritingAttempt.id.desc()).limit(limit))
+        return [_writing_out(r) for r in rows]
+
+
+def _writing(session, attempt_id: int) -> WritingAttempt:
+    row = session.get(WritingAttempt, attempt_id)
+    if row is None:
+        raise HTTPException(404, {"error": "not_found", "message": "no such answer"})
+    return row
+
+
+@router.patch("/writing/{attempt_id}", response_model=WritingOut)
+def patch_writing(attempt_id: int, body: WritingPatch, ctx: Ctx) -> WritingOut:
+    now = utcnow()
+    with ctx.session_factory.begin() as session:
+        row = _writing(session, attempt_id)
+        if body.prompt is not None:
+            row.prompt = body.prompt
+        if body.text is not None:
+            row.text = body.text
+            row.words = count_words(body.text)
+        if body.seconds_used is not None:
+            row.seconds_used = body.seconds_used
+        if body.checklist is not None:
+            row.checklist_json = json.dumps(body.checklist)
+        if body.tutor_reply is not None:
+            row.tutor_reply = body.tutor_reply
+        if "tutor_overall" in body.model_fields_set:
+            row.tutor_overall = body.tutor_overall
+        if body.submit:
+            row.status = "submitted"
+            row.submitted_at = row.submitted_at or now
+        row.updated_at = now
+        session.flush()
+        return _writing_out(row)
+
+
+@router.delete("/writing/{attempt_id}", status_code=204)
+def delete_writing(attempt_id: int, ctx: Ctx) -> None:
+    with ctx.session_factory.begin() as session:
+        session.delete(_writing(session, attempt_id))
+
+
+class SpeakingIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    part: Literal[0, 1, 2, 3]
+    prompt: str = Field(default="", max_length=5000)
+    recording: str | None = Field(default=None, max_length=100)
+    seconds: int = Field(default=0, ge=0, le=3600)
+    transcript: str = Field(default="", max_length=30000)
+    self_rating: dict[CRITERIA, int] = Field(default_factory=dict)
+    notes: str = Field(default="", max_length=5000)
+    plan_task_id: int | None = None
+
+    @field_validator("recording")
+    @classmethod
+    def _recording(cls, value: str | None) -> str | None:
+        if value is not None and not RECORDING.match(value):
+            raise ValueError("not a recording of this app")
+        return value
+
+    @field_validator("self_rating")
+    @classmethod
+    def _rating(cls, value: dict[str, int]) -> dict[str, int]:
+        if any(not 1 <= v <= 5 for v in value.values()):
+            raise ValueError("self-ratings are 1–5")
+        return value
+
+
+class SpeakingPatch(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    prompt: str | None = Field(default=None, max_length=5000)
+    transcript: str | None = Field(default=None, max_length=30000)
+    self_rating: dict[CRITERIA, int] | None = None
+    notes: str | None = Field(default=None, max_length=5000)
+    tutor_reply: str | None = Field(default=None, max_length=60000)
+    tutor_overall: float | None = None
+
+    _overall = field_validator("tutor_overall")(classmethod(lambda cls, v: _band(v)))
+
+    @field_validator("self_rating")
+    @classmethod
+    def _rating(cls, value: dict[str, int] | None) -> dict[str, int] | None:
+        if value and any(not 1 <= v <= 5 for v in value.values()):
+            raise ValueError("self-ratings are 1–5")
+        return value
+
+
+class SpeakingOut(BaseModel):
+    id: int
+    part: int
+    prompt: str
+    recording: str | None
+    seconds: int
+    transcript: str
+    self_rating: dict[str, int]
+    notes: str
+    tutor_reply: str
+    tutor_overall: float | None
+    plan_task_id: int | None
+    created_at: datetime
+    updated_at: datetime
+
+
+def _speaking_out(row: SpeakingAttempt) -> SpeakingOut:
+    data = {c: getattr(row, c) for c in SpeakingOut.model_fields if hasattr(row, c)}
+    data["self_rating"] = json.loads(row.self_rating_json or "{}")
+    return SpeakingOut(**data)
+
+
+def _speaking(session, attempt_id: int) -> SpeakingAttempt:
+    row = session.get(SpeakingAttempt, attempt_id)
+    if row is None:
+        raise HTTPException(404, {"error": "not_found", "message": "no such recording"})
+    return row
+
+
+@router.post("/speaking", response_model=SpeakingOut, status_code=201)
+def new_speaking(body: SpeakingIn, ctx: Ctx) -> SpeakingOut:
+    now = utcnow()
+    with ctx.session_factory.begin() as session:
+        _check_task(session, body.plan_task_id)
+        row = SpeakingAttempt(
+            part=body.part, prompt=body.prompt, recording=body.recording, seconds=body.seconds,
+            transcript=body.transcript, self_rating_json=json.dumps(body.self_rating),
+            notes=body.notes, plan_task_id=body.plan_task_id, created_at=now, updated_at=now,
+        )
+        session.add(row)
+        session.flush()
+        return _speaking_out(row)
+
+
+@router.get("/speaking", response_model=list[SpeakingOut])
+def list_speaking(
+    ctx: Ctx, limit: Annotated[int, Query(ge=1, le=200)] = 30
+) -> list[SpeakingOut]:
+    with ctx.session_factory() as session:
+        rows = session.scalars(select(SpeakingAttempt).order_by(
+            SpeakingAttempt.created_at.desc(), SpeakingAttempt.id.desc()).limit(limit))
+        return [_speaking_out(r) for r in rows]
+
+
+@router.patch("/speaking/{attempt_id}", response_model=SpeakingOut)
+def patch_speaking(attempt_id: int, body: SpeakingPatch, ctx: Ctx) -> SpeakingOut:
+    with ctx.session_factory.begin() as session:
+        row = _speaking(session, attempt_id)
+        for field in ("prompt", "transcript", "notes", "tutor_reply"):
+            value = getattr(body, field)
+            if value is not None:
+                setattr(row, field, value)
+        if body.self_rating is not None:
+            row.self_rating_json = json.dumps(body.self_rating)
+        if "tutor_overall" in body.model_fields_set:
+            row.tutor_overall = body.tutor_overall
+        row.updated_at = utcnow()
+        session.flush()
+        return _speaking_out(row)
+
+
+@router.delete("/speaking/{attempt_id}")
+def delete_speaking(attempt_id: int, ctx: Ctx) -> dict:
+    """Deletes the attempt; the answer names its audio file for the desktop app to delete."""
+    with ctx.session_factory.begin() as session:
+        row = _speaking(session, attempt_id)
+        recording = row.recording
+        session.delete(row)
+    return {"deleted": attempt_id, "recording": recording}

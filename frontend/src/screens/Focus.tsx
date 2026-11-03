@@ -44,6 +44,20 @@ function targetFor(task: PlanTask, resource: Resource | null): StudyTarget {
       cards: content.deck,
     };
   }
+  if (content?.kind === "writing" && content.task !== 0) {
+    // v0.0.12: Task 1 / Task 2 answers in the writing lab (D-042)
+    return {
+      title: task.title,
+      target: null,
+      resource: null,
+      skill: "writing",
+      activityCode: task.activity_code,
+      timer: true,
+      lab: "writing",
+      labTask: content.task,
+      labCount: content.count,
+    };
+  }
   if (content?.kind === "writing") {
     return {
       title: task.title,
@@ -80,6 +94,8 @@ function targetFor(task: PlanTask, resource: Resource | null): StudyTarget {
     skill: task.skill,
     activityCode: task.activity_code,
     timer: true,
+    // v0.0.12: speaking practice in the speaking lab, Dalilk's questions one tab away
+    ...(task.activity_code === "S-PRAC" ? { lab: "speaking" as const } : {}),
   };
 }
 
