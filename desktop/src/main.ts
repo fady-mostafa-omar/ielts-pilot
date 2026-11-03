@@ -200,6 +200,10 @@ const SMOKE_PROBE = `(async () => {
   });
   const nextEp = await fetch('api/v1/podcasts/dalilk_ielts/next');
   const nextBody = nextEp.ok ? await nextEp.json() : null;
+  const englishImport = await fetch('api/v1/podcasts/dalilk_english/import', {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ xml: feedXml.replace('Daily IELTS Listening #1', 'English Listening #1') }),
+  });
   let rejected = false;
   try { await window.ipBridge.panel.open({ url: 'file:///C:/Windows/win.ini' }, false); }
   catch { rejected = true; }
@@ -218,7 +222,7 @@ const SMOKE_PROBE = `(async () => {
     panelRejectsFileUrl: rejected,
     planDayOk: planDay.status === 200 && !!planBody && typeof planBody.kind === 'string',
     podcastOk: imported.status === 200 && !!nextBody && nextBody.number === 1 &&
-      typeof nextBody.transcript_url === 'string',
+      typeof nextBody.transcript_url === 'string' && englishImport.status === 200,
   };
 })()`;
 

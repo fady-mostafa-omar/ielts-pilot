@@ -1,6 +1,6 @@
-"""Planner-2 rules (docs/CURRICULUM.md §4a) and the plan API."""
+"""Planner-3 rules (docs/CURRICULUM.md §4a) and the plan API."""
 
-from datetime import date, timedelta
+from datetime import UTC, date, datetime, timedelta
 
 import pytest
 from fastapi.testclient import TestClient
@@ -150,9 +150,10 @@ def test_no_biweekly_mock_close_to_the_exam() -> None:
 
 
 def test_study_day_follows_hegazy_split() -> None:
-    kind, blocks = day_blocks(inputs(exam_date=None), TUE)
+    kind, blocks = day_blocks(inputs(exam_date=None), TUE - timedelta(days=1))  # Monday
     assert kind == "study"
     by_cat = {b.category: b.minutes for b in blocks}
+    assert len(by_cat) == len(blocks)
     # development phase: 60% of 180 = 108 -> 55 / 35 / 20, exam 70
     assert by_cat == {"listening": 55, "reading": 35, "output": 20, "exam": 70}
     assert sum(by_cat.values()) == 180
@@ -320,7 +321,6 @@ def test_summary_needs_profile(client: TestClient) -> None:
 
 
 def test_hours_done_count_from_latest_measurement(client: TestClient, tmp_path) -> None:
-    from datetime import UTC, datetime
 
     from sqlalchemy import text
 
@@ -345,3 +345,86 @@ def test_hours_done_count_from_latest_measurement(client: TestClient, tmp_path) 
                 json={"skill": "reading", "started_at": later.isoformat(), "minutes": 25})
     summary = client.get("/api/v1/plan/summary", params={"today": date.today().isoformat()})
     assert summary.json()["hours_done"] == pytest.approx(25 / 60, abs=0.01)
+
+
+def test_spelling_has_two_fixed_days_outside_the_exam_phase() -> None:
+    i = inputs(exam_date=None)
+    # study days Sat..Thu (Friday rest): 2nd and 4th study day = Sunday and Tuesday
+    assert planner.spelling_weekdays(i) == frozenset({0, 2})
+    _, blocks = day_blocks(i, TUE)
+    codes = [b.activity_code for b in blocks]
+    assert codes[:2] == ["L-EXT", "L-SPELL"]
+    spell = blocks[1]
+    assert spell.catalog_id == "DLK-21" and spell.minutes == planner.SPELL_MINUTES
+    listening = sum(b.minutes for b in blocks if b.category == "listening")
+    assert listening == 55  # spelling comes out of the listening time
+    assert "الأحد" in spell.reason and "التلات" in spell.reason
+    _, monday = day_blocks(i, TUE - timedelta(days=1))
+    assert "L-SPELL" not in [b.activity_code for b in monday]
+    # exam phase (exam within 4 weeks): no spelling
+    _, close = day_blocks(inputs(exam_date=TUE + timedelta(days=20)), TUE)
+    assert "L-SPELL" not in [b.activity_code for b in close]
+
+
+@pytest.mark.parametrize(
+    ("weekdays", "expected"),
+    [({6}, {6}), ({6, 1}, {1}), ({6, 0, 2}, {0}), ({6, 0, 1, 2, 3}, {0, 2})],
+)
+def test_spelling_days_for_short_weeks(weekdays: set[int], expected: set[int]) -> None:
+    i = inputs(exam_date=None, weekdays=frozenset(weekdays))
+    assert planner.spelling_weekdays(i) == frozenset(expected)
+
+
+def test_restart_plan_counts_hours_from_now(client: TestClient) -> None:
+    # no level recorded, so every earlier session counts until the restart
+    client.put("/api/v1/profile", json={**VALID_PROFILE, "study_days_per_week": 7})
+    today = date.today()
+    start = datetime.now(UTC) - timedelta(minutes=50)
+    client.post("/api/v1/sessions/manual",
+                json={"skill": "reading", "started_at": start.isoformat(), "minutes": 40})
+    before = client.get("/api/v1/plan/summary", params={"today": today.isoformat()}).json()
+    assert before["hours_done"] == pytest.approx(40 / 60, abs=0.01)
+    assert before["last_study_at"] is not None
+    tasks = client.get("/api/v1/plan/day", params={"date": today.isoformat()}).json()["tasks"]
+    client.post(f"/api/v1/plan/tasks/{tasks[0]['id']}/skip", json={"reason": "tired"})
+
+    new_exam = (today + timedelta(days=90)).isoformat()
+    res = client.post(
+        "/api/v1/plan/restart",
+        json={"today": today.isoformat(), "exam_date": new_exam, "study_minutes_per_day": 120},
+    )
+    assert res.status_code == 200, res.text
+    assert res.json()["hours_done"] == 0
+    profile = client.get("/api/v1/profile").json()
+    assert profile["exam_date"] == new_exam and profile["study_minutes_per_day"] == 120
+    settings = client.get("/api/v1/settings").json()
+    assert settings["plan_start"] == today.isoformat()
+    after = client.get("/api/v1/plan/summary", params={"today": today.isoformat()}).json()
+    assert after["plan_restarted_at"] is not None
+    # today's tasks are generated again, all pending
+    fresh = client.get("/api/v1/plan/day", params={"date": today.isoformat()}).json()["tasks"]
+    assert fresh and all(t["status"] == "pending" for t in fresh)
+    # the session history is kept
+    assert len(client.get("/api/v1/sessions").json()) == 1
+
+
+def test_restart_plan_validation(client: TestClient) -> None:
+    today = date.today().isoformat()
+    assert client.post("/api/v1/plan/restart", json={"today": today}).status_code == 404
+    _setup(client)
+    assert client.post("/api/v1/plan/restart",
+                       json={"today": today, "exam_date": today}).status_code == 422
+    assert client.post("/api/v1/plan/restart",
+                       json={"today": today, "study_minutes_per_day": 45}).status_code == 422
+    # exam date left out -> kept
+    exam = client.get("/api/v1/profile").json()["exam_date"]
+    assert client.post("/api/v1/plan/restart", json={"today": today}).status_code == 200
+    assert client.get("/api/v1/profile").json()["exam_date"] == exam
+
+
+def test_interlude_setting_defaults_to_a_minute(client: TestClient) -> None:
+    _setup(client)
+    assert client.get("/api/v1/settings").json()["interlude_seconds"] == 60
+    res = client.put("/api/v1/settings", json={"interlude_seconds": 0})
+    assert res.json()["interlude_seconds"] == 0
+    assert client.put("/api/v1/settings", json={"interlude_seconds": 999}).status_code == 422

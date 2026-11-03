@@ -168,6 +168,8 @@ export const api = {
   taskSkip: (id: number, reason: string) =>
     request<PlanTask>(`plan/tasks/${id}/skip`, json("POST", { reason })),
   taskReset: (id: number) => request<PlanTask>(`plan/tasks/${id}/reset`, { method: "POST" }),
+  restartPlan: (body: { today: string; exam_date?: string | null; study_minutes_per_day?: number }) =>
+    request<Estimate>("plan/restart", json("POST", body)),
 
   podcastImport: (feed: PodcastFeed, xml: string) =>
     request<{ added: number; updated: number; total: number; in_feed: number }>(

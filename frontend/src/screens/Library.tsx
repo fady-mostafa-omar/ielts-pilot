@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { api, ApiError } from "../api";
 import { useI18n } from "../i18n";
 import { Icon, SkillBadge } from "../icons";
-import { RESOURCE_SKILLS, type Resource, type ResourceSkill } from "../types";
+import { type PodcastFeed, RESOURCE_SKILLS, type Resource, type ResourceSkill } from "../types";
 import type { StudyTarget } from "./Study";
 
 type Filter = "all" | ResourceSkill;
@@ -31,12 +31,20 @@ function formatInfo(format: string) {
   return format in FORMATS ? FORMATS[format as keyof typeof FORMATS] : FORMATS.web;
 }
 
-/** The Dalilk IELTS podcast opens the listening player (Sprint 2b-1). */
-export const PODCAST_RESOURCE = "DLK-20";
+/** Dalilk's podcasts open the listening player (D-028): catalogue id -> feed. */
+export const PODCAST_FEEDS: Record<string, PodcastFeed> = {
+  "DLK-20": "dalilk_ielts",
+  "DLK-11": "dalilk_english",
+};
+
+export function podcastFeedOf(r: Resource | null): PodcastFeed | null {
+  return (r?.catalog_id && PODCAST_FEEDS[r.catalog_id]) || null;
+}
 
 export function studyTargetFor(r: Resource): StudyTarget {
   const exam = r.resource_type === "practice_test" || r.resource_type === "placement_test";
-  if (r.catalog_id === PODCAST_RESOURCE) {
+  const feed = podcastFeedOf(r);
+  if (feed) {
     return {
       title: r.title,
       target: null,
@@ -44,7 +52,7 @@ export function studyTargetFor(r: Resource): StudyTarget {
       skill: r.skill,
       activityCode: "L-EXT",
       timer: true,
-      podcast: "dalilk_ielts",
+      podcast: feed,
     };
   }
   return {

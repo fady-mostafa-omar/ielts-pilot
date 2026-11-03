@@ -1,4 +1,4 @@
-"""Owner settings, the hours-to-goal estimate, and the day-by-day plan (planner-2)."""
+"""Owner settings, the hours-to-goal estimate, and the day-by-day plan (planner-3)."""
 
 import json
 from datetime import UTC, date, datetime, timedelta
@@ -21,7 +21,7 @@ from app.models import (
     SkillLevel,
     StudySession,
 )
-from app.schemas import EstimateIn, PlanTaskOut, SettingsIO, SkipIn
+from app.schemas import EstimateIn, PlanTaskOut, RestartIn, SettingsIO, SkipIn
 
 router = APIRouter(prefix="/api/v1")
 
@@ -32,7 +32,9 @@ DEFAULTS = {
     "break_every_minutes": 50,
     "break_minutes": 10,
     "plan_start": None,
+    "interlude_seconds": 60,
 }
+RESTARTED_KEY = "plan_restarted_at"  # set by "start the plan again"; not an owner setting
 
 TZ_QUERY = Query(default=0, ge=-840, le=840, description="JavaScript getTimezoneOffset()")
 
@@ -73,12 +75,7 @@ def put_settings(body: SettingsIO, ctx: Ctx) -> SettingsIO:
     now = utcnow()
     with ctx.session_factory.begin() as session:
         for key, value in body.model_dump(mode="json", exclude_unset=True).items():
-            row = session.get(AppSetting, key)
-            if row is None:
-                session.add(AppSetting(key=key, value_json=json.dumps(value), updated_at=now))
-            else:
-                row.value_json = json.dumps(value)
-                row.updated_at = now
+            _set_value(session, key, value, now)
         if body.study_weekdays is not None:
             profile = session.get(LearnerProfile, 1)
             if profile is not None:
@@ -132,12 +129,37 @@ def _hours_since(session: Session, since: datetime | None) -> float:
     return float(session.scalar(query) or 0) / 3600
 
 
+def _restarted_at(session: Session) -> datetime | None:
+    row = session.get(AppSetting, RESTARTED_KEY)
+    if row is None:
+        return None
+    value = datetime.fromisoformat(json.loads(row.value_json))
+    return value if value.tzinfo else value.replace(tzinfo=UTC)
+
+
+def _hours_baseline(session: Session) -> datetime | None:
+    """Hours count from the newest level measurement or plan restart, whichever is later."""
+    _, measured_at = _current_levels(session)
+    restarted = _restarted_at(session)
+    stamps = [s if s.tzinfo else s.replace(tzinfo=UTC) for s in (measured_at, restarted) if s]
+    return max(stamps) if stamps else None
+
+
+def _set_value(session: Session, key: str, value: object, now: datetime) -> None:
+    row = session.get(AppSetting, key)
+    if row is None:
+        session.add(AppSetting(key=key, value_json=json.dumps(value), updated_at=now))
+    else:
+        row.value_json = json.dumps(value)
+        row.updated_at = now
+
+
 def _inputs(session: Session, today: date) -> planner.PlanInputs:
     profile = session.get(LearnerProfile, 1)
     if profile is None:
         raise HTTPException(404, {"error": "no_profile", "message": "setup not completed"})
     settings = _effective(session)
-    current, measured_at = _current_levels(session)
+    current, _ = _current_levels(session)
     return planner.PlanInputs(
         today=today,
         lang=profile.interface_language,
@@ -149,7 +171,7 @@ def _inputs(session: Session, today: date) -> planner.PlanInputs:
         weekdays=frozenset(settings.study_weekdays or []),
         hours_per_band=settings.hours_per_band or 200,
         plan_start=settings.plan_start or today,
-        hours_done=_hours_since(session, measured_at),
+        hours_done=_hours_since(session, _hours_baseline(session)),
     )
 
 
@@ -289,7 +311,38 @@ def plan_summary(ctx: Ctx, today: date, tz: int = TZ_QUERY) -> dict:
         data["streak_days"] = _streak(session, inputs, tz)
         data["focus_skill"] = planner.focus_skill(inputs, today)
         data["weekdays"] = sorted(inputs.weekdays)
+        data["spelling_weekdays"] = sorted(planner.spelling_weekdays(inputs))
+        last = session.scalar(
+            select(func.max(StudySession.started_at)).where(
+                StudySession.state.in_(("confirmed", "running"))
+            )
+        )
+        data["last_study_at"] = last.isoformat() if last else None
+        restarted = _restarted_at(session)
+        data["plan_restarted_at"] = restarted.isoformat() if restarted else None
         return data
+
+
+@router.post("/plan/restart")
+def restart_plan(body: RestartIn, ctx: Ctx) -> dict:
+    """Start the plan again from today. History (sessions, levels, finished tasks of earlier
+    days) stays; hours studied before now no longer count toward the hours left."""
+    now = utcnow()
+    with ctx.session_factory.begin() as session:
+        profile = session.get(LearnerProfile, 1)
+        if profile is None:
+            raise HTTPException(404, {"error": "no_profile", "message": "setup not completed"})
+        if "exam_date" in body.model_fields_set:
+            profile.exam_date = body.exam_date
+        if body.study_minutes_per_day is not None:
+            profile.study_minutes_per_day = body.study_minutes_per_day
+        profile.updated_at = now
+        _set_value(session, "plan_start", body.today.isoformat(), now)
+        _set_value(session, RESTARTED_KEY, now.isoformat(), now)
+        session.execute(delete(PlanTask).where(PlanTask.plan_date >= body.today))
+    with ctx.session_factory.begin() as session:
+        inputs = _inputs(session, body.today)
+        return _estimate_dict(inputs)
 
 
 @router.get("/plan/day")

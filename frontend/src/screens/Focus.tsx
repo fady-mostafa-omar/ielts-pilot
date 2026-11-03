@@ -8,11 +8,13 @@ import { useI18n } from "../i18n";
 import { Icon } from "../icons";
 import { formatHM, todayIso } from "../plan";
 import type { AppSettings, DayKind, PlanTask, Resource } from "../types";
-import { PODCAST_RESOURCE } from "./Library";
+import { Interlude, interludeSeconds } from "./Interlude";
+import { podcastFeedOf } from "./Library";
 import { StudyScreen, type StudyTarget } from "./Study";
 
 function targetFor(task: PlanTask, resource: Resource | null): StudyTarget {
-  if (resource?.catalog_id === PODCAST_RESOURCE) {
+  const feed = podcastFeedOf(resource);
+  if (feed) {
     return {
       title: task.title,
       target: null,
@@ -20,7 +22,7 @@ function targetFor(task: PlanTask, resource: Resource | null): StudyTarget {
       skill: task.skill,
       activityCode: task.activity_code,
       timer: true,
-      podcast: "dalilk_ielts",
+      podcast: feed,
     };
   }
   return {
@@ -49,6 +51,21 @@ function testBreakSeconds(): number | null {
   }
 }
 
+/** How the day went, honestly: tasks closed early (skipped, or "done" with less than half
+ * of their planned time) are not celebrated and can be brought back. */
+export function dayOutcome(tasks: PlanTask[]) {
+  const planned = tasks.reduce((a, x) => a + x.planned_minutes, 0);
+  const minutes = tasks.reduce((a, x) => a + x.done_minutes, 0);
+  const short = tasks.filter(
+    (x) => x.status === "skipped" || (x.status === "done" && x.done_minutes < x.planned_minutes / 2),
+  );
+  return { planned, minutes, short, celebrate: tasks.length > 0 && short.length === 0 };
+}
+
+export async function reopenTasks(tasks: PlanTask[]): Promise<void> {
+  for (const task of tasks) await api.taskReset(task.id);
+}
+
 export function nextTask(tasks: PlanTask[]): PlanTask | null {
   return (
     tasks.find((t) => t.status === "in_progress") ??
@@ -72,6 +89,8 @@ export function FocusRunner(props: {
   const [fullScreen, setFullScreen] = useState(false);
   const [cumulative, setCumulative] = useState(0); // active seconds of finished tasks
   const [lastBreakAt, setLastBreakAt] = useState(0);
+  const [interlude, setInterlude] = useState(false);
+  const pauseSeconds = interludeSeconds(props.settings.interlude_seconds);
   const breakEvery = testBreakSeconds() ?? (props.settings.break_every_minutes ?? 50) * 60;
   const breakMinutes = props.settings.break_minutes ?? 10;
 
@@ -93,12 +112,12 @@ export function FocusRunner(props: {
   const current = tasks ? nextTask(tasks) : null;
 
   useEffect(() => {
-    if (current && current.status === "pending") {
+    if (current && current.status === "pending" && !interlude) {
       void api.taskStart(current.id).then((started) =>
         setTasks((list) => (list ?? []).map((x) => (x.id === started.id ? started : x))),
       );
     }
-  }, [current]);
+  }, [current, interlude]);
 
   const exit = async () => {
     if (fullScreen && window.ipBridge) await window.ipBridge.setFullScreen(false);
@@ -130,26 +149,55 @@ export function FocusRunner(props: {
 
   if (!current) {
     const done = tasks.filter((x) => x.status === "done");
-    const minutes = tasks.reduce((a, x) => a + x.done_minutes, 0);
+    const outcome = dayOutcome(tasks);
     const finished = tasks.length > 0;
     return (
       <div className="center-screen day-end">
-        {finished && <Confetti />}
-        <div className="day-end-badge">
-          <Icon name={finished ? "check" : kind === "rest" ? "coffee" : "flag"} size={40}
-            color="#FFFFFF" />
+        {outcome.celebrate && <Confetti />}
+        <div className={`day-end-badge${finished && !outcome.celebrate ? " early" : ""}`}>
+          <Icon
+            name={outcome.celebrate ? "check" : finished ? "clock" : kind === "rest" ? "coffee" : "flag"}
+            size={40}
+            color="#FFFFFF"
+          />
         </div>
-        <h1>{finished ? t("focus_day_done") : t(`focus_kind_${kind}`)}</h1>
+        <h1>
+          {outcome.celebrate
+            ? t("focus_day_done")
+            : finished
+              ? t("day_closed_early")
+              : t(`focus_kind_${kind}`)}
+        </h1>
         {finished ? (
-          <p className="lead">
-            {t("focus_day_stats", { done: done.length, total: tasks.length })}{" "}
-            <bdi dir="ltr">{formatHM(minutes)}</bdi>
-          </p>
+          <>
+            <p className="lead">
+              {t("focus_day_stats", { done: done.length, total: tasks.length })}{" "}
+              {t("day_studied", { done: formatHM(outcome.minutes), planned: formatHM(outcome.planned) })}
+            </p>
+            {!outcome.celebrate && (
+              <p className="muted">{t("day_short_tasks", { n: outcome.short.length })}</p>
+            )}
+          </>
         ) : (
           <p className="muted">{t(`focus_kind_${kind}_body`)}</p>
         )}
         <div className="row wrap">
-          <button className="btn primary big-btn" onClick={() => void exit()}>
+          {finished && !outcome.celebrate && (
+            <button
+              className="btn primary big-btn"
+              onClick={async () => {
+                await reopenTasks(outcome.short);
+                setInterlude(false);
+                await load();
+              }}
+            >
+              <Icon name="reload" size={14} /> {t("day_reopen")}
+            </button>
+          )}
+          <button
+            className={`btn big-btn${finished && !outcome.celebrate ? "" : " primary"}`}
+            onClick={() => void exit()}
+          >
             {t("focus_back_home")}
           </button>
           {!finished && (
@@ -163,6 +211,18 @@ export function FocusRunner(props: {
   }
 
   const index = tasks.findIndex((x) => x.id === current.id);
+  if (interlude) {
+    return (
+      <Interlude
+        seconds={pauseSeconds}
+        done={tasks.filter((x) => x.status === "done" || x.status === "skipped").length}
+        total={tasks.length}
+        nextTitle={current.title}
+        onNext={() => setInterlude(false)}
+        onExit={() => void exit()}
+      />
+    );
+  }
   const resource = current.resource_id ? (resources.get(current.resource_id) ?? null) : null;
   const sinceBreak = cumulative - lastBreakAt;
 
@@ -183,6 +243,7 @@ export function FocusRunner(props: {
           await api.taskDone(current.id);
           setCumulative((c) => c + seconds);
           await load();
+          if (pauseSeconds > 0) setInterlude(true);
         },
         onSkip: async (reason) => {
           await api.taskSkip(current.id, reason);

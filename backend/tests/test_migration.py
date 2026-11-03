@@ -174,3 +174,38 @@ def test_downgrade_without_compatible_backup_explains(tmp_path: Path) -> None:
     engine.dispose()
     with pytest.raises(StartupError, match=r"\[no_compatible_backup\]"):
         create_app(replace(settings, restore_compatible=True))
+
+
+def test_0006_keeps_episodes_and_downgrade_drops_english(tmp_path: Path) -> None:
+    _make_db_at(tmp_path, "0005")
+    settings = settings_for(tmp_path)
+    engine = make_engine(settings.db_path)
+    now = datetime.now(UTC).replace(tzinfo=None)
+    insert = text(
+        "INSERT INTO podcast_episodes (feed, guid, number, title, audio_url, summary, "
+        "position_seconds, plays, created_at, updated_at) "
+        "VALUES (:feed, :guid, 1, 'Daily IELTS Listening #1', 'https://a/1.mp3', '', 42, 1, "
+        ":t, :t)"
+    )
+    with engine.begin() as conn:
+        conn.execute(insert, {"feed": "dalilk_ielts", "guid": "g1", "t": now})
+    engine.dispose()
+
+    create_app(settings)  # upgrades to head
+
+    engine = make_engine(settings.db_path)
+    with engine.begin() as conn:
+        assert conn.execute(text("SELECT position_seconds FROM podcast_episodes")).scalar() == 42
+        conn.execute(insert, {"feed": "dalilk_english", "guid": "g1", "t": now})
+        with pytest.raises(Exception, match="CHECK"):
+            conn.execute(insert, {"feed": "other", "guid": "g2", "t": now})
+    cfg = _config()
+    with engine.begin() as conn:
+        cfg.attributes["connection"] = conn
+        command.downgrade(cfg, "0005")
+    with engine.connect() as conn:
+        feeds = [r[0] for r in conn.execute(text("SELECT feed FROM podcast_episodes"))]
+        indexes = {i["name"] for i in inspect(conn).get_indexes("podcast_episodes")}
+    assert feeds == ["dalilk_ielts"]
+    assert "ix_podcast_feed_number" in indexes
+    engine.dispose()

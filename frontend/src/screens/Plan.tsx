@@ -5,6 +5,7 @@ import { api, ApiError } from "../api";
 import { useI18n } from "../i18n";
 import { Icon, SKILL_STYLE } from "../icons";
 import { addDays, dayKey, formatHM, todayIso, CATEGORY_COLOR } from "../plan";
+import { RestartCard } from "./Restart";
 import {
   SKILLS,
   type DayPlan,
@@ -157,9 +158,12 @@ export function TaskList(props: { tasks: PlanTask[] }) {
 
 export function PlanScreen(props: {
   profile: Profile;
+  restart?: boolean;
   onProfileSaved: (p: Profile) => void;
   onContinue: () => void;
   onOpenSettings: () => void;
+  onOpenLevels: () => void;
+  onOpenData: () => void;
 }) {
   const { t, formatHours, formatBand, formatShortDate, lang } = useI18n();
   const [summary, setSummary] = useState<PlanSummary | null>(null);
@@ -185,6 +189,12 @@ export function PlanScreen(props: {
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    if (props.restart && summary) {
+      document.getElementById("restart")?.scrollIntoView({ block: "center" });
+    }
+  }, [props.restart, summary]);
 
   async function saveProfile(patch: Partial<ProfileInput>) {
     const input = { ...profileToInput(props.profile), ...patch };
@@ -354,11 +364,31 @@ export function PlanScreen(props: {
           <p className="muted small">
             {t("plan_daily_now", { hours: formatHours(summary.daily_minutes) })}
           </p>
+          {summary.spelling_weekdays.length > 0 && summary.phase !== "exam" && (
+            <p className="muted small">
+              {t("plan_spelling_days", {
+                days: summary.spelling_weekdays
+                  .map((d) => weekday.format(new Date(2026, 10, 1 + d))) // 1 Nov 2026 = Sunday
+                  .join(t("list_and")),
+              })}
+            </p>
+          )}
           <button className="btn small self-start" onClick={props.onOpenSettings}>
             {t("plan_change")}
           </button>
         </article>
       </div>
+
+      <RestartCard
+        profile={props.profile}
+        initiallyOpen={props.restart}
+        onDone={(profile) => {
+          props.onProfileSaved(profile);
+          void load();
+        }}
+        onOpenLevels={props.onOpenLevels}
+        onStartOver={props.onOpenData}
+      />
     </div>
   );
 }

@@ -92,6 +92,8 @@ Status: **draft for approval** · 2026-11-02
 
 The owner asked for the podcast player first, as soon as possible. Versions from here: 0.0.5 player → 0.0.6 stories and flashcards → 0.0.7 writing/speaking with the AI tutor → 0.1 exams and progress → optional "Pro" add-on (D-029).
 
+**Re-ordered 2026-11-03 (owner, second list of additions):** 0.0.6 quick fixes → 0.0.7 content map → 0.0.8 words, phrases and stories → 0.0.9 writing/speaking with the AI tutor → 0.1 exams and progress → optional "Pro" add-on.
+
 ## Sprint 2b-1 — Podcast player · v0.0.5
 - [x] Dalilk IELTS podcast from its public feed (D-028): episode list, next episode, resume position, listened / comprehension 1–5
 - [x] Player: play/pause, back / forward 5 s (also ← / → / Space), seek, speed 0.75–1.25×; break pauses the audio
@@ -100,12 +102,45 @@ The owner asked for the podcast player first, as soon as possible. Versions from
 - [x] Windows CI build green (141 tests, installer smoke incl. podcast); v0.0.5 published to ielts-pilot-releases (2026-11-03)
 - [ ] Owner installs v0.0.5 through the Update tab (first real in-app update) and confirms audio + transcript play on the laptop
 
-## Sprint 2b-2 — Stories and vocabulary · v0.0.6
-- Reading: Dalilk graded stories by level
-- Capture new words while listening/reading → flashcards (SM-2) → reviews in Today
-- Listening extras: words from the episode, shadowing with recording if the owner wants it
+## Owner's second list (2026-11-03)
 
-## Sprint 3 — Output labs with the AI tutor · v0.0.7
+The owner's screenshot showed Daily English Listening (DLK-11) opening the old page: only the IELTS podcast had the player. His new requests, with where each one goes:
+
+| Request | Version |
+|---|---|
+| Daily English Listening in the same player | 0.0.6 |
+| "Start from zero" and "start the plan again" buttons | 0.0.6 |
+| One-minute pause between tasks with an encouraging line and a colourful picture | 0.0.6 (phrase cards join it in 0.0.8) |
+| Spelling challenge on fixed, known days | 0.0.6 |
+| Analyse Dalilk's 30-day and 90-day plans and use them for each learner's path | 0.0.7 |
+| Exact counts and links: podcast episodes, stories, books, videos — no duplicates; the plan's hours shown as that content (episode length × listens for shadowing, reading time per level, video durations, expected writing tasks and mock tests) | 0.0.7 |
+| Technique videos analysed per level (required for everyone / by level / optional); shown alone, full screen, no other videos | 0.0.7 |
+| Practice-test sites mapped (ieltsonlinetests.com — the one Dalilk's 90-day plan links —, engnovate, Dalilk's mock page): free full and section tests with direct links | 0.0.7 |
+| IELTS exam simulation in the final practice tests | 0.0.7 |
+| Words and flashcards starting with Dalilk's 350 words, coloured, Arabic and English | 0.0.8 |
+| Dalilk's 150 phrases for meetings and emails, shown one by one between tasks | 0.0.8 |
+
+## v0.0.6 — Quick fixes
+- [x] Daily English Listening (DLK-11) in the listening player: its public feed (604 episodes, a Google Drive script and translation per episode), migration 0006 (D-030)
+- [x] Home and focus mode say honestly when tasks were closed early or skipped (less than half their time) and offer to bring them back
+- [x] "Start the plan again" (My plan; offered on Home after 4+ days without study): plan starts today, hours counted from now, history kept (D-031); "Start from zero" (Settings → Data and backups) renamed and linked
+- [x] One-minute pause between tasks: original encouraging lines and original illustrations, Next after the countdown, adjustable or off in Settings (D-032)
+- [x] Planner-3: spelling challenge (DLK-21) on two fixed study days a week outside the exam phase, 15 min from the listening time
+- [x] Dalilk's 90-day plan read (owner's PDF): structure and links in `docs/research/dalilk_plans.md` for 0.0.7
+- [ ] Windows CI build green; v0.0.6 published
+- [ ] Owner updates through the Update tab and checks both podcasts on the laptop
+
+## v0.0.7 — Content map
+- Analyse Dalilk's 30-day and 90-day plans, the two podcasts, the 100 stories, the technique playlists and the practice-test sites; the result goes to the owner as a .md file for approval before any code
+- Plan header: the hours as content (episodes, stories, videos, writing tasks, mock tests), each item once, with links
+- Technique videos per level, full screen, alone; direct links to each free practice test; exam simulation in the final days
+
+## v0.0.8 — Words, phrases and stories
+- Dalilk's 350 words first (coloured cards, Arabic and English), then words captured from the podcasts and stories → flashcards (SM-2) → reviews in Today
+- Dalilk's 150 phrases one by one in the pauses between tasks
+- Reading: Dalilk graded stories by level
+
+## Sprint 3 — Output labs with the AI tutor · v0.0.9
 - Writing Task 1 / Task 2 and Speaking Parts 1–3 with timers (addition 7)
 - Shadowing with recording; sentence building from flashcard words (write / say); phrase bank by IELTS topic
 - Mistakes notebook fed by the owner from the tutor's feedback

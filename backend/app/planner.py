@@ -18,7 +18,7 @@ import math
 from dataclasses import asdict, dataclass, field
 from datetime import date, timedelta
 
-GENERATOR = "planner-2"
+GENERATOR = "planner-3"
 SKILLS = ("listening", "reading", "writing", "speaking")
 DEV_SHARE = {"foundation": 0.75, "development": 0.6, "exam": 0.35}
 FINAL_MOCK_OFFSETS = (4, 3, 2)  # days before the exam
@@ -28,6 +28,8 @@ MOCK_MINUTES = 165  # 30 + 60 + 60 + ~15
 REVIEW_MAX_MINUTES = 120
 MIN_BLOCK = 10
 BIWEEKLY_MOCK_QUIET_DAYS = 10  # no extra mock this close to the final ones
+SPELL_MINUTES = 15  # Dalilk spelling challenge, twice a week outside the exam phase
+WEEK_ORDER = (6, 0, 1, 2, 3, 4, 5)  # JS weekdays from Saturday
 # JavaScript weekday numbers (0 = Sunday … 6 = Saturday); rest days are taken in this
 # order when only "days per week" is known: Friday first.
 DEFAULT_REST_ORDER = (5, 4, 3, 2, 1, 0, 6)
@@ -354,8 +356,15 @@ TEXT = {
             "speaking": "المحادثة",
         },
         "phase": {"foundation": "التأسيس", "development": "التطوير", "exam": "الامتحان"},
+        "weekday": {0: "الأحد", 1: "الاتنين", 2: "التلات", 3: "الأربع", 4: "الخميس",
+                    5: "الجمعة", 6: "السبت"},
+        "and": " و",
         "L-EXT.title": "استماع ممتد",
         "L-EXT.do": "اسمع حلقة كاملة من غير ما توقف كتير. أي كلمة جديدة اكتبها في الملاحظات.",
+        "L-SPELL.title": "تحدي الإملاء",
+        "L-SPELL.do": "اسمع واكتب الكلمات بالحروف الصح — الأسماء والأرقام والتواريخ بتضيّع درجات "
+        "في الاستماع لو اتكتبت غلط.",
+        "L-SPELL.reason": "الإملاء ليه يومين ثابتين في الأسبوع ({days}) طول مرحلة التطوير.",
         "R-EXT.title": "قراءة قصة على مستواك",
         "R-EXT.do": "اقرأ من قصة على مستواك واستمتع بيها. الكلمات الجديدة اكتبها في الملاحظات.",
         "S-FLU.title": "محادثة بصوت عالي",
@@ -400,8 +409,15 @@ TEXT = {
             "speaking": "Speaking",
         },
         "phase": {"foundation": "Foundation", "development": "Development", "exam": "Exam"},
+        "weekday": {0: "Sunday", 1: "Monday", 2: "Tuesday", 3: "Wednesday", 4: "Thursday",
+                    5: "Friday", 6: "Saturday"},
+        "and": " and ",
         "L-EXT.title": "Extended listening",
         "L-EXT.do": "Listen to a whole episode without stopping much. Note new words.",
+        "L-SPELL.title": "Spelling challenge",
+        "L-SPELL.do": "Listen and write the words with the right spelling — names, numbers and "
+        "dates cost Listening marks when misspelt.",
+        "L-SPELL.reason": "Spelling has two fixed days a week ({days}) outside the exam phase.",
         "R-EXT.title": "Read a story at your level",
         "R-EXT.do": "Read from a story at your level and enjoy it. Note new words.",
         "S-FLU.title": "Speak out loud",
@@ -446,6 +462,7 @@ TEXT = {
 
 LISTEN_EASY, LISTEN_IELTS = "DLK-11", "DLK-20"
 STORIES = "DLK-07"
+SPELLING = "DLK-21"
 SPEAK_EASY, SPEAK_IELTS = "DLK-13", "DLK-19"
 TECHNIQUES = "DLK-17"
 PRACTICE_TESTS = ("OFF-01", "ENG-01", "OFF-02")
@@ -483,6 +500,20 @@ def _first_study_day_of_week(inputs: PlanInputs, d: date) -> bool:
     )
 
 
+def spelling_weekdays(inputs: PlanInputs) -> frozenset[int]:
+    """Fixed spelling days: the 2nd and 4th study day of the week (one day with 1-3)."""
+    days = [w for w in WEEK_ORDER if w in inputs.weekdays]
+    if not days:
+        return frozenset()
+    if len(days) >= 4:
+        return frozenset((days[1], days[3]))
+    return frozenset((days[min(1, len(days) - 1)],))
+
+
+def _weekday_names(t: dict, weekdays: frozenset[int]) -> str:
+    return t["and"].join(t["weekday"][w] for w in WEEK_ORDER if w in weekdays)
+
+
 def _day_number(inputs: PlanInputs, d: date) -> int:
     return (d - inputs.plan_start).days
 
@@ -518,6 +549,13 @@ def day_blocks(inputs: PlanInputs, d: date) -> tuple[str, list[Block]]:
         Block("reading", "reading", "R-EXT", split["reading"], STORIES,
               t["R-EXT.title"], t["R-EXT.do"], dev_reason),
     ]
+    spell_days = spelling_weekdays(inputs)
+    spell = min(SPELL_MINUTES, split["listening"] - MIN_BLOCK)
+    if phase != "exam" and js_weekday(d) in spell_days and spell >= MIN_BLOCK:
+        blocks[0].minutes -= spell
+        blocks.insert(1, Block("listening", "listening", "L-SPELL", spell, SPELLING,
+                               t["L-SPELL.title"], t["L-SPELL.do"],
+                               t["L-SPELL.reason"].format(days=_weekday_names(t, spell_days))))
     if n % 2 == 0:
         blocks.append(Block("output", "speaking", "S-FLU", split["output"],
                             SPEAK_EASY if easy else SPEAK_IELTS,

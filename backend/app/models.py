@@ -232,16 +232,20 @@ class PlanTask(Base):
     created_at: Mapped[datetime] = mapped_column(UTCDateTime)
 
 
-PODCAST_FEEDS = ("dalilk_ielts",)
+PODCAST_FEEDS = ("dalilk_ielts", "dalilk_english")
 
 
 class PodcastEpisode(Base):
-    """An episode of a podcast feed the listening player knows (imported from its RSS)."""
+    """An episode of a podcast feed the listening player knows (imported from its RSS).
+
+    Feeds: Dalilk IELTS podcast (SoundCloud) and Daily English Listening (Spotify for
+    Podcasters); each episode description links its Google Drive script.
+    """
 
     __tablename__ = "podcast_episodes"
     __table_args__ = (
         UniqueConstraint("feed", "guid", name="uq_podcast_feed_guid"),
-        CheckConstraint("feed IN ('dalilk_ielts')", name="feed"),
+        CheckConstraint("feed IN ('dalilk_ielts', 'dalilk_english')", name="feed"),
         CheckConstraint(
             "comprehension IS NULL OR comprehension BETWEEN 1 AND 5", name="comprehension"
         ),

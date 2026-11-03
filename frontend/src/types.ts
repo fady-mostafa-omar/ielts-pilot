@@ -119,6 +119,7 @@ export interface AppSettings {
   break_every_minutes: number | null;
   break_minutes: number | null;
   plan_start: string | null;
+  interlude_seconds: number | null; // pause between tasks, 0 = off
 }
 
 export type SplitKey = "listening" | "reading" | "output" | "exam";
@@ -167,6 +168,9 @@ export interface PlanSummary extends Estimate {
   streak_days: number;
   focus_skill: Skill;
   weekdays: number[];
+  spelling_weekdays: number[];
+  last_study_at: string | null;
+  plan_restarted_at: string | null;
 }
 
 export interface PlanTask {
@@ -317,7 +321,7 @@ export interface UpdateBridge {
   onState(callback: (state: UpdateState) => void): () => void;
 }
 
-export type PodcastFeed = "dalilk_ielts";
+export type PodcastFeed = "dalilk_ielts" | "dalilk_english";
 
 export interface Episode {
   id: number;

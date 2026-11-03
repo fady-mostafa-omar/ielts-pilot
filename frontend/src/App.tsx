@@ -30,7 +30,7 @@ type Phase =
 
 type Page =
   | { kind: "home" }
-  | { kind: "plan" }
+  | { kind: "plan"; restart?: boolean }
   | { kind: "focus" }
   | { kind: "library"; skill?: ResourceSkill }
   | { kind: "settings"; tab?: SettingsTab }
@@ -153,15 +153,19 @@ export function App() {
                 onOpenLibrary={(skill) => setPage({ kind: "library", skill })}
                 onOpenSettings={(tab) => setPage({ kind: "settings", tab })}
                 onContinue={() => setPage({ kind: "focus" })}
-                onOpenPlan={() => setPage({ kind: "plan" })}
+                onOpenPlan={(restart) => setPage({ kind: "plan", restart })}
               />
             )}
             {page.kind === "plan" && (
               <PlanScreen
+                key={page.restart ? "restart" : "plan"}
                 profile={phase.profile}
+                restart={page.restart}
                 onProfileSaved={(profile) => setPhase({ ...phase, profile })}
                 onContinue={() => setPage({ kind: "focus" })}
                 onOpenSettings={() => setPage({ kind: "settings", tab: "profile" })}
+                onOpenLevels={() => setPage({ kind: "settings", tab: "levels" })}
+                onOpenData={() => setPage({ kind: "settings", tab: "data" })}
               />
             )}
             {page.kind === "focus" && (

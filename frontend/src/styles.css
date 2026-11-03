@@ -2105,10 +2105,14 @@ fieldset.field.plain {
   background: none;
   border: 0;
   padding: 0;
-  color: #93c5fd;
+  color: #1d4ed8;
   text-decoration: underline;
   cursor: pointer;
   font: inherit;
+}
+
+.player .linkish {
+  color: #93c5fd;
 }
 
 .listen-steps {
@@ -2182,4 +2186,167 @@ fieldset.field.plain {
   background: #f59e0b;
   border-color: #f59e0b;
   color: #fff;
+}
+
+/* interlude between tasks (v0.0.6) */
+.interlude {
+  flex: 1;
+  min-height: 100vh;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 16px;
+  background:
+    radial-gradient(circle at 15% 20%, #fef3c7 0%, transparent 40%),
+    radial-gradient(circle at 85% 80%, #dbeafe 0%, transparent 45%),
+    radial-gradient(circle at 80% 15%, #fce7f3 0%, transparent 35%),
+    var(--bg);
+}
+
+.il-card {
+  width: min(600px, 100%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  text-align: center;
+  padding: 28px 24px;
+  border-radius: 24px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  box-shadow: 0 24px 48px -28px rgba(29, 78, 216, 0.45);
+}
+
+.il-art {
+  border-radius: 20px;
+  overflow: hidden;
+  line-height: 0;
+}
+
+.il-art svg {
+  width: min(400px, 74vw);
+  height: auto;
+  display: block;
+}
+
+.il-cheer {
+  margin: 0;
+  font-size: 1.45rem;
+  font-weight: 700;
+  line-height: 1.5;
+  color: var(--text);
+}
+
+.il-meter {
+  width: 100%;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--soft);
+  overflow: hidden;
+}
+
+.il-meter span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #22c55e, #1d4ed8);
+  transition: width 1s linear;
+}
+
+.il-actions {
+  justify-content: center;
+}
+
+.il-ready {
+  animation: il-pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes il-pulse {
+  50% {
+    box-shadow: 0 0 0 8px rgba(29, 78, 216, 0.18);
+  }
+}
+
+.il-rise {
+  animation: il-rise 3s ease-out both;
+}
+
+@keyframes il-rise {
+  from {
+    transform: translateY(24px);
+  }
+}
+
+.il-sway {
+  transform-origin: 120px 112px;
+  animation: il-sway 3s ease-in-out infinite;
+}
+
+@keyframes il-sway {
+  50% {
+    transform: rotate(3deg);
+  }
+}
+
+.il-wave {
+  transform-origin: 110px 18px;
+  animation: il-wave 1.4s ease-in-out infinite;
+}
+
+@keyframes il-wave {
+  50% {
+    transform: scaleX(0.85);
+  }
+}
+
+.il-float {
+  animation: il-float 2.6s ease-in-out infinite;
+}
+
+@keyframes il-float {
+  50% {
+    transform: translateY(-6px);
+  }
+}
+
+.il-glow {
+  animation: il-glow 2.4s ease-in-out infinite;
+}
+
+@keyframes il-glow {
+  50% {
+    opacity: 0.75;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .il-ready,
+  .il-rise,
+  .il-sway,
+  .il-wave,
+  .il-float,
+  .il-glow {
+    animation: none !important;
+  }
+}
+
+/* day closed early, away banner, restart */
+.day-end-badge.early {
+  background: linear-gradient(135deg, #b45309, #f59e0b);
+  box-shadow: 0 10px 24px -10px rgba(180, 83, 9, 0.7);
+}
+
+.away-card {
+  align-items: center;
+  gap: 14px;
+}
+
+.away-card h2 {
+  margin: 0;
+}
+
+.restart-card.open {
+  border-color: #bfdbfe;
+  box-shadow: 0 0 0 3px #dbeafe;
 }

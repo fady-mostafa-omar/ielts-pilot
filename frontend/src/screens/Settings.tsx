@@ -138,6 +138,7 @@ function ProfileTab(props: {
   const [perBand, setPerBand] = useState(props.settings.hours_per_band ?? 200);
   const [breakEvery, setBreakEvery] = useState(props.settings.break_every_minutes ?? 50);
   const [breakMinutes, setBreakMinutes] = useState(props.settings.break_minutes ?? 10);
+  const [interlude, setInterlude] = useState(props.settings.interlude_seconds ?? 60);
   const [status, setStatus] = useState<"idle" | "saving" | "saved">("idle");
   const [error, setError] = useState<string | null>(null);
   const goalErrors = validateGoals(goals, t);
@@ -156,6 +157,7 @@ function ProfileTab(props: {
           hours_per_band: perBand,
           break_every_minutes: breakEvery,
           break_minutes: breakMinutes,
+          interlude_seconds: interlude,
         }),
       );
       setStatus("saved");
@@ -216,6 +218,15 @@ function ProfileTab(props: {
               {[3, 5, 7, 10, 15, 20, 30].map((m) => (
                 <option key={m} value={m}>
                   {t("n_minutes", { n: m })}
+                </option>
+              ))}
+            </select>
+          </Field>
+          <Field label={t("set_interlude")}>
+            <select value={interlude} onChange={(e) => setInterlude(Number(e.target.value))}>
+              {[0, 30, 60, 90, 120].map((s) => (
+                <option key={s} value={s}>
+                  {s === 0 ? t("set_interlude_off") : t("n_seconds", { n: s })}
                 </option>
               ))}
             </select>

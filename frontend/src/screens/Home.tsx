@@ -35,7 +35,7 @@ import {
   type ResourceSkill,
   type StudySession,
 } from "../types";
-import { nextTask } from "./Focus";
+import { dayOutcome, nextTask, reopenTasks } from "./Focus";
 import { studyTargetFor } from "./Library";
 import type { StudyTarget } from "./Study";
 
@@ -63,7 +63,7 @@ export function HomeScreen(props: {
   onOpenLibrary: (skill?: ResourceSkill) => void;
   onOpenSettings: (tab?: "levels") => void;
   onContinue: () => void;
-  onOpenPlan: () => void;
+  onOpenPlan: (restart?: boolean) => void;
 }) {
   const { t, lang, formatBand, formatDate, formatShortDate, formatHours, formatDays } = useI18n();
   const { profile, levels } = props;
@@ -101,6 +101,9 @@ export function HomeScreen(props: {
   const todayTasks = data?.today && !data.today.preview ? data.today.tasks : [];
   const upNext = nextTask(todayTasks);
   const tasksDone = todayTasks.filter((x) => x.status === "done").length;
+  const outcome = dayOutcome(todayTasks);
+  const away = awayDays(data?.summary ?? null, profile.created_at);
+  const [awayDismissed, setAwayDismissed] = useState(() => readDismissed() === todayIso());
   const now = new Date();
   const todayKey = dayKey(now);
   const sessions = counted(data?.sessions ?? []);
@@ -181,6 +184,28 @@ export function HomeScreen(props: {
         </p>
       )}
 
+      {data && away !== null && !awayDismissed && (
+        <section className="card notice away-card row wrap">
+          <Icon name="calendar" size={28} color="#B45309" />
+          <div className="stack-xs grow">
+            <h2>{t("away_title", { days: formatDays(away) })}</h2>
+            <p className="muted">{t("away_body")}</p>
+          </div>
+          <button className="btn primary" onClick={() => props.onOpenPlan(true)}>
+            {t("away_restart")}
+          </button>
+          <button
+            className="btn subtle"
+            onClick={() => {
+              writeDismissed(todayIso());
+              setAwayDismissed(true);
+            }}
+          >
+            {t("away_dismiss")}
+          </button>
+        </section>
+      )}
+
       {data && data.open.some((s) => s.state === "unconfirmed") && (
         <OpenSessions sessions={data.open} resources={data.resources} onChanged={load} />
       )}
@@ -206,7 +231,18 @@ export function HomeScreen(props: {
                 </p>
               </>
             ) : todayTasks.length > 0 ? (
-              <h2 className="hero-title">{t("focus_day_done")}</h2>
+              <>
+                <h2 className="hero-title">
+                  {outcome.celebrate ? t("focus_day_done") : t("day_closed_early")}
+                </h2>
+                <p className="hero-sub">
+                  {t("day_studied", {
+                    done: formatHM(outcome.minutes),
+                    planned: formatHM(outcome.planned),
+                  })}
+                  {!outcome.celebrate && ` · ${t("day_short_tasks", { n: outcome.short.length })}`}
+                </p>
+              </>
             ) : (
               <>
                 <h2 className="hero-title">
@@ -227,7 +263,18 @@ export function HomeScreen(props: {
                 <Icon name="play" size={16} /> {t("continue_learning")}
               </button>
             )}
-            <button className="btn hero-link" onClick={props.onOpenPlan}>
+            {!upNext && outcome.short.length > 0 && (
+              <button
+                className="btn hero-btn"
+                onClick={async () => {
+                  await reopenTasks(outcome.short);
+                  await load();
+                }}
+              >
+                <Icon name="reload" size={16} /> {t("day_reopen")}
+              </button>
+            )}
+            <button className="btn hero-link" onClick={() => props.onOpenPlan()}>
               {t("hero_see_plan")}
             </button>
           </div>
@@ -528,6 +575,35 @@ export function HomeScreen(props: {
       </section>
     </div>
   );
+}
+
+/** Days since the owner last studied, when it is long enough to offer a fresh start
+ * (and the plan was not restarted since). */
+export const AWAY_DAYS = 4;
+
+function awayDays(summary: PlanSummary | null, createdAt: string): number | null {
+  if (!summary) return null;
+  const last = summary.last_study_at ?? createdAt;
+  const restarted = summary.plan_restarted_at;
+  if (restarted && restarted > last) return null;
+  const days = Math.floor((Date.now() - Date.parse(last)) / 86_400_000);
+  return days >= AWAY_DAYS ? days : null;
+}
+
+function readDismissed(): string | null {
+  try {
+    return window.localStorage.getItem("ip-away-dismissed");
+  } catch {
+    return null;
+  }
+}
+
+function writeDismissed(day: string): void {
+  try {
+    window.localStorage.setItem("ip-away-dismissed", day);
+  } catch {
+    // private storage unavailable: the banner just shows again next time
+  }
 }
 
 function OpenSessions(props: {

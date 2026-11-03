@@ -16,7 +16,7 @@ from app.podcast import FeedError, parse_feed
 
 router = APIRouter(prefix="/api/v1")
 
-Feed = Literal["dalilk_ielts"]
+Feed = Literal["dalilk_ielts", "dalilk_english"]
 MAX_FEED_CHARS = 30_000_000
 
 

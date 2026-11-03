@@ -107,3 +107,38 @@ def test_unknown_feed_and_bad_xml(client: TestClient) -> None:
     assert client.post("/api/v1/podcasts/other/import", json={"xml": SAMPLE}).status_code == 422
     res = client.post("/api/v1/podcasts/dalilk_ielts/import", json={"xml": "<html/>"})
     assert res.status_code == 422
+
+
+ENGLISH = (Path(__file__).parent / "fixtures" / "dalilk_english_sample.rss").read_text(
+    encoding="utf-8"
+)
+
+
+def test_parse_english_feed() -> None:
+    episodes = {e.number: e for e in parse_feed(ENGLISH)}
+    assert set(episodes) == {1, 2}
+    assert episodes[2].title == "English Listening #2: The Second Story"
+    assert episodes[2].transcript_id == "1EnglishTwoXXXXXXXXXXXXXXXXXXXXXX"
+    assert episodes[1].transcript_id == "1EnglishOneXXXXXXXXXXXXXXXXXXXXXX"
+    assert episodes[2].duration_seconds == 492
+    assert episodes[2].audio_url.startswith("https://anchor.fm/")
+    assert episodes[2].page_url and episodes[2].page_url.startswith("https://podcasters.")
+    assert "<p>" not in episodes[2].summary
+
+
+def test_feeds_are_separate(client: TestClient) -> None:
+    _import(client)
+    res = client.post("/api/v1/podcasts/dalilk_english/import", json={"xml": ENGLISH})
+    assert res.status_code == 200
+    assert res.json()["total"] == 2
+    english = client.get("/api/v1/podcasts/dalilk_english").json()
+    assert [e["number"] for e in english["episodes"]] == [1, 2]
+    assert all(e["feed"] == "dalilk_english" for e in english["episodes"])
+    first = client.get("/api/v1/podcasts/dalilk_english/next").json()
+    assert first["number"] == 1
+    assert first["transcript_url"].endswith("/1EnglishOneXXXXXXXXXXXXXXXXXXXXXX/preview")
+    client.patch(f"/api/v1/podcasts/episodes/{first['id']}", json={"listened": True})
+    # finishing an English episode does not move the IELTS podcast
+    assert client.get("/api/v1/podcasts/dalilk_ielts/next").json()["number"] == 1
+    assert client.get("/api/v1/podcasts/dalilk_english/next").json()["number"] == 2
+    assert client.get("/api/v1/podcasts/unknown").status_code == 422

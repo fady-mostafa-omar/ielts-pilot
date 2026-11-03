@@ -26,6 +26,7 @@ const BACKUP_NAME = /^ielts-pilot-[A-Za-z0-9._-]+\.zip$/;
 // Podcast feeds the listening player may download (public RSS, as podcast apps use).
 const FEEDS: Record<string, string> = {
   dalilk_ielts: "https://feeds.soundcloud.com/users/soundcloud:users:672776474/sounds.rss",
+  dalilk_english: "https://anchor.fm/s/f5d461d8/podcast/rss",
 };
 const MAX_FEED_BYTES = 30_000_000;
 

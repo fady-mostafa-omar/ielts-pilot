@@ -177,13 +177,13 @@ Rules: a heartbeat adds at most 120 s and never more than the wall time since th
 | started_at, completed_at | DATETIME NULL | |
 | created_at | DATETIME | |
 
-Index `(plan_date, status)`. Planner settings live in `app_settings`: `hours_per_band`, `study_weekdays` (JavaScript numbering, 0 = Sunday), `break_every_minutes`, `break_minutes`, `plan_start`.
+Index `(plan_date, status)`. Planner settings live in `app_settings`: `hours_per_band`, `study_weekdays` (JavaScript numbering, 0 = Sunday), `break_every_minutes`, `break_minutes`, `plan_start`, `interlude_seconds` (0.0.6, pause between tasks, 0 = off), and `plan_restarted_at` (0.0.6, set by "start the plan again"; not editable).
 
 ### podcast_episodes (0005)
 | Column | Type | Notes |
 |---|---|---|
 | id | INTEGER PK | |
-| feed | TEXT | `dalilk_ielts` (CHECK); unique with `guid` |
+| feed | TEXT | `dalilk_ielts`, `dalilk_english` (CHECK, 0006); unique with `guid` |
 | guid | TEXT | the feed's item id |
 | number | INTEGER NULL | from "#N" in the title |
 | title | TEXT | |
@@ -303,6 +303,7 @@ Index `(next_review_at)`.
 | 0003 | 1b | study time in half hours, 30–840 min (existing values rounded to the nearest half hour and clamped); `placement_quiz` level source; add `placement_results`, `resources`, `study_sessions` |
 | 0004 | 2a | add `plan_tasks`; `study_sessions.plan_task_id` (FK, `ON DELETE SET NULL`) |
 | 0005 | 2b-1 | add `podcast_episodes` |
+| 0006 | 0.0.6 | `podcast_episodes.feed` also allows `dalilk_english` (table rebuilt, rows and ids kept; downgrade drops English rows) |
 
 
 - One Alembic revision per schema change; `alembic_version` holds the schema version.

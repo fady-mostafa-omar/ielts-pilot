@@ -163,6 +163,25 @@ class SystemInfo(BaseModel):
     low_disk: bool
 
 
+class RestartIn(BaseModel):
+    """Start the plan again from today (owner back after a break). Fields left out keep
+    their current value; exam_date may be set to null to remove it."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    today: date
+    exam_date: date | None = None
+    study_minutes_per_day: int | None = Field(
+        default=None, ge=MIN_DAY_MINUTES, le=MAX_DAY_MINUTES, multiple_of=30
+    )
+
+    @model_validator(mode="after")
+    def _exam_after_today(self) -> "RestartIn":
+        if self.exam_date is not None and self.exam_date <= self.today:
+            raise ValueError("exam_date must be after today")
+        return self
+
+
 class SettingsIO(BaseModel):
     """Owner preferences kept in app_settings. Every field is optional on write."""
 
@@ -176,6 +195,8 @@ class SettingsIO(BaseModel):
     break_every_minutes: int | None = Field(default=None, ge=20, le=120)
     break_minutes: int | None = Field(default=None, ge=3, le=30)
     plan_start: date | None = None
+    # One-minute pause between tasks (0 = off).
+    interlude_seconds: int | None = Field(default=None, ge=0, le=180)
 
     @field_validator("study_weekdays")
     @classmethod
