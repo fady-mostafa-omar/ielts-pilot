@@ -416,12 +416,19 @@ def codes(blocks) -> list[str]:
     return [b.activity_code for b in blocks]
 
 
-def test_development_hour_is_30_20_5_5() -> None:
+def test_development_is_a_third_of_the_day() -> None:
+    # Dalilk: 1 hour of 3, split 30:20:5:5 -- and it grows with the day (owner 2026-11-03)
     assert planner.dev_minutes(180) == {"listening": 30, "reading": 20, "writing": 5,
                                         "speaking": 5}
-    assert planner.dev_minutes(600) == planner.dev_minutes(180)
-    assert planner.dev_minutes(60) == {"listening": 20, "reading": 10, "writing": 0,
+    assert planner.dev_minutes(120) == {"listening": 20, "reading": 10, "writing": 5,
+                                        "speaking": 5}
+    assert planner.dev_minutes(360) == {"listening": 60, "reading": 40, "writing": 10,
+                                        "speaking": 10}
+    assert planner.dev_minutes(60) == {"listening": 10, "reading": 10, "writing": 0,
                                        "speaking": 0}
+    for daily in (60, 90, 120, 180, 240, 360, 600):
+        dev = sum(planner.dev_minutes(daily).values())
+        assert abs(dev - daily / 3) <= 5
 
 
 def test_twelve_weeks_follow_dalilks_order() -> None:
@@ -490,7 +497,9 @@ def test_listening_exam_week_techniques_then_tests() -> None:
     _, practice = day_blocks(p4(), week(4, 2))
     assert practice[0].activity_code == "P-TEST"
     assert practice[0].content["providers"] == ["ieltsonlinetests"]
-    assert practice[0].content["count"] == 120 // 40
+    # about half the focus time in tests, the rest practice videos and input
+    assert practice[0].content["count"] == 2
+    assert codes(practice)[:2] == ["P-TEST", "P-VID"]
     _, round2 = day_blocks(p4(), week(8, 2))
     assert round2[0].content["providers"] == ["engnovate", "ieltsonlinetests"]
     # no spelling or phrases outside development weeks
@@ -500,7 +509,7 @@ def test_listening_exam_week_techniques_then_tests() -> None:
 def test_writing_week_task1_then_task2_then_a_test() -> None:
     days = [day_blocks(p4(), week(6, i))[1] for i in (0, 1, 2, 3, 4, 5)]
     assert days[0][0].content["skills"] == ["W1"]
-    assert days[1][0].activity_code == "W-T1" and days[1][0].content["count"] == 120 // 30
+    assert days[1][0].activity_code == "W-T1" and days[1][0].content["count"] == 2
     assert days[3][0].content["skills"] == ["W2"]
     assert days[4][0].activity_code == "W-T2"
     assert days[5][0].activity_code == "P-TEST" and days[5][0].content["skills"] == ["writing"]
@@ -523,6 +532,23 @@ def test_final_days_use_dalilk_mocks_and_the_official_test() -> None:
     assert paper[0].content["providers"] == ["dalilk"]
     kind, review = day_blocks(i, EXAM12 - timedelta(days=1))
     assert kind == "review" and review[0].content["review"] is True
+
+
+def test_six_hours_share_every_part() -> None:
+    six = p4(daily_minutes=360)
+    _, tech = day_blocks(six, week(4))
+    assert tech[0].activity_code == "T-VID" and tech[0].minutes == 145  # 60 % of 240
+    assert "P-TEST" in codes(tech)  # practice right after the techniques
+    assert sum(b.minutes for b in tech) == 360
+    _, tests = day_blocks(six, week(4, 2))
+    assert tests[0].content["count"] == 3  # ~half of 240 min in 40-min tests
+    assert sum(b.minutes for b in tests) == 360
+    kind, final = day_blocks(six, EXAM12 - timedelta(days=3))
+    assert kind == "final_mock"
+    assert codes(final)[:2] == ["MOCK", "MOCK-REV"]
+    assert sum(b.minutes for b in final) == 360
+    _, short_final = day_blocks(p4(), EXAM12 - timedelta(days=3))
+    assert codes(short_final) == ["MOCK"]
 
 
 def test_spelling_only_in_development_weeks() -> None:

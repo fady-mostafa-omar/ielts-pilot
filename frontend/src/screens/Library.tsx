@@ -4,7 +4,15 @@ import { useEffect, useMemo, useState } from "react";
 import { api, ApiError } from "../api";
 import { useI18n } from "../i18n";
 import { Icon, SkillBadge } from "../icons";
-import { type PodcastFeed, RESOURCE_SKILLS, type Resource, type ResourceSkill } from "../types";
+import {
+  type ExamFormat,
+  type Levels,
+  type PodcastFeed,
+  RESOURCE_SKILLS,
+  type Resource,
+  type ResourceSkill,
+} from "../types";
+import { libraryQueue } from "./ContentQueue";
 import type { StudyTarget } from "./Study";
 
 type Filter = "all" | ResourceSkill;
@@ -41,8 +49,24 @@ export function podcastFeedOf(r: Resource | null): PodcastFeed | null {
   return (r?.catalog_id && PODCAST_FEEDS[r.catalog_id]) || null;
 }
 
-export function studyTargetFor(r: Resource): StudyTarget {
+export function studyTargetFor(
+  r: Resource,
+  ctx?: { levels: Levels | null; format: ExamFormat | null },
+): StudyTarget {
   const exam = r.resource_type === "practice_test" || r.resource_type === "placement_test";
+  // Dalilk's series open one item at a time, like the podcast (owner, 2026-11-03)
+  const queue = libraryQueue(r.catalog_id, ctx?.levels ?? null, ctx?.format ?? null);
+  if (queue) {
+    return {
+      title: r.title,
+      target: null,
+      resource: r,
+      skill: r.skill,
+      activityCode: r.activity_codes.split(";")[0] || null,
+      timer: true,
+      queue,
+    };
+  }
   const feed = podcastFeedOf(r);
   if (feed) {
     return {
@@ -71,6 +95,8 @@ export function studyTargetFor(r: Resource): StudyTarget {
 
 export function LibraryScreen(props: {
   initialFilter?: Filter;
+  levels: Levels | null;
+  examFormat: ExamFormat | null;
   onStudy: (target: StudyTarget) => void;
 }) {
   const { t, formatDate } = useI18n();
@@ -287,7 +313,14 @@ export function LibraryScreen(props: {
                     </p>
                   )}
                   <div className="row wrap resource-actions">
-                    <button className="btn primary small" onClick={() => props.onStudy(studyTargetFor(r))}>
+                    <button
+                      className="btn primary small"
+                      onClick={() =>
+                        props.onStudy(
+                          studyTargetFor(r, { levels: props.levels, format: props.examFormat }),
+                        )
+                      }
+                    >
                       <Icon name="play" size={12} /> {t("lib_study")}
                     </button>
                     <button

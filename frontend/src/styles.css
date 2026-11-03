@@ -2516,3 +2516,27 @@ fieldset.field.plain {
   box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.25);
   font-weight: 600;
 }
+
+/* v0.0.9: one item at a time */
+.queue-now {
+  gap: 8px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+}
+
+.queue-counter {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #1d4ed8;
+}
+
+.queue-current {
+  font-size: 1.05rem;
+  line-height: 1.5;
+  color: var(--text);
+}

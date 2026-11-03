@@ -94,7 +94,7 @@ The owner asked for the podcast player first, as soon as possible. Versions from
 
 **Re-ordered 2026-11-03 (owner, second list of additions):** 0.0.6 quick fixes → 0.0.7 content map → 0.0.8 words, phrases and stories → 0.0.9 writing/speaking with the AI tutor → 0.1 exams and progress → optional "Pro" add-on.
 
-**Re-ordered again 2026-11-03 (owner's third list):** 0.0.7 quick requests → content map (.md for approval) → 0.0.8 plan on Dalilk's method with its content → 0.0.9 words, phrases and stories → 0.0.10 writing/speaking with the AI tutor → 0.1 exams and progress → optional "Pro" add-on.
+**Re-ordered again 2026-11-03 (owner's third list):** 0.0.7 quick requests → content map (.md for approval) → 0.0.8 plan on Dalilk's method with its content → 0.0.9 owner's requests (scaling, one item at a time) → 0.0.10 words, phrases and stories → 0.0.11 writing/speaking with the AI tutor → 0.1 exams and progress → optional "Pro" add-on.
 
 ## Sprint 2b-1 — Podcast player · v0.0.5
 - [x] Dalilk IELTS podcast from its public feed (D-028): episode list, next episode, resume position, listened / comprehension 1–5
@@ -152,14 +152,21 @@ The owner's screenshot showed Daily English Listening (DLK-11) opening the old p
 - [x] Each task opens its own content: videos one after another (alone, full screen, YouTube overlays hidden, next on end), the next novel at the level, the next practice tests by direct link; each item once
 - [x] My plan: Dalilk weeks strip, "what these hours hold" (episodes, novels, videos, tests, writing tasks, full tests), exam-format prompt; Home counters for videos, novels, tests
 - [x] Windows CI build green (167 tests, installer smoke incl. content queue); v0.0.8 published to ielts-pilot-releases (2026-11-03)
-- [ ] Owner checks on the laptop: YouTube videos play in the app (could not be tested here), novels open, tests open
+- [x] Owner updated with the one-press button; videos play with YouTube's controls and novels open (2026-11-03)
 
-## v0.0.9 — Words, phrases and stories
+## v0.0.9 — Owner's requests after 0.0.8 (D-038)
+- [x] Development time = a third of the day (30:20:5:5), focus time shared in the exam weeks, final test days with a mistakes review
+- [x] One item at a time, like the podcast: lesson n of m, the next video starts on its own; a finished novel asks "next novel" or "next task"; no list to pick from
+- [x] Library: Dalilk's 100 novels, the techniques series and the daily-phrases series open the next item, not the website or the playlist
+- [x] YouTube's player used as it is (0.0.8's CSS changes removed)
+- [ ] Windows CI build green; v0.0.9 published
+
+## v0.0.10 — Words, phrases and stories
 - Dalilk's 350 words first (coloured cards, Arabic and English), then words captured from the podcasts and stories → flashcards (SM-2) → reviews in Today
 - Dalilk's 150 phrases one by one in the pauses between tasks
 - Reading: done in 0.0.8 (novels open directly at the level); 0.0.9 adds words captured from them
 
-## Sprint 3 — Output labs with the AI tutor · v0.0.10
+## Sprint 3 — Output labs with the AI tutor · v0.0.11
 - Writing Task 1 / Task 2 and Speaking Parts 1–3 with timers (addition 7)
 - Shadowing with recording; sentence building from flashcard words (write / say); phrase bank by IELTS topic
 - Mistakes notebook fed by the owner from the tutor's feedback

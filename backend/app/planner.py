@@ -21,7 +21,7 @@ import math
 from dataclasses import asdict, dataclass, field
 from datetime import date, timedelta
 
-GENERATOR = "planner-4"
+GENERATOR = "planner-5"  # v0.0.9: a third of the day for development (D-038)
 SKILLS = ("listening", "reading", "writing", "speaking")
 DEV_SHARE = {"foundation": 0.75, "development": 0.6, "exam": 0.35}
 FINAL_MOCK_OFFSETS = (4, 3, 2)  # days before the exam
@@ -348,6 +348,8 @@ TEXT = {
         "devR.reason": "أسبوع تطوير القراءة (خطة دليلك): ساعات التركيز كلها روايات على مستواك.",
         "round.reason": "أسبوع {skill} (الدورة {round} من خطة دليلك): أول يومين تكنيكات، وبعدها تدريب.",
         "overflow.reason": "باقي وقتك النهارده بعد التدريب: استماع وقراءة (العمود الفقري في خطة دليلك).",
+        "MOCKREV.title": "مراجعة غلطات الاختبار",
+        "MOCKREV.do": "ارجع لكل سؤال غلطت فيه في الاختبار: ليه غلطت؟ واكتب التركة اللي كانت هتحله.",
         "FOCUS-L.title": "ساعات الاستماع",
         "FOCUS-L.do": "اسمع حلقات البودكاست بالخطوات. لو تعبت خد 5 دقايق بريك كل نص ساعة وكمّل.",
         "FOCUS-R.title": "ساعات القراءة",
@@ -363,8 +365,8 @@ TEXT = {
         "TEST.do": "الاختبار بيفتح على طول. حلّه بالوقت، وبعدين صحّح وارجع لكل غلطة.",
         "W-T1x.do": "اكتب {n} إجابة Task 1: كل واحدة 20 دقيقة (150 كلمة على الأقل) + 10 دقايق مراجعة.",
         "W-T2x.do": "اكتب {n} إجابة Task 2: كل واحدة 40 دقيقة (250 كلمة على الأقل) + 10 دقايق مراجعة.",
-        "W-DEV.title": "كتابة 5 دقايق",
-        "W-DEV.do": "اكتب 5 جمل عن يومك أو عن اللي سمعته وقريته النهارده.",
+        "W-DEV.title": "كتابة يومية",
+        "W-DEV.do": "اكتب 5 جمل أو أكتر عن يومك أو عن اللي سمعته وقريته النهارده.",
         "S-PHRASE.title": "العبارات اليومية (فيديو)",
         "S-PHRASE.do": "فيديو من سلسلة العبارات اليومية بالترتيب. ردّد العبارات بصوت عالي.",
         "T-STRAT.title": "تكنيكات {skill}",
@@ -424,6 +426,8 @@ TEXT = {
         "devR.reason": "Reading development week (Dalilk's plan): the focus hours are novels at your level.",
         "round.reason": "{skill} week (round {round} of Dalilk's plan): two days of techniques, then practice.",
         "overflow.reason": "The rest of today's time after practice: listening and reading (the backbone of Dalilk's plan).",
+        "MOCKREV.title": "Review the test's mistakes",
+        "MOCKREV.do": "Go back to every question you missed: why? Note the trick that would have solved it.",
         "FOCUS-L.title": "Listening hours",
         "FOCUS-L.do": "Listen to podcast episodes step by step. If tired, take 5 minutes every half hour.",
         "FOCUS-R.title": "Reading hours",
@@ -439,8 +443,8 @@ TEXT = {
         "TEST.do": "The test opens directly. Do it on time, then check and go back to each mistake.",
         "W-T1x.do": "Write {n} Task 1 answers: 20 minutes each (at least 150 words) + 10 minutes review.",
         "W-T2x.do": "Write {n} Task 2 answers: 40 minutes each (at least 250 words) + 10 minutes review.",
-        "W-DEV.title": "Five minutes of writing",
-        "W-DEV.do": "Write 5 sentences about your day or what you heard and read today.",
+        "W-DEV.title": "Daily writing",
+        "W-DEV.do": "Write 5 sentences or more about your day or what you heard and read today.",
         "S-PHRASE.title": "Daily phrases (video)",
         "S-PHRASE.do": "The next video of the daily-phrases series. Repeat the phrases out loud.",
         "T-STRAT.title": "{skill} techniques",
@@ -489,8 +493,13 @@ PHRASE_VIDEO_MINUTES = 20  # Dalilk's daily-phrases videos average ~19 min
 TEST_MINUTES = {"listening": 40, "reading": 75, "writing": 70, "speaking": 20}
 # caps per day, so a very long day does not become 14 tests in a row; the rest of the
 # focus time goes to podcast + novels (Dalilk: listening/reading input is the backbone)
-MAX_TECH_VIDEO = 180
+MAX_TECH_VIDEO = 240
 MAX_TESTS = 4
+# focus time in the exam weeks is shared, not given to one thing (owner 2026-11-03)
+TECH_SHARE = 0.6  # technique days: 60 % videos, 40 % practice right away
+TEST_SHARE = 0.5  # test days: about half the focus time in tests (review included)
+WRITE_SHARE = 0.6  # writing days: about 60 % writing answers
+MOCK_REVIEW_MAX = 60  # final test days: mistakes review after the full test
 MAX_PRACTICE_VIDEO = 120
 MAX_WRITING_TASKS = 4
 MAX_SPEAKING = 60
@@ -636,13 +645,14 @@ def phase_of(inputs: PlanInputs) -> str:
 
 
 def dev_minutes(daily: int) -> dict[str, int]:
-    """Development hour (CURRICULUM §4b): 30/20/5/5 for a 3-hour day."""
-    dev = min(DEV_HOUR, _round5(daily / 2))
-    out_w = WRITE_DEV if dev >= 40 else 0
-    out_s = SPEAK_DEV if dev >= 40 else 0
-    listening = _round5((dev - out_w - out_s) * 0.6)
-    reading = dev - out_w - out_s - listening
-    return {"listening": listening, "reading": reading, "writing": out_w, "speaking": out_s}
+    """Development time = a third of the day (Dalilk: 1 h of 3), split 30:20:5:5
+    (CURRICULUM §4b, owner 2026-11-03): 2 h -> 20/10/5/5, 3 h -> 30/20/5/5,
+    6 h -> 60/40/10/10."""
+    dev = _round5(daily / 3)
+    out = max(WRITE_DEV, _round5(dev / 12)) if dev >= 30 else 0
+    listening = _round5((dev - 2 * out) * 0.6)
+    reading = dev - 2 * out - listening
+    return {"listening": listening, "reading": reading, "writing": out, "speaking": out}
 
 
 def daily_split(inputs: PlanInputs) -> dict[str, int]:
@@ -716,7 +726,7 @@ def _overflow(inputs: PlanInputs, t: dict, minutes: int, reason: str) -> list[Bl
 def _tests(inputs: PlanInputs, t: dict, skill: str, rnd: int, minutes: int,
            reason: str) -> list[Block]:
     per = TEST_MINUTES[skill]
-    count = min(MAX_TESTS, max(1, minutes // per))
+    count = max(1, min(MAX_TESTS, round(minutes * TEST_SHARE / per)))
     providers = ["engnovate", "ieltsonlinetests"] if rnd >= 2 else ["ieltsonlinetests"]
     test_minutes = min(minutes, count * per)
     title = t["TEST.title"].format(skill=t["skill"][skill], n=count)
@@ -724,7 +734,7 @@ def _tests(inputs: PlanInputs, t: dict, skill: str, rnd: int, minutes: int,
     blocks = [Block("exam", skill, "P-TEST", test_minutes, None, title, t["TEST.do"], reason,
                     content)]
     rest = minutes - test_minutes
-    video = min(rest, MAX_PRACTICE_VIDEO)
+    video = min(_round5(rest / 2) if rest >= 40 else rest, MAX_PRACTICE_VIDEO)
     if video >= 10:
         blocks.append(Block("exam", skill, "P-VID", video, TECHNIQUES,
                             t["PVID.title"].format(skill=t["skill"][skill]), t["PVID.do"], reason,
@@ -737,15 +747,53 @@ def _tests(inputs: PlanInputs, t: dict, skill: str, rnd: int, minutes: int,
 def _techniques(inputs: PlanInputs, t: dict, skills: list[str], groups: list[str],
                 minutes: int, reason: str, skill: str, rnd: int,
                 title_key: str = "VID.title") -> list[Block]:
-    video = min(minutes, MAX_TECH_VIDEO)
+    video = min(_round5(minutes * TECH_SHARE) if minutes >= 60 else minutes, MAX_TECH_VIDEO)
     blocks = [_videos(t, skills, groups, video, reason, skill, title_key)]
     rest = minutes - video
     if rest >= MIN_BLOCK:
-        if skill in TEST_MINUTES and skill != "writing":
+        if skill in ("listening", "reading"):
             blocks += _tests(inputs, t, skill, rnd, rest, reason)
+        elif skill == "writing":
+            task = 2 if skills == ["W2"] else 1
+            blocks += _writing(inputs, t, task, rest, reason)
         else:
-            blocks += _overflow(inputs, t, rest, reason)
+            blocks += _speaking(inputs, t, rest, reason)
     return blocks
+
+
+def _writing(inputs: PlanInputs, t: dict, task: int, minutes: int, reason: str) -> list[Block]:
+    per = T1_MINUTES if task == 1 else T2_MINUTES
+    count = max(1, min(MAX_WRITING_TASKS, round(minutes * WRITE_SHARE / per)))
+    if count * per > minutes:
+        count = max(1, minutes // per)
+    used = min(minutes, count * per)
+    blocks = [Block("exam", "writing", f"W-T{task}", used, None, t[f"W-T{task}.title"],
+                    t[f"W-T{task}x.do"].format(n=count), reason,
+                    {"kind": "writing", "task": task, "count": count})]
+    rest = minutes - used
+    video = min(_round5(rest / 2) if rest >= 40 else rest, MAX_PRACTICE_VIDEO)
+    if video >= 10:
+        blocks.append(Block("exam", "writing", "P-VID", video, TECHNIQUES,
+                            t["PVID.title"].format(skill=t["skill"]["writing"]), t["PVID.do"],
+                            reason, {"kind": "videos", "groups": ["practice", "high"],
+                                     "skills": [f"W{task}"], "minutes": video}))
+        rest -= video
+    return blocks + _overflow(inputs, t, rest, reason)
+
+
+def _speaking(inputs: PlanInputs, t: dict, minutes: int, reason: str) -> list[Block]:
+    practice = min(MAX_SPEAKING, _round5(minutes / 2) if minutes >= 40 else minutes)
+    blocks = [Block("exam", "speaking", "S-PRAC", practice, SPEAK_IELTS,
+                    t["S-PRAC.title"], t["S-PRAC.do"], reason, None)]
+    rest = minutes - practice
+    video = min(_round5(rest / 2) if rest >= 40 else rest, MAX_PRACTICE_VIDEO)
+    if video >= 10:
+        blocks.append(Block("exam", "speaking", "P-VID", video, TECHNIQUES,
+                            t["PVID.title"].format(skill=t["skill"]["speaking"]), t["PVID.do"],
+                            reason, {"kind": "videos", "groups": ["practice", "high"],
+                                     "skills": ["S"], "minutes": video}))
+        rest -= video
+    return blocks + _overflow(inputs, t, rest, reason)
 
 
 def _focus_blocks(inputs: PlanInputs, t: dict, d: date, focus: int) -> list[Block]:
@@ -800,37 +848,13 @@ def _focus_blocks(inputs: PlanInputs, t: dict, d: date, focus: int) -> list[Bloc
                                  "providers": (["engnovate", "ieltsonlinetests"] if rnd >= 2
                                                else ["ieltsonlinetests"]), "count": 1}))
             focus -= blocks[0].minutes
-        per = T1_MINUTES if task == 1 else T2_MINUTES
-        count = min(MAX_WRITING_TASKS, focus // per)
-        if count >= 1:
-            blocks.append(Block("exam", "writing", f"W-T{task}", count * per, None,
-                                t[f"W-T{task}.title"], t[f"W-T{task}x.do"].format(n=count),
-                                reason, {"kind": "writing", "task": task, "count": count}))
-            focus -= count * per
-        video = min(focus, MAX_PRACTICE_VIDEO)
-        if video >= 10:
-            blocks.append(Block("exam", "writing", "P-VID", video, TECHNIQUES,
-                                t["PVID.title"].format(skill=t["skill"]["writing"]),
-                                t["PVID.do"], reason,
-                                {"kind": "videos", "groups": ["practice", "high"],
-                                 "skills": [f"W{task}"], "minutes": video}))
-            focus -= video
-        return blocks + _overflow(inputs, t, focus, reason)
+            if focus < MIN_BLOCK:
+                return blocks
+        return blocks + _writing(inputs, t, task, focus, reason)
     # speaking
     if k == 0:
         return _techniques(inputs, t, ["S"], groups, focus, reason, "speaking", rnd)
-    practice = min(focus, MAX_SPEAKING)
-    blocks = [Block("exam", "speaking", "S-PRAC", practice, SPEAK_IELTS,
-                    t["S-PRAC.title"], t["S-PRAC.do"], reason, None)]
-    focus -= practice
-    video = min(focus, MAX_PRACTICE_VIDEO)
-    if video >= 10:
-        blocks.append(Block("exam", "speaking", "P-VID", video, TECHNIQUES,
-                            t["PVID.title"].format(skill=t["skill"]["speaking"]), t["PVID.do"],
-                            reason, {"kind": "videos", "groups": ["practice", "high"],
-                                     "skills": ["S"], "minutes": video}))
-        focus -= video
-    return blocks + _overflow(inputs, t, focus, reason)
+    return _speaking(inputs, t, focus, reason)
 
 
 def novel_level(mean_band: float | None) -> str:
@@ -852,10 +876,17 @@ def day_blocks(inputs: PlanInputs, d: date) -> tuple[str, list[Block]]:
         providers = (["britishcouncil", "dalilk"]
                      if inputs.exam_format == "computer" and offset == max(FINAL_MOCK_OFFSETS)
                      else ["dalilk"])
-        return kind, [Block("exam", "general", "MOCK", MOCK_MINUTES, None, t["MOCK.title"],
-                            t["MOCK.do"], t["FINAL.reason"],
-                            {"kind": "tests", "skills": ["full"], "providers": providers,
-                             "count": 1})]
+        blocks = [Block("exam", "general", "MOCK", MOCK_MINUTES, None, t["MOCK.title"],
+                        t["MOCK.do"], t["FINAL.reason"],
+                        {"kind": "tests", "skills": ["full"], "providers": providers,
+                         "count": 1})]
+        rest = inputs.daily_minutes - MOCK_MINUTES
+        if rest >= 20:  # a long day: review the test's mistakes, then light input
+            review = min(MOCK_REVIEW_MAX, _round5(rest * 0.4))
+            blocks.append(Block("exam", "general", "MOCK-REV", review, None,
+                                t["MOCKREV.title"], t["MOCKREV.do"], t["FINAL.reason"], None))
+            blocks += _overflow(inputs, t, rest - review, t["FINAL.reason"])
+        return kind, [b for b in blocks if b.minutes >= MIN_BLOCK]
     if kind == "review":
         minutes = min(REVIEW_MAX_MINUTES, max(30, inputs.daily_minutes))
         return kind, [Block("exam", "techniques", "T-STRAT", minutes, TECHNIQUES,

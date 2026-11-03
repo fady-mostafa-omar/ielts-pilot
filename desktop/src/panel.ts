@@ -30,17 +30,13 @@ export const LIBRARY_NAME = /^[A-Za-z0-9][A-Za-z0-9._ ()-]{0,200}$/;
 
 export type PanelTarget = { url: string } | { library: string } | { video: string };
 
-// v0.0.8: one YouTube video, alone (D-036): the embed player only, navigation locked,
-// YouTube's own suggestion overlays hidden, and its playing state reported to the UI.
+// One YouTube video, alone (D-036): YouTube's own embedded player with its controls,
+// navigation locked to that video, and its playing state reported to the UI so the app
+// moves to the next lesson when it ends. YouTube's player itself is not modified.
 const VIDEO_ID = /^[A-Za-z0-9_-]{11}$/;
 const EMBED = "https://www.youtube-nocookie.com/embed/";
 const EMBED_QUERY = "?autoplay=1&rel=0&modestbranding=1&playsinline=1&iv_load_policy=3&fs=0";
-const HIDE_OVERLAYS = `
-  .ytp-pause-overlay, .ytp-endscreen-content, .ytp-ce-element, .ytp-chrome-top,
-  .ytp-youtube-button, .ytp-watermark, .ytp-show-cards-title, .ytp-cards-teaser,
-  .ytp-suggested-action, .ytp-impression-link, .ytp-videowall-still,
-  .ytp-endscreen-previous, .ytp-endscreen-next, .ytp-related-on-error-overlay
-  { display: none !important; }`;
+
 const MEDIA_PROBE = `(() => { const v = document.querySelector('video');
   return v ? { current: v.currentTime || 0, duration: v.duration || 0, ended: v.ended,
   paused: v.paused } : null; })()`;
@@ -266,11 +262,6 @@ export class StudyPanel {
       update();
     });
     wc.on("did-stop-loading", update);
-    wc.on("dom-ready", () => {
-      if (this.videoId && wc.getURL().startsWith(EMBED)) {
-        void wc.insertCSS(HIDE_OVERLAYS).catch(() => undefined);
-      }
-    });
     wc.on("did-navigate", update);
     wc.on("did-navigate-in-page", update);
     wc.on("page-title-updated", update);

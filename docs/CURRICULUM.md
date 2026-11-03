@@ -67,11 +67,11 @@ Sessions count toward a part by their skill: listening → listening; reading �
 
 Writing and speaking blocks in Track A (W-REV, S-FLU) count toward that skill. Grammar and vocabulary are support skills funded from Track A (§4 step 4).
 
-## 4b. Planner-4 — Dalilk's 90-day method (v0.0.8, D-035, implemented in `backend/app/planner.py`)
+## 4b. Planner-4/5 — Dalilk's 90-day method (v0.0.8, D-035; `planner-5` in v0.0.9, D-038; implemented in `backend/app/planner.py`)
 
 Supersedes the daily mix of §4a; the estimate (D-023), the final days (D-024 without the two-weekly mock) and the spelling days stay.
 
-**Day = focus block + development hour.** Development minutes *v* = min(60, half the daily time, rounded to 5). Writing and speaking get 5 min each when *v* ≥ 40; listening = 60 % of the rest (rounded to 5), reading the remainder → 30 / 20 / 5 / 5 for a 3-hour day. Focus minutes = daily − *v*. Tasks run focus first, development hour last (Dalilk advises keeping the development hour at its own time of day).
+**Day = focus block + development time** (v0.0.9, owner 2026-11-03: it scales with the day). Development = a third of the daily time (Dalilk: 1 h of 3), rounded to 5, split 30:20:5:5 — writing and speaking each 1/12 of it (at least 5 min, none below 30 min of development), listening 60 % of the rest, reading the remainder: 2 h → 20/10/5/5, 3 h → 30/20/5/5, 6 h → 60/40/10/10. Focus = the other two thirds. Tasks run focus first, development last (Dalilk advises keeping the development time at its own time of day).
 
 **Weeks** are calendar weeks from Saturday, counted from the plan start. Study weeks *W* = weeks up to the last study day (exam − 5); with no exam date, *W* = 12 and weeks after 12 repeat the consolidation round.
 
@@ -91,7 +91,7 @@ Development weeks run listening first, then reading, in blocks of two weeks (one
 - Exam speaking: day 0 technique videos; later days the expected questions (DLK-19) and speaking practice videos.
 - Consolidation round: the same; videos already watched are not shown again, so technique days move on to the high-target and practice videos; practice tests start with Cambridge IELTS 21 → 19 (engnovate), then ieltsonlinetests.
 
-**Daily caps** (so a long day does not become a wall of tests): technique videos ≤ 3 h, practice tests ≤ 4, practice videos ≤ 2 h, writing answers ≤ 4, speaking practice ≤ 1 h; the rest of the focus time goes to podcast (60 %) and novels (40 %). Videos are taken in catalogue order, skipping any that does not fit the time left (it comes on a day with more time). The development hour's podcast and novel time joins the focus block's when both are the same content.
+**Focus time is shared in the exam weeks** (v0.0.9): technique days 60 % videos, 40 % practice right away (tests for listening/reading, answers for writing, speaking practice); test days about half the focus in tests (each with its review time), the rest half practice videos, half podcast + novels; writing days about 60 % answers; speaking days half speaking practice. On a final test day the full test keeps its real time and, when the day is longer, up to 60 min of reviewing its mistakes then podcast + novels. **Caps:** technique videos ≤ 4 h, practice tests ≤ 4, practice videos ≤ 2 h, writing answers ≤ 4, speaking practice ≤ 1 h; whatever is left goes to podcast (60 %) and novels (40 %). Videos are taken in catalogue order, skipping any that does not fit the time left (it comes on a day with more time). The development hour's podcast and novel time joins the focus block's when both are the same content.
 
 **Development hour:** listening = podcast; reading = novel; writing = 5 sentences on the writing pad; speaking = speaking aloud, or in development weeks the next video of Dalilk's daily-phrases series (its real length, taken from the focus block). The spelling challenge (15 min) takes listening time on two fixed days in development weeks.
 

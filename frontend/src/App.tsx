@@ -179,6 +179,8 @@ export function App() {
             {page.kind === "library" && (
               <LibraryScreen
                 initialFilter={page.skill}
+                levels={phase.levels}
+                examFormat={phase.settings.exam_format}
                 onStudy={(study) => setPage({ kind: "study", study, back: page })}
               />
             )}

@@ -454,7 +454,7 @@ export function HomeScreen(props: {
               <div className="row wrap">
                 <button
                   className="btn primary big-btn"
-                  onClick={() => props.onStudy(studyTargetFor(lastOpened))}
+                  onClick={() => props.onStudy(studyTargetFor(lastOpened, { levels, format: null }))}
                 >
                   <Icon name="play" size={16} /> {t("home_continue_btn")}
                 </button>

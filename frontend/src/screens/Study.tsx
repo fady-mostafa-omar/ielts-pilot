@@ -652,7 +652,14 @@ export function StudyScreen(props: {
           />
         )}
 
-        {queueContent && <QueueSide content={queueContent} queue={queue} position={videoPosition} />}
+        {queueContent && (
+          <QueueSide
+            content={queueContent}
+            queue={queue}
+            position={videoPosition}
+            onNextTask={focus ? () => void next() : undefined}
+          />
+        )}
 
         {study.timer && !finishing && (
           <>
@@ -880,9 +887,11 @@ export function StudyScreen(props: {
                       <Icon name="check" size={44} color="#15803D" />
                     </div>
                     <p className="lead">
-                      {queue.items && queue.items.length > 0
-                        ? t("q_all_done")
-                        : t(`q_empty_${queueContent.kind}`)}
+                      {queue.finishedNovel
+                        ? t(focus ? "q_novel_choose_focus" : "q_novel_choose")
+                        : queue.items && queue.items.length > 0
+                          ? t("q_all_done")
+                          : t(`q_empty_${queueContent.kind}`)}
                     </p>
                   </>
                 )}
