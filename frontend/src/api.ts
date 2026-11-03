@@ -182,7 +182,13 @@ export const api = {
   podcastNext: (feed: PodcastFeed) => request<Episode>(`podcasts/${feed}/next`),
   podcastPatch: (
     id: number,
-    patch: { position_seconds?: number; listened?: boolean; comprehension?: number; started?: boolean },
+    patch: {
+      position_seconds?: number;
+      listened?: boolean;
+      comprehension?: number;
+      started?: boolean;
+      stage?: number;
+    },
   ) => request<Episode>(`podcasts/episodes/${id}`, json("PATCH", patch)),
 
   contentQueue: (params: Record<string, string | number | boolean | undefined>) => {
@@ -191,6 +197,8 @@ export const api = {
     return request<ContentItem[]>(`content/queue?${q.toString()}`);
   },
   contentStart: (id: number) => request<ContentItem>(`content/${id}/start`, { method: "POST" }),
+  contentPosition: (id: number, url: string) =>
+    request<ContentItem>(`content/${id}/position`, json("POST", { url })),
   contentDone: (id: number) => request<ContentItem>(`content/${id}/done`, { method: "POST" }),
 
   achievements: () =>

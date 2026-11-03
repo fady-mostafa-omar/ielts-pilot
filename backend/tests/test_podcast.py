@@ -83,6 +83,19 @@ def test_next_episode_flow(client: TestClient) -> None:
     assert listing["listened"] == 3
 
 
+def test_stage_is_kept_for_the_next_day(client: TestClient) -> None:
+    # 0008: a podcast left at stage 3 (position back at 0) is the one to carry on
+    _import(client)
+    eps = client.get("/api/v1/podcasts/dalilk_ielts").json()["episodes"]
+    assert eps[0]["stage"] == 1
+    ep3 = eps[2]["id"]
+    r = client.patch(f"/api/v1/podcasts/episodes/{ep3}", json={"stage": 3, "position_seconds": 0})
+    assert r.json()["stage"] == 3
+    nxt = client.get("/api/v1/podcasts/dalilk_ielts/next").json()
+    assert nxt["number"] == 3 and nxt["stage"] == 3
+    assert client.patch(f"/api/v1/podcasts/episodes/{ep3}", json={"stage": 5}).status_code == 422
+
+
 def test_import_keeps_progress(client: TestClient) -> None:
     _import(client)
     ep = client.get("/api/v1/podcasts/dalilk_ielts/next").json()

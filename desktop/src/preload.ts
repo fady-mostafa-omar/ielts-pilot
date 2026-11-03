@@ -34,6 +34,8 @@ contextBridge.exposeInMainWorld("ipBridge", {
   clearWebData: (): Promise<void> => ipcRenderer.invoke("ip:clear-web-data"),
   podcastFeed: (feed: string): Promise<string> => ipcRenderer.invoke("ip:podcast-feed", feed),
   openExternal: (url: string): Promise<boolean> => ipcRenderer.invoke("ip:open-external", url),
+  saveRecording: (data: ArrayBuffer): Promise<string> =>
+    ipcRenderer.invoke("ip:save-recording", data),
   panel: {
     open: (target: PanelTarget, keepSignIn: boolean): Promise<unknown> =>
       ipcRenderer.invoke("ip:panel-open", target, keepSignIn),

@@ -67,11 +67,13 @@ Sessions count toward a part by their skill: listening → listening; reading �
 
 Writing and speaking blocks in Track A (W-REV, S-FLU) count toward that skill. Grammar and vocabulary are support skills funded from Track A (§4 step 4).
 
-## 4b. Planner-4/5 — Dalilk's 90-day method (v0.0.8, D-035; `planner-5` in v0.0.9, D-038; implemented in `backend/app/planner.py`)
+## 4b. Planner-4/5/6 — Dalilk's 90-day method (v0.0.8, D-035; `planner-5` in v0.0.9, D-038; `planner-6` in v0.0.10, D-039; implemented in `backend/app/planner.py`)
 
 Supersedes the daily mix of §4a; the estimate (D-023), the final days (D-024 without the two-weekly mock) and the spelling days stay.
 
-**Day = focus block + development time** (v0.0.9, owner 2026-11-03: it scales with the day). Development = a third of the daily time (Dalilk: 1 h of 3), rounded to 5, split 30:20:5:5 — writing and speaking each 1/12 of it (at least 5 min, none below 30 min of development), listening 60 % of the rest, reading the remainder: 2 h → 20/10/5/5, 3 h → 30/20/5/5, 6 h → 60/40/10/10. Focus = the other two thirds. Tasks run focus first, development last (Dalilk advises keeping the development time at its own time of day).
+**Day = focus block + development time on Dalilk's ratio** (owner 2026-11-03, D-039): his 3-hour day is 2 h on the week's skill + 1 h development, scaled to the real daily time. Development = a third of the day, **never under one hour** (or the whole day when it is shorter), rounded to 5, split 30:20:5:5 — writing and speaking each 1/12 of it (at least 5 min), listening 60 % of the rest, reading the remainder: 2 h → 30/20/5/5 + 1 h focus, 3 h → 30/20/5/5 + 2 h, 6 h → 60/40/10/10 + 4 h. Tasks run focus first, development last (Dalilk advises keeping the development time at its own time of day).
+
+**Units** (D-039): a podcast = 4 stages × 15 min (listen without the PDF, listen with it, shadowing, reading for meaning) = 1 h; the day's podcast time is rounded to whole stages (the novel takes the difference) and a podcast left half-way carries on the next day from its stage. A novel = 30 min on average; a task holds round(minutes ÷ 30) novels, and a novel left half-way carries on the next day. Technique days never cut a test below the exam's own time (listening 30, reading 60): the videos give way, or the day stays videos only; a test day too short for a whole test gets a practice video instead. Final test days: the full test, a mistakes review, then the development split on the rest. Every speaking task starts with a one-minute recording.
 
 **Weeks** are calendar weeks from Saturday, counted from the plan start. Study weeks *W* = weeks up to the last study day (exam − 5); with no exam date, *W* = 12 and weeks after 12 repeat the consolidation round.
 

@@ -262,6 +262,7 @@ class ContentItem(Base):
     active: Mapped[bool] = mapped_column(Boolean, default=True)
     started_at: Mapped[datetime | None] = mapped_column(UTCDateTime)
     completed_at: Mapped[datetime | None] = mapped_column(UTCDateTime)
+    position_url: Mapped[str | None] = mapped_column(String(1000))  # 0008: novel's last page
     created_at: Mapped[datetime] = mapped_column(UTCDateTime)
     updated_at: Mapped[datetime] = mapped_column(UTCDateTime)
 
@@ -284,6 +285,7 @@ class PodcastEpisode(Base):
             "comprehension IS NULL OR comprehension BETWEEN 1 AND 5", name="comprehension"
         ),
         CheckConstraint("position_seconds >= 0", name="position"),
+        CheckConstraint("stage BETWEEN 1 AND 4", name="stage"),
         Index("ix_podcast_feed_number", "feed", "number"),
     )
 
@@ -299,6 +301,8 @@ class PodcastEpisode(Base):
     transcript_id: Mapped[str | None] = mapped_column(String(100))  # Google Drive file id
     summary: Mapped[str] = mapped_column(Text, default="")
     position_seconds: Mapped[int] = mapped_column(Integer, default=0)
+    # 0008: the stage reached (1 listen, 2 listen + PDF, 3 shadowing, 4 reading)
+    stage: Mapped[int] = mapped_column(Integer, default=1, server_default="1")
     plays: Mapped[int] = mapped_column(Integer, default=0)
     comprehension: Mapped[int | None] = mapped_column(Integer)  # owner's 1–5 rating
     listened_at: Mapped[datetime | None] = mapped_column(UTCDateTime)

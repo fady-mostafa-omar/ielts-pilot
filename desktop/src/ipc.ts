@@ -9,7 +9,7 @@ import {
   shell,
   type IpcMainInvokeEvent,
 } from "electron";
-import { copyFile, mkdir } from "node:fs/promises";
+import { copyFile, mkdir, writeFile } from "node:fs/promises";
 import { basename, extname, join } from "node:path";
 import { clearWebData, type Bounds, type PanelTarget, type StudyPanel } from "./panel";
 import { APP_ORIGIN } from "./protocol";
@@ -90,6 +90,8 @@ function guard<A extends unknown[], R>(
   };
 }
 
+const MAX_RECORDING_BYTES = 20 * 1024 * 1024; // a minute of speech is well under 1 MB
+
 function stamp(): string {
   return new Date().toISOString().replace(/[-:]/g, "").replace("T", "-").slice(0, 15);
 }
@@ -157,6 +159,22 @@ export function registerIpc(deps: IpcDeps): void {
       const fileName = safeFileName(basename(source));
       await copyFile(source, join(libraryDir(), fileName));
       return { fileName, title: basename(source, extname(source)), format };
+    }),
+  );
+
+  // v0.0.10: the speaking recorder's one-minute recordings stay in the data folder
+  ipcMain.handle(
+    "ip:save-recording",
+    guard(async (_event, data: unknown) => {
+      if (!(data instanceof ArrayBuffer) || data.byteLength === 0) {
+        throw new Error("invalid recording");
+      }
+      if (data.byteLength > MAX_RECORDING_BYTES) throw new Error("recording too large");
+      const dir = join(deps.dataDir(), "recordings");
+      await mkdir(dir, { recursive: true });
+      const fileName = `speaking-${stamp()}.webm`;
+      await writeFile(join(dir, fileName), Buffer.from(data));
+      return fileName;
     }),
   );
 

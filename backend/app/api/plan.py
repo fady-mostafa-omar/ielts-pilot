@@ -212,11 +212,12 @@ def _content_totals(session: Session | None, inputs: planner.PlanInputs) -> dict
     return {
         "days": minutes["days"],
         "podcast_minutes": minutes["podcast"],
-        "episodes": round(minutes["podcast"] / (4 * avg_episode)),
+        # owner, 2026-11-03: a podcast = 4 stages × 15 min = 1 h; a novel = 30 min on average
+        "episodes": round(minutes["podcast"] / planner.PODCAST_MINUTES),
         "episode_minutes": round(avg_episode, 1),
         "episode_measured": measured_episode,
         "novel_minutes": minutes["novel"],
-        "novels": round(minutes["novel"] / 60),
+        "novels": round(minutes["novel"] / planner.NOVEL_MINUTES),
         "videos": int(video_count) + minutes["phrase_videos"],
         "video_hours": round((video_seconds + minutes["phrase_videos"] * 20 * 60) / 3600, 1),
         "tests": minutes["tests"],

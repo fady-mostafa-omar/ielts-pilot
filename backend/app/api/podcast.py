@@ -38,6 +38,7 @@ class EpisodeOut(BaseModel):
     transcript_url: str | None
     summary: str
     position_seconds: int
+    stage: int = 1
     plays: int
     comprehension: int | None
     listened_at: datetime | None
@@ -50,6 +51,7 @@ class EpisodePatch(BaseModel):
     listened: bool | None = None
     comprehension: int | None = Field(default=None, ge=1, le=5)
     started: bool | None = None  # counts one more play
+    stage: int | None = Field(default=None, ge=1, le=4)  # 0008: the four stages
 
 
 def _out(row: PodcastEpisode) -> EpisodeOut:
@@ -152,7 +154,7 @@ def next_episode(feed: Feed, ctx: Ctx) -> EpisodeOut:
         base = select(PodcastEpisode).where(PodcastEpisode.feed == feed)
         started = session.scalars(
             base.where(PodcastEpisode.listened_at.is_(None))
-            .where(PodcastEpisode.position_seconds > 0)
+            .where((PodcastEpisode.position_seconds > 0) | (PodcastEpisode.stage > 1))
             .order_by(PodcastEpisode.updated_at.desc())
             .limit(1)
         ).first()
@@ -175,12 +177,15 @@ def patch_episode(episode_id: int, body: EpisodePatch, ctx: Ctx) -> EpisodeOut:
             row.position_seconds = body.position_seconds
         if body.started:
             row.plays += 1
+        if body.stage is not None:
+            row.stage = body.stage
         if body.comprehension is not None:
             row.comprehension = body.comprehension
         if body.listened is not None:
             row.listened_at = now if body.listened else None
             if body.listened:
                 row.position_seconds = 0
+                row.stage = 1
         row.updated_at = now
         session.flush()
         return _out(row)

@@ -354,6 +354,7 @@ export interface Episode {
   transcript_url: string | null;
   summary: string;
   position_seconds: number;
+  stage: number; // 1 listen · 2 listen + PDF · 3 shadowing · 4 reading (0008)
   plays: number;
   comprehension: number | null;
   listened_at: string | null;
@@ -371,6 +372,8 @@ export interface Bridge {
   restartBackend(options?: { restoreCompatible?: boolean }): Promise<string>;
   podcastFeed(feed: PodcastFeed): Promise<string>;
   openExternal(url: string): Promise<boolean>;
+  /** v0.0.10: keeps a speaking recording in the data folder; returns its file name */
+  saveRecording?(data: ArrayBuffer): Promise<string>;
   setFullScreen(on: boolean): Promise<boolean>;
   updates: UpdateBridge;
   openFolder(which: "data" | "backups"): Promise<boolean>;
@@ -407,7 +410,7 @@ export interface Achievements {
 export type NovelLevel = "beginner" | "intermediate" | "upper";
 export type TaskContent =
   | { kind: "podcast"; feed: PodcastFeed }
-  | { kind: "novel"; level: NovelLevel }
+  | { kind: "novel"; level: NovelLevel; count?: number }
   | {
       kind: "videos";
       groups: string[];
@@ -433,6 +436,7 @@ export interface ContentItem {
   url: string;
   started_at: string | null;
   completed_at: string | null;
+  position_url: string | null; // a novel's last page (0008)
 }
 
 export interface ContentTotals {

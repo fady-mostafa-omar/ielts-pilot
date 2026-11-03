@@ -198,6 +198,7 @@ Index `(plan_date, status)`. Planner settings live in `app_settings`: `hours_per
 | position_seconds | INTEGER | ≥ 0, where the owner stopped |
 | plays | INTEGER | times started |
 | comprehension | INTEGER NULL | 1–5, owner's own rating |
+| stage | INTEGER | 0008: 1–4 (CHECK) — listen, listen + PDF, shadowing, reading; kept so the next day carries on; back to 1 when the episode is done |
 | listened_at | DATETIME NULL | |
 | created_at, updated_at | DATETIME | |
 
@@ -219,6 +220,7 @@ Index `(feed, number)`. Re-importing the feed updates titles and links by `guid`
 | url | TEXT | https only |
 | active | BOOLEAN | false when an item left the catalogue (progress kept) |
 | started_at, completed_at | DATETIME NULL | the owner's progress; never touched by a sync |
+| position_url | TEXT NULL | 0008: a novel's last page (same flip-book only), to carry on from there |
 | created_at, updated_at | DATETIME | |
 
 Index `(kind, sort)`. Synced at start from `content/catalog/items/*.csv` (facts only, D-036). `plan_tasks.content_json` holds what a task opens (CURRICULUM §4b), e.g. `{"kind": "videos", "groups": [...], "skills": ["L"], "minutes": 120}`; `app_settings.exam_format` = `computer` | `paper` (D-037).
@@ -327,6 +329,7 @@ Index `(next_review_at)`.
 | 0005 | 2b-1 | add `podcast_episodes` |
 | 0006 | 0.0.6 | `podcast_episodes.feed` also allows `dalilk_english` (table rebuilt, rows and ids kept; downgrade drops English rows) |
 | 0007 | 0.0.8 | add `content_items`; `plan_tasks.content_json` |
+| 0008 | 0.0.10 | `podcast_episodes.stage` (1–4, default 1); `content_items.position_url` |
 
 
 - One Alembic revision per schema change; `alembic_version` holds the schema version.

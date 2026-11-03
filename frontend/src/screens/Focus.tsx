@@ -8,15 +8,17 @@ import { useI18n } from "../i18n";
 import { Icon } from "../icons";
 import { formatHM, todayIso } from "../plan";
 import type { AppSettings, DayKind, PlanTask, Resource } from "../types";
-import { isQueueContent } from "./ContentQueue";
+import { isQueueContent, NOVEL_MINUTES } from "./ContentQueue";
 import { Interlude, interludeSeconds } from "./Interlude";
 import { podcastFeedOf } from "./Library";
+import { STAGE_MINUTES } from "./Listening";
 import { StudyScreen, type StudyTarget } from "./Study";
 
 function targetFor(task: PlanTask, resource: Resource | null): StudyTarget {
   const content = task.content;
   if (isQueueContent(content)) {
-    // planner-4: the task's own videos / novel / tests, opened directly
+    // planner-4: the task's own videos / novel / tests, opened directly; v0.0.10: a novel
+    // is about 30 minutes, so a longer task holds several, one after the other
     return {
       title: task.title,
       target: null,
@@ -24,7 +26,10 @@ function targetFor(task: PlanTask, resource: Resource | null): StudyTarget {
       skill: task.skill,
       activityCode: task.activity_code,
       timer: true,
-      queue: content,
+      queue:
+        content.kind === "novel"
+          ? { ...content, count: Math.max(1, Math.round(task.planned_minutes / NOVEL_MINUTES)) }
+          : content,
     };
   }
   if (content?.kind === "writing") {
@@ -47,6 +52,7 @@ function targetFor(task: PlanTask, resource: Resource | null): StudyTarget {
       activityCode: task.activity_code,
       timer: true,
       podcast: feed,
+      podcastStages: Math.max(1, Math.round(task.planned_minutes / STAGE_MINUTES)),
     };
   }
   return {

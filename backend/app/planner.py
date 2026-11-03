@@ -21,7 +21,7 @@ import math
 from dataclasses import asdict, dataclass, field
 from datetime import date, timedelta
 
-GENERATOR = "planner-5"  # v0.0.9: a third of the day for development (D-038)
+GENERATOR = "planner-6"  # v0.0.10: at least 1 h of development, podcast/novel units (D-039)
 SKILLS = ("listening", "reading", "writing", "speaking")
 DEV_SHARE = {"foundation": 0.75, "development": 0.6, "exam": 0.35}
 FINAL_MOCK_OFFSETS = (4, 3, 2)  # days before the exam
@@ -331,19 +331,19 @@ TEXT = {
         "weekday": {0: "الأحد", 1: "الاتنين", 2: "التلات", 3: "الأربع", 4: "الخميس",
                     5: "الجمعة", 6: "السبت"},
         "and": " و",
-        "L-EXT.title": "استماع ممتد",
-        "L-EXT.do": "اسمع حلقة كاملة من غير ما توقف كتير. أي كلمة جديدة اكتبها في الملاحظات.",
+        "L-EXT.title": "بودكاست بالمراحل الأربعة",
+        "L-EXT.do": "كل بودكاست ساعة: 4 مراحل كل واحدة ربع ساعة — اسمع من غير PDF، اسمع مع الـ PDF، شادوينج، وقراءة بفهم. لو الوقت خلص في نص البودكاست، بكرة بتكمّل من نفس المرحلة.",
         "L-SPELL.title": "تحدي الإملاء",
         "L-SPELL.do": "اسمع واكتب الكلمات بالحروف الصح — الأسماء والأرقام والتواريخ بتضيّع درجات "
         "في الاستماع لو اتكتبت غلط.",
         "L-SPELL.reason": "الإملاء ليه يومين ثابتين في الأسبوع ({days}) في أسابيع التطوير.",
         "R-EXT.title": "قراءة رواية على مستواك",
-        "R-EXT.do": "كمّل الرواية اللي على مستواك. الكلمات الجديدة اكتبها في الملاحظات.",
+        "R-EXT.do": "الرواية حوالي نص ساعة. لو الوقت خلص قبلها، بكرة بتكمّل نفس الرواية. الكلمات الجديدة اكتبها في الملاحظات.",
         "S-FLU.title": "محادثة بصوت عالي",
-        "S-FLU.do": "اختار سؤال أو موقف واتكلم بصوت عالي دقيقتين في كل مرة. كرّر بإجابة أحسن.",
+        "S-FLU.do": "ابدأ بتسجيل دقيقة: اتكلم عن يومك أو عرّف نفسك، واسمع نفسك. وبعدين اختار سؤال أو موقف واتكلم بصوت عالي.",
         "W-REV.title": "كتابة حرة",
         "W-REV.do": "اكتب فقرة 120–150 كلمة عن أي موضوع، وبعدين راجعها وصلّح غلطاتك.",
-        "dev.reason": "ساعة التطوير بتاعة دليلك: كل يوم 30 دقيقة استماع + 20 قراءة + 5 كتابة + 5 محادثة.",
+        "dev.reason": "تطوير دليلك بنسب 30 استماع : 20 قراءة : 5 كتابة : 5 محادثة — ساعة على الأقل كل يوم، وبيكبر مع وقتك.",
         "devL.reason": "أسبوع تطوير الاستماع (خطة دليلك): ساعات التركيز كلها بودكاست على مستواك.",
         "devR.reason": "أسبوع تطوير القراءة (خطة دليلك): ساعات التركيز كلها روايات على مستواك.",
         "round.reason": "أسبوع {skill} (الدورة {round} من خطة دليلك): أول يومين تكنيكات، وبعدها تدريب.",
@@ -351,9 +351,9 @@ TEXT = {
         "MOCKREV.title": "مراجعة غلطات الاختبار",
         "MOCKREV.do": "ارجع لكل سؤال غلطت فيه في الاختبار: ليه غلطت؟ واكتب التركة اللي كانت هتحله.",
         "FOCUS-L.title": "ساعات الاستماع",
-        "FOCUS-L.do": "اسمع حلقات البودكاست بالخطوات. لو تعبت خد 5 دقايق بريك كل نص ساعة وكمّل.",
+        "FOCUS-L.do": "بودكاست ورا بودكاست بالمراحل الأربعة، كل مرحلة ربع ساعة. لو تعبت خد 5 دقايق بريك كل نص ساعة وكمّل.",
         "FOCUS-R.title": "ساعات القراءة",
-        "FOCUS-R.do": "اقرأ رواية على مستواك واستمتع بيها. الكلمات الجديدة اكتبها في الملاحظات.",
+        "FOCUS-R.do": "رواية ورا رواية على مستواك، كل رواية حوالي نص ساعة. الكلمات الجديدة اكتبها في الملاحظات.",
         "DEVVID.title": "إزاي تبدأ: فيديو قصير",
         "VID.title": "فيديوهات تكنيكات {skill}",
         "VID.do": "الفيديوهات بتشتغل ورا بعض ملء الشاشة. اكتب أهم التركات في الملاحظات.",
@@ -368,7 +368,7 @@ TEXT = {
         "W-DEV.title": "كتابة يومية",
         "W-DEV.do": "اكتب 5 جمل أو أكتر عن يومك أو عن اللي سمعته وقريته النهارده.",
         "S-PHRASE.title": "العبارات اليومية (فيديو)",
-        "S-PHRASE.do": "فيديو من سلسلة العبارات اليومية بالترتيب. ردّد العبارات بصوت عالي.",
+        "S-PHRASE.do": "ابدأ بتسجيل دقيقة عن يومك أو عرّف نفسك، وبعدين فيديو العبارات اليومية بالترتيب وردّد العبارات بصوت عالي.",
         "T-STRAT.title": "تكنيكات {skill}",
         "T-STRAT.do": "اتفرج على فيديو تكنيكات {skill} من سلسلة أهم التكنيكات، واكتب أهم 3 تركات "
         "في الملاحظات.",
@@ -384,7 +384,7 @@ TEXT = {
         "W-T2.do": "اكتب Task 2 في 40 دقيقة (250 كلمة على الأقل). بعدها قارنها بنموذج رسمي "
         "من المكتبة.",
         "S-PRAC.title": "تدريب Speaking بالوقت",
-        "S-PRAC.do": "جاوب أسئلة Part 1 و2 و3 بصوت عالي بالوقت: Part 2 دقيقة تحضير ودقيقتين كلام.",
+        "S-PRAC.do": "ابدأ بتسجيل دقيقة عن يومك أو عرّف نفسك. وبعدين جاوب أسئلة Part 1 و2 و3 بصوت عالي بالوقت: Part 2 دقيقة تحضير ودقيقتين كلام.",
         "exam.reason": "أسبوع {skill} في جزء الامتحان (فرقك فيها {gap}). نفس ترتيب جدول دليلك: "
         "تكنيك الأول، وبعدين تدريب.",
         "MOCK.title": "اختبار تجريبي كامل",
@@ -408,20 +408,20 @@ TEXT = {
         "weekday": {0: "Sunday", 1: "Monday", 2: "Tuesday", 3: "Wednesday", 4: "Thursday",
                     5: "Friday", 6: "Saturday"},
         "and": " and ",
-        "L-EXT.title": "Extended listening",
-        "L-EXT.do": "Listen to a whole episode without stopping much. Note new words.",
+        "L-EXT.title": "Podcast in four stages",
+        "L-EXT.do": "Each podcast is an hour: four 15-minute stages — listen without the PDF, listen with it, shadowing, then read it for meaning. If time runs out mid-podcast, tomorrow carries on from the same stage.",
         "L-SPELL.title": "Spelling challenge",
         "L-SPELL.do": "Listen and write the words with the right spelling — names, numbers and "
         "dates cost Listening marks when misspelt.",
         "L-SPELL.reason": "Spelling has two fixed days a week ({days}) in the development weeks.",
         "R-EXT.title": "Read a story at your level",
-        "R-EXT.do": "Read from a story at your level and enjoy it. Note new words.",
+        "R-EXT.do": "A novel takes about half an hour. If time runs out first, tomorrow carries on with the same one. Note new words.",
         "S-FLU.title": "Speak out loud",
-        "S-FLU.do": "Pick a question or situation and speak out loud for two minutes at a time. "
-        "Repeat with a better answer.",
+        "S-FLU.do": "Start with a one-minute recording: talk about your day or introduce "
+        "yourself, and listen to it. Then pick a question or situation and speak out loud.",
         "W-REV.title": "Free writing",
         "W-REV.do": "Write 120–150 words on any topic, then review and fix mistakes.",
-        "dev.reason": "Dalilk's development hour: every day 30 min listening + 20 reading + 5 writing + 5 speaking.",
+        "dev.reason": "Dalilk's development, 30 listening : 20 reading : 5 writing : 5 speaking — at least an hour every day, growing with your time.",
         "devL.reason": "Listening development week (Dalilk's plan): the focus hours are podcasts at your level.",
         "devR.reason": "Reading development week (Dalilk's plan): the focus hours are novels at your level.",
         "round.reason": "{skill} week (round {round} of Dalilk's plan): two days of techniques, then practice.",
@@ -429,9 +429,9 @@ TEXT = {
         "MOCKREV.title": "Review the test's mistakes",
         "MOCKREV.do": "Go back to every question you missed: why? Note the trick that would have solved it.",
         "FOCUS-L.title": "Listening hours",
-        "FOCUS-L.do": "Listen to podcast episodes step by step. If tired, take 5 minutes every half hour.",
+        "FOCUS-L.do": "Podcast after podcast in four stages of 15 minutes. If tired, take 5 minutes every half hour.",
         "FOCUS-R.title": "Reading hours",
-        "FOCUS-R.do": "Read a novel at your level and enjoy it. Note new words.",
+        "FOCUS-R.do": "Novel after novel at your level, about half an hour each. Note new words.",
         "DEVVID.title": "How to start: a short video",
         "VID.title": "{skill} technique videos",
         "VID.do": "The videos play one after another, full screen. Note the key tricks.",
@@ -446,7 +446,7 @@ TEXT = {
         "W-DEV.title": "Daily writing",
         "W-DEV.do": "Write 5 sentences or more about your day or what you heard and read today.",
         "S-PHRASE.title": "Daily phrases (video)",
-        "S-PHRASE.do": "The next video of the daily-phrases series. Repeat the phrases out loud.",
+        "S-PHRASE.do": "Start with a one-minute recording about your day or yourself, then the next daily-phrases video. Repeat the phrases out loud.",
         "T-STRAT.title": "{skill} techniques",
         "T-STRAT.do": "Watch the {skill} techniques video and note the top 3 tricks.",
         "L-PRAC.title": "Timed listening practice",
@@ -462,8 +462,9 @@ TEXT = {
         "W-T2.do": "Write Task 2 in 40 minutes (at least 250 words), then compare with an "
         "official sample from the library.",
         "S-PRAC.title": "Timed speaking practice",
-        "S-PRAC.do": "Answer Part 1, 2 and 3 questions out loud on time: Part 2 is one minute to "
-        "prepare and two to speak.",
+        "S-PRAC.do": "Start with a one-minute recording about your day or yourself. Then answer "
+        "Part 1, 2 and 3 questions out loud on time: Part 2 is one minute to prepare and two "
+        "to speak.",
         "exam.reason": "{skill} week in the exam part (your gap: {gap}). Same order as Dalilk's "
         "plan: technique first, then practice.",
         "MOCK.title": "Full practice test",
@@ -488,9 +489,13 @@ PRACTICE_TESTS = ("OFF-01", "ENG-01", "OFF-02")
 
 # planner-4 (CURRICULUM §4b)
 DEV_HOUR = 60
+STAGE_MINUTES = 15  # one of the podcast's four stages (owner, 2026-11-03)
+PODCAST_MINUTES = 4 * STAGE_MINUTES
+NOVEL_MINUTES = 30  # a Dalilk novel, on average (owner, 2026-11-03)
 WRITE_DEV = SPEAK_DEV = 5
 PHRASE_VIDEO_MINUTES = 20  # Dalilk's daily-phrases videos average ~19 min
 TEST_MINUTES = {"listening": 40, "reading": 75, "writing": 70, "speaking": 20}
+REAL_TEST_MINUTES = {"listening": 30, "reading": 60}  # the exam's own time
 # caps per day, so a very long day does not become 14 tests in a row; the rest of the
 # focus time goes to podcast + novels (Dalilk: listening/reading input is the backbone)
 MAX_TECH_VIDEO = 240
@@ -644,15 +649,20 @@ def phase_of(inputs: PlanInputs) -> str:
     return "exam"
 
 
-def dev_minutes(daily: int) -> dict[str, int]:
-    """Development time = a third of the day (Dalilk: 1 h of 3), split 30:20:5:5
-    (CURRICULUM §4b, owner 2026-11-03): 2 h -> 20/10/5/5, 3 h -> 30/20/5/5,
-    6 h -> 60/40/10/10."""
-    dev = _round5(daily / 3)
+def split_dev(dev: int) -> dict[str, int]:
+    """Development minutes split 30:20:5:5 (writing and speaking each 1/12, at least 5)."""
     out = max(WRITE_DEV, _round5(dev / 12)) if dev >= 30 else 0
     listening = _round5((dev - 2 * out) * 0.6)
     reading = dev - 2 * out - listening
     return {"listening": listening, "reading": reading, "writing": out, "speaking": out}
+
+
+def dev_minutes(daily: int) -> dict[str, int]:
+    """Development time on Dalilk's ratio (his 3-hour day: 1 h development + 2 h on the
+    week's skill) and never under one hour (D-039, owner 2026-11-03): 2 h -> 30/20/5/5 + 1 h
+    focus, 3 h -> 30/20/5/5 + 2 h, 6 h -> 60/40/10/10 + 4 h."""
+    dev = min(daily, max(DEV_HOUR, _round5(daily / 3)))
+    return split_dev(dev)
 
 
 def daily_split(inputs: PlanInputs) -> dict[str, int]:
@@ -726,6 +736,12 @@ def _overflow(inputs: PlanInputs, t: dict, minutes: int, reason: str) -> list[Bl
 def _tests(inputs: PlanInputs, t: dict, skill: str, rnd: int, minutes: int,
            reason: str) -> list[Block]:
     per = TEST_MINUTES[skill]
+    if minutes < REAL_TEST_MINUTES.get(skill, 0):
+        # no time for a whole test today: a practice video instead of a cut-down test
+        return [Block("exam", skill, "P-VID", minutes, TECHNIQUES,
+                      t["PVID.title"].format(skill=t["skill"][skill]), t["PVID.do"], reason,
+                      {"kind": "videos", "groups": ["practice", "high"],
+                       "skills": [SKILL_CODE.get(skill, "W1")], "minutes": minutes})]
     count = max(1, min(MAX_TESTS, round(minutes * TEST_SHARE / per)))
     providers = ["engnovate", "ieltsonlinetests"] if rnd >= 2 else ["ieltsonlinetests"]
     test_minutes = min(minutes, count * per)
@@ -748,6 +764,10 @@ def _techniques(inputs: PlanInputs, t: dict, skills: list[str], groups: list[str
                 minutes: int, reason: str, skill: str, rnd: int,
                 title_key: str = "VID.title") -> list[Block]:
     video = min(_round5(minutes * TECH_SHARE) if minutes >= 60 else minutes, MAX_TECH_VIDEO)
+    real = REAL_TEST_MINUTES.get(skill)
+    if real and 0 < minutes - video < real:
+        # never a cut-down test: give the test its real time, or keep the day for videos
+        video = minutes - real if minutes - real >= 15 else min(minutes, MAX_TECH_VIDEO)
     blocks = [_videos(t, skills, groups, video, reason, skill, title_key)]
     rest = minutes - video
     if rest >= MIN_BLOCK:
@@ -881,12 +901,12 @@ def day_blocks(inputs: PlanInputs, d: date) -> tuple[str, list[Block]]:
                         {"kind": "tests", "skills": ["full"], "providers": providers,
                          "count": 1})]
         rest = inputs.daily_minutes - MOCK_MINUTES
-        if rest >= 20:  # a long day: review the test's mistakes, then light input
+        if rest >= 20:  # a long day: review the test's mistakes, then development
             review = min(MOCK_REVIEW_MAX, _round5(rest * 0.4))
             blocks.append(Block("exam", "general", "MOCK-REV", review, None,
                                 t["MOCKREV.title"], t["MOCKREV.do"], t["FINAL.reason"], None))
-            blocks += _overflow(inputs, t, rest - review, t["FINAL.reason"])
-        return kind, [b for b in blocks if b.minutes >= MIN_BLOCK]
+            blocks += _dev_tail(inputs, t, d, split_dev(rest - review), False, 0)[0]
+        return kind, _units([b for b in blocks if b.minutes >= MIN_BLOCK])
     if kind == "review":
         minutes = min(REVIEW_MAX_MINUTES, max(30, inputs.daily_minutes))
         return kind, [Block("exam", "techniques", "T-STRAT", minutes, TECHNIQUES,
@@ -894,11 +914,29 @@ def day_blocks(inputs: PlanInputs, d: date) -> tuple[str, list[Block]]:
                             {"kind": "videos", "groups": ["core"], "skills": ["L", "R", "W1",
                              "W2", "S"], "minutes": minutes, "review": True})]
 
-    level = _mean_level(inputs)
     dev = dev_minutes(inputs.daily_minutes)
     focus = inputs.daily_minutes - sum(dev.values())
     code, _, k, _ = week_info(inputs, d)
-    in_dev_week = code.startswith("dev")
+    tail, focus = _dev_tail(inputs, t, d, dev, code.startswith("dev"), focus)
+    blocks: list[Block] = []
+    for b in _focus_blocks(inputs, t, d, focus) + tail:
+        same = next((x for x in blocks if x.activity_code == b.activity_code
+                     and x.content == b.content and b.activity_code in ("L-EXT", "R-EXT")), None)
+        if same is not None:
+            same.minutes += b.minutes
+        else:
+            blocks.append(b)
+    blocks = [b for b in blocks if b.minutes >= MIN_BLOCK]
+    if not blocks:
+        blocks = [tail[0]]
+        blocks[0].minutes = inputs.daily_minutes
+    return kind, _units(blocks)
+
+
+def _dev_tail(inputs: PlanInputs, t: dict, d: date, dev: dict[str, int], in_dev_week: bool,
+              focus: int) -> tuple[list[Block], int]:
+    """The development blocks (podcast, novel, writing, speaking) and the focus time left."""
+    level = _mean_level(inputs)
     dev_reason = t["dev.reason"]
     tail: list[Block] = []
     feed = "dalilk_english" if level is not None and level < 5.0 else "dalilk_ielts"
@@ -933,19 +971,22 @@ def day_blocks(inputs: PlanInputs, d: date) -> tuple[str, list[Block]]:
             tail.append(Block("output", "speaking", "S-FLU", dev["speaking"],
                               SPEAK_EASY if level is not None and level < 5.5 else SPEAK_IELTS,
                               t["S-FLU.title"], t["S-FLU.do"], dev_reason))
-    blocks: list[Block] = []
-    for b in _focus_blocks(inputs, t, d, focus) + tail:
-        same = next((x for x in blocks if x.activity_code == b.activity_code
-                     and x.content == b.content and b.activity_code in ("L-EXT", "R-EXT")), None)
-        if same is not None:
-            same.minutes += b.minutes
-        else:
-            blocks.append(b)
-    blocks = [b for b in blocks if b.minutes >= MIN_BLOCK]
-    if not blocks:
-        blocks = [tail[0]]
-        blocks[0].minutes = inputs.daily_minutes
-    return kind, blocks
+    return tail, focus
+
+
+def _units(blocks: list[Block]) -> list[Block]:
+    """Podcast time in whole stages of 15 minutes (a podcast = 4 stages = 1 hour); the
+    difference goes to the novel, so the day keeps its length (D-039)."""
+    novel = next((b for b in blocks if b.content and b.content.get("kind") == "novel"), None)
+    for b in blocks:
+        if not b.content or b.content.get("kind") != "podcast" or b.minutes < STAGE_MINUTES:
+            continue
+        target = round(b.minutes / STAGE_MINUTES) * STAGE_MINUTES
+        diff = target - b.minutes
+        if diff and novel is not None and novel.minutes - diff >= MIN_BLOCK:
+            b.minutes = target
+            novel.minutes -= diff
+    return blocks
 
 
 # ------------------------------------------------------------------ content totals

@@ -276,9 +276,18 @@ async function shutdown(): Promise<void> {
 }
 
 async function main(): Promise<void> {
-  session.defaultSession.setPermissionRequestHandler((_wc, _permission, callback) =>
-    callback(false),
-  );
+  // Only the microphone, audio only, for the speaking recorder of our own UI (v0.0.10);
+  // everything else is refused.
+  session.defaultSession.setPermissionRequestHandler((wc, permission, callback, details) => {
+    const types = (details as { mediaTypes?: string[] }).mediaTypes ?? [];
+    const from = (details as { requestingUrl?: string }).requestingUrl ?? wc.getURL();
+    callback(
+      permission === "media" &&
+        from.startsWith(`${APP_ORIGIN}/`) &&
+        types.length > 0 &&
+        types.every((t) => t === "audio"),
+    );
+  });
   protocol.handle("app", makeHandler(uiDir(), () => state));
   registerIpc({
     dataDir,

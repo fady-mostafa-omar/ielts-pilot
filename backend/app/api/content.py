@@ -5,7 +5,7 @@ from datetime import datetime
 from typing import Annotated, Literal
 
 from fastapi import APIRouter, HTTPException, Query
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import func, select
 
 from app import content
@@ -32,6 +32,13 @@ class ContentOut(BaseModel):
     url: str
     started_at: datetime | None
     completed_at: datetime | None
+    position_url: str | None = None  # 0008: a novel's last page, to carry on from there
+
+
+class PositionIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    url: str = Field(min_length=1, max_length=1000)
 
 
 def _out(item: ContentItem) -> ContentOut:
@@ -113,6 +120,22 @@ def finish_item(item_id: int, ctx: Ctx) -> ContentOut:
 @router.post("/content/{item_id}/reset", response_model=ContentOut)
 def reset_item(item_id: int, ctx: Ctx) -> ContentOut:
     return _mark(item_id, ctx, "reset")
+
+
+@router.post("/content/{item_id}/position", response_model=ContentOut)
+def save_position(item_id: int, body: PositionIn, ctx: Ctx) -> ContentOut:
+    """Where a novel was left: a page of the same flip-book, nothing else."""
+    with ctx.session_factory.begin() as session:
+        item = session.get(ContentItem, item_id)
+        if item is None:
+            raise HTTPException(404, {"error": "not_found", "message": "no such item"})
+        base = item.url.split("/page/")[0].split("?")[0]
+        if item.kind != "novel" or not body.url.startswith(base + "/"):
+            raise HTTPException(422, {"error": "bad_position", "message": "not a page of it"})
+        item.position_url = body.url
+        item.updated_at = utcnow()
+        session.flush()
+        return _out(item)
 
 
 def done_counts(session) -> dict:

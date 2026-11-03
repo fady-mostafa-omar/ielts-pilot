@@ -11,9 +11,11 @@ import {
   QueueSide,
   queueTarget,
   useContentQueue,
+  useNovelPage,
   useVideoEnded,
   type QueueContent,
 } from "./ContentQueue";
+import { SpeakingRecorder } from "./Recorder";
 import { formatClock } from "../plan";
 import {
   ListeningSide,
@@ -40,6 +42,7 @@ export interface StudyTarget {
   activityCode: string | null;
   timer: boolean;
   podcast?: PodcastFeed; // the listening player instead of a web page
+  podcastStages?: number; // v0.0.10: the task's time in 15-minute stages
   queue?: QueueContent; // planner-4: videos / novel / practice tests opened directly
 }
 
@@ -117,6 +120,7 @@ export function PanelArea(props: {
   keepSignIn: boolean;
   visible: boolean;
   minimal?: boolean; // a video shown alone: no address bar
+  onUrl?: (url: string) => void; // v0.0.10: a novel's page, to carry on from there
 }) {
   const { t } = useI18n();
   const { holder, state, error, bridge } = useStudyPanel(
@@ -124,6 +128,11 @@ export function PanelArea(props: {
     props.keepSignIn,
     props.visible,
   );
+  const onUrl = props.onUrl;
+  const shown = state?.url;
+  useEffect(() => {
+    if (onUrl && shown) onUrl(shown);
+  }, [onUrl, shown]);
   if (!bridge) {
     return (
       <div className="panel-empty">
@@ -403,9 +412,23 @@ export function StudyScreen(props: {
   const queue = useContentQueue(queueContent);
   const finishCurrent = queue.finish;
   const currentItem = queue.current;
+  // v0.0.10: a short "lesson done" line when a video ends, then the next one plays
+  const [videoDone, setVideoDone] = useState(false);
+  useEffect(() => {
+    if (!videoDone) return;
+    const timer = setTimeout(() => setVideoDone(false), 5000);
+    return () => clearTimeout(timer);
+  }, [videoDone]);
   const onVideoEnded = useCallback(() => {
-    if (currentItem) void finishCurrent(currentItem);
+    if (!currentItem) return;
+    setVideoDone(true);
+    void finishCurrent(currentItem);
   }, [currentItem, finishCurrent]);
+  const onNovelPage = useNovelPage(currentItem?.kind === "novel" ? currentItem : null);
+  // v0.0.10: every speaking task starts with a one-minute recording (owner, 2026-11-03)
+  const [recorded, setRecorded] = useState(
+    !(focus && (study.activityCode ?? "").startsWith("S-")),
+  );
   const videoPosition = useVideoEnded(currentItem, onVideoEnded);
   // videos are watched full screen, without distractions (owner's request)
   useEffect(() => {
@@ -413,6 +436,36 @@ export function StudyScreen(props: {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   const [step, setStep] = useState<ListenStep>(1);
+  // v0.0.10: a podcast is four 15-minute stages; the stage is kept for the next day
+  const [stagesDone, setStagesDone] = useState(0);
+  const [startStage, setStartStage] = useState<number | null>(null);
+  const [playerRun, setPlayerRun] = useState(0);
+  const episodeId = podcast.episode?.id ?? null;
+  const episodeStage = podcast.episode?.stage ?? 1;
+  useEffect(() => {
+    if (episodeId === null) return;
+    setStep(Math.min(4, Math.max(1, episodeStage)) as ListenStep);
+    setStartStage((s) => s ?? episodeStage);
+    // only when another episode comes up
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [episodeId]);
+  const pickStage = (s: ListenStep) => {
+    setStep(s);
+    if (podcast.episode) void podcast.setStage(s, false);
+  };
+  const stageDone = async () => {
+    if (!podcast.episode || step >= 4) return;
+    const s = (step + 1) as ListenStep;
+    setStep(s);
+    setStagesDone((d) => d + 1);
+    setPlayerRun((r) => r + 1); // the audio starts again from the beginning
+    await new Promise((r) => setTimeout(r, 300));
+    await podcast.setStage(s, true);
+  };
+  const podcastToday =
+    focus && study.podcastStages
+      ? { total: study.podcastStages, done: stagesDone, start: startStage ?? 1 }
+      : null;
   const padId = focus ? String(focus.task.id) : "free";
   const usePad = !study.target && !!study.activityCode?.startsWith("W-");
   const [resource, setResource] = useState<Resource | null>(study.resource);
@@ -643,12 +696,14 @@ export function StudyScreen(props: {
             list={podcast.list}
             episode={podcast.episode}
             step={step}
-            onStep={setStep}
-            onPick={(id) => {
-              podcast.pick(id);
-              setStep(1);
+            onStep={pickStage}
+            onPick={(id) => podcast.pick(id)}
+            onStageDone={stageDone}
+            onFinish={async (rating) => {
+              await podcast.finish(rating);
+              setStagesDone((d) => d + 1);
             }}
-            onFinish={podcast.finish}
+            today={podcastToday}
           />
         )}
 
@@ -658,6 +713,7 @@ export function StudyScreen(props: {
             queue={queue}
             position={videoPosition}
             onNextTask={focus ? () => void next() : undefined}
+            notice={videoDone ? t("q_video_done") : null}
           />
         )}
 
@@ -816,7 +872,14 @@ export function StudyScreen(props: {
         )}
       </aside>
       <section className="study-main">
-        {study.podcast ? (
+        {!recorded && !onBreak ? (
+          <SpeakingRecorder
+            continueLabel={
+              queueContent?.kind === "videos" ? t("rec_continue_video") : t("rec_continue")
+            }
+            onContinue={() => setRecorded(true)}
+          />
+        ) : study.podcast ? (
           <>
             <div className={onBreak ? "hidden-under" : "listen-main"}>
               {podcast.episode?.transcript_url && (
@@ -860,7 +923,12 @@ export function StudyScreen(props: {
                 </div>
               )}
               {podcast.episode && (
-                <PlayerBar key={podcast.episode.id} episode={podcast.episode} hold={onBreak} />
+                <PlayerBar
+                  key={`${podcast.episode.id}-${playerRun}`}
+                  episode={podcast.episode}
+                  hold={onBreak}
+                  fromStart={playerRun > 0}
+                />
               )}
             </div>
             {main}
@@ -875,6 +943,7 @@ export function StudyScreen(props: {
                   keepSignIn={props.keepSignIn}
                   visible={!onBreak}
                   minimal={queue.current.kind === "video"}
+                  onUrl={queue.current.kind === "novel" ? onNovelPage : undefined}
                 />
               </div>
             ) : (

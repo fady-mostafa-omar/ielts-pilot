@@ -416,19 +416,37 @@ def codes(blocks) -> list[str]:
     return [b.activity_code for b in blocks]
 
 
-def test_development_is_a_third_of_the_day() -> None:
-    # Dalilk: 1 hour of 3, split 30:20:5:5 -- and it grows with the day (owner 2026-11-03)
+def test_development_on_dalilks_ratio_and_never_under_an_hour() -> None:
+    # Dalilk: 1 hour of 3, split 30:20:5:5; it grows with the day and never goes under an
+    # hour (owner 2026-11-03, D-039)
     assert planner.dev_minutes(180) == {"listening": 30, "reading": 20, "writing": 5,
                                         "speaking": 5}
-    assert planner.dev_minutes(120) == {"listening": 20, "reading": 10, "writing": 5,
+    assert planner.dev_minutes(120) == {"listening": 30, "reading": 20, "writing": 5,
                                         "speaking": 5}
     assert planner.dev_minutes(360) == {"listening": 60, "reading": 40, "writing": 10,
                                         "speaking": 10}
-    assert planner.dev_minutes(60) == {"listening": 10, "reading": 10, "writing": 0,
-                                       "speaking": 0}
-    for daily in (60, 90, 120, 180, 240, 360, 600):
+    assert planner.dev_minutes(60) == {"listening": 30, "reading": 20, "writing": 5,
+                                       "speaking": 5}
+    assert sum(planner.dev_minutes(45).values()) == 45
+    for daily in (180, 240, 360, 600):
         dev = sum(planner.dev_minutes(daily).values())
         assert abs(dev - daily / 3) <= 5
+    for daily in (60, 90, 120, 150):
+        assert sum(planner.dev_minutes(daily).values()) == 60
+
+
+def test_podcast_time_in_whole_stages() -> None:
+    # a podcast = 4 stages x 15 min; the novel takes the difference
+    for daily in (120, 180, 240, 300, 360, 480):
+        for n in range(0, 70, 3):
+            day = SAT + timedelta(days=n)
+            kind, blocks = day_blocks(p4(daily_minutes=daily), day)
+            if not blocks:
+                continue
+            assert sum(b.minutes for b in blocks) in (daily, planner.MOCK_MINUTES), (daily, n)
+            for b in blocks:
+                if b.content and b.content.get("kind") == "podcast":
+                    assert b.minutes % planner.STAGE_MINUTES == 0, (daily, n, b)
 
 
 def test_twelve_weeks_follow_dalilks_order() -> None:
@@ -602,3 +620,13 @@ def test_long_days_are_capped_and_spill_into_input() -> None:
     _, writing = day_blocks(long, week(6, 1))
     assert writing[0].content["count"] == planner.MAX_WRITING_TASKS
     assert sum(b.minutes for b in writing) == 630
+
+
+def test_tests_are_never_cut_down() -> None:
+    # a listening test needs 30 min, a reading test 60 (the exam's own time)
+    for daily in (90, 120, 150, 180, 240, 360):
+        for n in range(28, 84):
+            kind, blocks = day_blocks(p4(daily_minutes=daily), SAT + timedelta(days=n))
+            for b in blocks:
+                if b.activity_code == "P-TEST" and b.skill in planner.REAL_TEST_MINUTES:
+                    assert b.minutes >= planner.REAL_TEST_MINUTES[b.skill], (daily, n, b)

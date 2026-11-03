@@ -94,7 +94,7 @@ The owner asked for the podcast player first, as soon as possible. Versions from
 
 **Re-ordered 2026-11-03 (owner, second list of additions):** 0.0.6 quick fixes → 0.0.7 content map → 0.0.8 words, phrases and stories → 0.0.9 writing/speaking with the AI tutor → 0.1 exams and progress → optional "Pro" add-on.
 
-**Re-ordered again 2026-11-03 (owner's third list):** 0.0.7 quick requests → content map (.md for approval) → 0.0.8 plan on Dalilk's method with its content → 0.0.9 owner's requests (scaling, one item at a time) → 0.0.10 words, phrases and stories → 0.0.11 writing/speaking with the AI tutor → 0.1 exams and progress → optional "Pro" add-on.
+**Re-ordered again 2026-11-03 (owner's third list):** 0.0.7 quick requests → content map (.md for approval) → 0.0.8 plan on Dalilk's method with its content → 0.0.9 owner's requests (scaling, one item at a time) → 0.0.10 Dalilk's ratio, podcast stages, speaking recording → 0.0.11 words and phrases → 0.0.12 writing/speaking with the AI tutor → 0.0.13 exams and progress + introduction video = 0.1 → Linux → optional "Pro" add-on.
 
 ## Sprint 2b-1 — Podcast player · v0.0.5
 - [x] Dalilk IELTS podcast from its public feed (D-028): episode list, next episode, resume position, listened / comprehension 1–5
@@ -160,24 +160,36 @@ The owner's screenshot showed Daily English Listening (DLK-11) opening the old p
 - [x] Library: Dalilk's 100 novels, the techniques series and the daily-phrases series open the next item, not the website or the playlist
 - [x] YouTube's player used as it is (0.0.8's CSS changes removed)
 - [x] Windows CI build green; v0.0.9 published (2026-11-03)
-- [ ] Owner checks on the laptop: videos one by one with YouTube's controls, novels open directly, the 6-hour split
+- [x] Owner checked; asked for Dalilk's ratio instead of the plain scaling, podcast/novel units, break skip, the speaking recording (→ 0.0.10)
 
-## v0.0.10 — Words, phrases and stories
+## v0.0.10 — Dalilk's ratio, podcast stages, speaking recording (D-039)
+- [x] Planner-6: Dalilk's ratio on the real daily time, development never under one hour; podcast time in 15-minute stages; tests never cut below the exam's time
+- [x] Podcast = 4 stages × 15 min (listen without the PDF, with it, shadowing, reading for meaning); "podcast n of m · stage s of 4", the stage kept for the next day (migration 0008)
+- [x] Novel = 30 min: "novel n of m", the same novel carries on the next day, at its last page when the link shows it
+- [x] One-minute pause: "Next" at once; a short "lesson done" line when a video ends
+- [x] Speaking tasks start with a one-minute recording (microphone for our UI only, audio only; file kept in the data folder)
+- [ ] Windows CI build green; v0.0.10 published
+- [ ] Owner checks on the laptop: podcast stages, novel count, recording with his microphone
+
+## v0.0.11 — Words and phrases
 - Dalilk's 350 words first (coloured cards, Arabic and English), then words captured from the podcasts and stories → flashcards (SM-2) → reviews in Today
 - Dalilk's 150 phrases one by one in the pauses between tasks
-- Reading: done in 0.0.8 (novels open directly at the level); 0.0.9 adds words captured from them
 
-## Sprint 3 — Output labs with the AI tutor · v0.0.11
+## Sprint 3 — Output labs with the AI tutor · v0.0.12
 - Writing Task 1 / Task 2 and Speaking Parts 1–3 with timers (addition 7)
 - Shadowing with recording; sentence building from flashcard words (write / say); phrase bank by IELTS topic
 - Mistakes notebook fed by the owner from the tutor's feedback
 
-## Sprint 4 — Exam preparation and progress → v0.1
-- Technique videos per question type (Hegazy playlist) placed in the plan; practice tests (official, engnovate) with result entry → levels and the overall chart
+## Sprint 4 — Exam preparation and progress · v0.0.13 → v0.1
+- Practice tests with result entry → levels and the overall chart, the plan adapts (technique videos and tests already in the plan since 0.0.8)
+- Introduction video first, before the name-and-band step (D-040): infographic with Fady Mostafa's introduction and the app's steps from setup to studying, made on the final screens
 - Progress page and weekly report; vocabulary and mistakes reviews
 - Optional: AI method B (official API keys, provider switch, key stored encrypted)
 
 **Exit = v0.1:** every PRD acceptance criterion passes on the baseline laptop.
+
+## After v0.1 — Linux (D-040)
+A Linux version that installs and updates itself the same way (AppImage with the in-app update).
 
 ## v0.2 — Personalised engine
 

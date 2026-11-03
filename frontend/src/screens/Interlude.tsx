@@ -215,14 +215,14 @@ export function Interlude(props: {
         <div className="il-meter" aria-hidden="true">
           <span style={{ width: `${pct}%` }} />
         </div>
+        {!ready && <span className="muted small">{t("il_left", { s: formatClock(left) })}</span>}
         <div className="row wrap il-actions">
+          {/* v0.0.10: "Next" works at once for anyone who would rather skip the break */}
           <button
             className={`btn primary big-btn${ready ? " il-ready" : ""}`}
-            disabled={!ready}
             onClick={props.onNext}
           >
-            <Icon name="play" size={14} />{" "}
-            {ready ? t("focus_next") : t("il_wait", { s: formatClock(left) })}
+            <Icon name="play" size={14} /> {ready ? t("focus_next") : t("il_skip")}
           </button>
           <button className="btn subtle" onClick={props.onExit}>
             {t("focus_exit")}

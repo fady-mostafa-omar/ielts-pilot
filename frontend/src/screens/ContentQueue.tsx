@@ -17,6 +17,9 @@ import type {
   TaskContent,
 } from "../types";
 
+/** A Dalilk novel takes about half an hour (owner, 2026-11-03). */
+export const NOVEL_MINUTES = 30;
+
 export type QueueContent = Extract<TaskContent, { kind: "videos" | "novel" | "tests" }> & {
   /** from the Library: keeps going to the next item instead of ending the task */
   endless?: boolean;
@@ -61,7 +64,7 @@ export function libraryQueue(
 }
 
 function params(c: QueueContent): Record<string, string | number | boolean | undefined> {
-  if (c.kind === "novel") return { kind: "novel", level: c.level, limit: 1 };
+  if (c.kind === "novel") return { kind: "novel", level: c.level, limit: c.count ?? 1 };
   if (c.kind === "tests") {
     return {
       kind: "test",
@@ -81,7 +84,28 @@ function params(c: QueueContent): Record<string, string | number | boolean | und
 }
 
 export function queueTarget(item: ContentItem): PanelTarget {
-  return item.kind === "video" ? { video: item.key } : { url: item.url };
+  if (item.kind === "video") return { video: item.key };
+  // a novel opens at the page where it was left (when the site shows the page in its link)
+  return { url: item.kind === "novel" && item.position_url ? item.position_url : item.url };
+}
+
+const PAGE = /\/page\/\d+/;
+
+/** Remembers the page a novel was left at, when the reader's link shows it. */
+export function useNovelPage(item: ContentItem | null) {
+  const last = useRef<string | null>(null);
+  useEffect(() => {
+    last.current = item?.position_url ?? null;
+  }, [item]);
+  return useCallback(
+    (url: string) => {
+      if (!item || item.kind !== "novel" || !PAGE.test(url) || url === last.current) return;
+      if (!url.startsWith(item.url.split("/page/")[0] + "/")) return;
+      last.current = url;
+      void api.contentPosition(item.id, url).catch(() => undefined);
+    },
+    [item],
+  );
 }
 
 export function useContentQueue(content: QueueContent | null) {
@@ -182,6 +206,7 @@ export function QueueSide(props: {
   queue: ReturnType<typeof useContentQueue>;
   position: { current: number; duration: number } | null;
   onNextTask?: () => void;
+  notice?: string | null; // v0.0.10: "lesson done — the next one starts now"
 }) {
   const { t } = useI18n();
   const { content, queue } = props;
@@ -222,15 +247,23 @@ export function QueueSide(props: {
     }
   };
 
+  const novelLevel = content.kind === "novel" ? content.level : "beginner";
   const counter =
     kind === "novel"
-      ? t(LEVEL_KEY[content.kind === "novel" ? content.level : "beginner"])
+      ? total > 1
+        ? t("q_novel_of", { n: queue.index + 1, m: total, level: t(`q_lvl_${novelLevel}`) })
+        : t(LEVEL_KEY[novelLevel])
       : content.endless
         ? t(kind === "videos" ? "q_next_lesson" : "q_next_test")
         : t(kind === "videos" ? "q_lesson_of" : "q_test_of", { n: queue.index + 1, m: total });
 
   return (
     <div className="queue-now stack">
+      {props.notice && (
+        <p className="ok-box small" role="status">
+          {props.notice}
+        </p>
+      )}
       <span className="queue-counter">
         <Icon name={kind === "videos" ? "play" : kind === "novel" ? "book" : "target"} size={14} />
         {counter}

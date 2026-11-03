@@ -11,12 +11,14 @@ import type { Episode, EpisodeList, PodcastFeed } from "../types";
 
 const STALE_MS = 12 * 3600 * 1000;
 export const STEPS = [1, 2, 3, 4] as const;
+/** v0.0.10 (owner, 2026-11-03): each stage takes 15 minutes, so a podcast is an hour. */
+export const STAGE_MINUTES = 15;
 export type ListenStep = (typeof STEPS)[number];
 export const STEP_SHOWS_TRANSCRIPT: Record<ListenStep, boolean> = {
   1: false,
   2: true,
   3: true,
-  4: false,
+  4: true, // reading for meaning
 };
 
 /* ---------- episodes ---------- */
@@ -86,7 +88,24 @@ export function usePodcast(feed: PodcastFeed | null) {
     [episode, feed],
   );
 
-  return { list, episode, error, loading, refresh, pick, finish };
+  /** Saves the stage reached; `restart` also sends the audio back to the beginning. */
+  const setStage = useCallback(
+    async (stage: number, restart: boolean) => {
+      if (!episode) return;
+      try {
+        const updated = await api.podcastPatch(
+          episode.id,
+          restart ? { stage, position_seconds: 0 } : { stage },
+        );
+        setEpisode(updated);
+      } catch {
+        // offline backend: the stage is still shown, only not kept
+      }
+    },
+    [episode],
+  );
+
+  return { list, episode, error, loading, refresh, pick, finish, setStage };
 }
 
 /* ---------- player bar ---------- */
@@ -101,16 +120,17 @@ function isTyping(target: EventTarget | null): boolean {
     el.isContentEditable);
 }
 
-export function PlayerBar(props: { episode: Episode; hold: boolean }) {
+export function PlayerBar(props: { episode: Episode; hold: boolean; fromStart?: boolean }) {
   const { t } = useI18n();
   const audio = useRef<HTMLAudioElement>(null);
   const [playing, setPlaying] = useState(false);
-  const [current, setCurrent] = useState(props.episode.position_seconds);
+  const startAt = props.fromStart ? 0 : props.episode.position_seconds;
+  const [current, setCurrent] = useState(startAt);
   const [duration, setDuration] = useState(props.episode.duration_seconds ?? 0);
   const [rate, setRate] = useState(1);
   const [error, setError] = useState(false);
   const started = useRef(false);
-  const lastSaved = useRef(props.episode.position_seconds);
+  const lastSaved = useRef(startAt);
   const id = props.episode.id;
 
   const save = useCallback(
@@ -185,8 +205,8 @@ export function PlayerBar(props: { episode: Episode; hold: boolean }) {
         onLoadedMetadata={(e) => {
           const a = e.currentTarget;
           setDuration(a.duration || props.episode.duration_seconds || 0);
-          if (props.episode.position_seconds > 0 && props.episode.position_seconds < a.duration - 5) {
-            a.currentTime = props.episode.position_seconds;
+          if (startAt > 0 && startAt < a.duration - 5) {
+            a.currentTime = startAt;
           }
           a.playbackRate = rate;
         }}
@@ -280,11 +300,18 @@ export function ListeningSide(props: {
   onStep: (s: ListenStep) => void;
   onPick: (id: number) => void;
   onFinish: (rating: number | null) => Promise<void>;
+  onStageDone: () => Promise<void>;
+  /** in a plan task: the task's stages, how many are done, the stage it started at */
+  today: { total: number; done: number; start: number } | null;
 }) {
   const { t } = useI18n();
   const [rating, setRating] = useState<Rating | null>(null);
   const [busy, setBusy] = useState(false);
   const ep = props.episode;
+  const today = props.today;
+  const offset = today ? today.start - 1 : 0;
+  const podcasts = today ? Math.max(1, Math.ceil((offset + today.total) / 4)) : 0;
+  const podcastNo = today ? Math.min(podcasts, Math.floor((offset + today.done) / 4) + 1) : 0;
 
   useEffect(
     () => setRating((ep?.comprehension as Rating | null | undefined) ?? null),
@@ -293,6 +320,24 @@ export function ListeningSide(props: {
 
   return (
     <div className="stack listen-side">
+      {today && ep && (
+        <div className="queue-now stack">
+          <span className="queue-counter">
+            <Icon name="headphones" size={14} />
+            {t("pl_podcast_of", { n: podcastNo, m: podcasts, s: props.step })}
+          </span>
+          <strong className="queue-current" dir="auto">
+            {ep.title}
+          </strong>
+          <span className="muted small">
+            {t("pl_stages_today", { done: Math.min(today.done, today.total), total: today.total })}
+          </span>
+          <div className="meter" aria-hidden="true">
+            <span style={{ width: `${Math.min(100, (today.done / today.total) * 100)}%` }} />
+          </div>
+          {today.done >= today.total && <p className="ok-box small">{t("pl_stages_all_done")}</p>}
+        </div>
+      )}
       {props.list && (
         <div className="row wrap small muted">
           <Icon name="headphones" size={16} color="#2563EB" />
@@ -328,7 +373,23 @@ export function ListeningSide(props: {
       </div>
       <p className="task-brief">{t(`pl_step${props.step}_do`)}</p>
       {ep && !ep.transcript_url && <p className="note small">{t("pl_no_transcript")}</p>}
-      {ep && (
+      {ep && props.step < 4 && (
+        <button
+          className="btn primary self-start"
+          disabled={busy}
+          onClick={async () => {
+            setBusy(true);
+            try {
+              await props.onStageDone();
+            } finally {
+              setBusy(false);
+            }
+          }}
+        >
+          <Icon name="check" size={16} /> {t("pl_stage_done", { s: props.step })}
+        </button>
+      )}
+      {ep && props.step === 4 && (
         <div className="stack-xs">
           <span className="field-label">{t("pl_rate_title")}</span>
           <div className="stars" role="radiogroup" aria-label={t("pl_rate_title")}>
@@ -353,7 +414,6 @@ export function ListeningSide(props: {
               setBusy(true);
               try {
                 await props.onFinish(rating);
-                props.onStep(1);
               } finally {
                 setBusy(false);
               }

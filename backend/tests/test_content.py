@@ -113,3 +113,22 @@ def test_sync_keeps_progress_and_marks_missing_inactive(client: TestClient, tmp_
         content.sync(session)
         again = session.scalars(select(ContentItem).where(ContentItem.key == key)).first()
         assert again.active and again.completed_at is not None
+
+
+def test_novel_carries_on_from_its_last_page(client: TestClient) -> None:
+    novel = client.get("/api/v1/content/queue", params={"kind": "novel", "level": "beginner",
+                                                         "limit": 1}).json()[0]
+    assert novel["position_url"] is None
+    base = novel["url"].split("/page/")[0]
+    r = client.post(f"/api/v1/content/{novel['id']}/position", json={"url": f"{base}/page/7"})
+    assert r.status_code == 200 and r.json()["position_url"] == f"{base}/page/7"
+    # the next day the same novel comes first, with its page
+    again = client.get("/api/v1/content/queue", params={"kind": "novel", "level": "beginner",
+                                                        "limit": 1}).json()[0]
+    assert again["id"] == novel["id"] and again["position_url"] == f"{base}/page/7"
+    for bad in ("https://example.com/page/2", base.replace(base.split("/")[-1], "1") + "/page/2"):
+        assert client.post(f"/api/v1/content/{novel['id']}/position",
+                           json={"url": bad}).status_code == 422
+    video = client.get("/api/v1/content/queue", params={"kind": "video", "limit": 1}).json()[0]
+    assert client.post(f"/api/v1/content/{video['id']}/position",
+                       json={"url": video["url"] + "/x"}).status_code == 422
