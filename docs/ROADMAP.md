@@ -201,7 +201,7 @@ The owner's screenshot showed Daily English Listening (DLK-11) opening the old p
 - [x] Words and phrases: when Dalilk's page cannot be read as cards, the page itself opens in the app
 - [ ] App name and logo — the owner picks one of four (names_and_logos.png)
 - [ ] Free tests map approved (docs/research/tests_map.md) → tests by name at their moment in the plan, score boxes, progress page
-- [ ] Windows CI build green; v0.0.13 published
+- [x] Windows CI build green; v0.0.13 published (2026-11-03)
 
 ## Sprint 4 — Exam preparation and progress · v0.0.14 → v0.1
 - Practice tests with result entry → levels and the overall chart, the plan adapts (technique videos and tests already in the plan since 0.0.8)
