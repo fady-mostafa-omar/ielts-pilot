@@ -17,7 +17,7 @@ from sqlalchemy import select
 from app.api.plan import _stored
 from app.context import Ctx
 from app.db import utcnow
-from app.models import PlanTask, SkillLevel, SpeakingAttempt, WritingAttempt
+from app.models import ContentItem, PlanTask, SkillLevel, SpeakingAttempt, WritingAttempt
 
 router = APIRouter(prefix="/api/v1")
 
@@ -33,6 +33,15 @@ def _scores(value: dict[str, float] | None) -> dict[str, float] | None:
     return value
 
 
+def _label(session, row, label: str) -> str:
+    """v0.0.14: the named question in the level's note, e.g. "Cambridge 21 … · Task 1"."""
+    if not getattr(row, "test_key", None):
+        return label
+    title = session.scalars(select(ContentItem.title).where(
+        ContentItem.kind == "test", ContentItem.key == row.test_key)).first()
+    return f"{title} · {label}" if title else label
+
+
 def _sync_level(session, row, skill: str, label: str) -> None:
     """The tutor's overall mark as a level entry (D-043): made, changed or removed with it."""
     level = session.get(SkillLevel, row.level_id) if row.level_id else None
@@ -42,7 +51,7 @@ def _sync_level(session, row, skill: str, label: str) -> None:
         row.level_id = None
         return
     site = TUTOR_NAMES.get(_stored(session).get("tutor") or "chatgpt", "AI")
-    note = f"{site} · {label}"[:200]
+    note = f"{site} · {_label(session, row, label)}"[:200]
     if level is None:
         level = SkillLevel(skill=skill, band=row.tutor_overall, source_type="ai_tutor",
                            source_note=note, recorded_at=utcnow())
@@ -72,6 +81,7 @@ class WritingIn(BaseModel):
     task: Literal[0, 1, 2]
     prompt: str = Field(default="", max_length=5000)
     plan_task_id: int | None = None
+    test_key: str | None = Field(default=None, max_length=200)  # v0.0.14: named question
 
 
 class WritingPatch(BaseModel):
@@ -104,6 +114,7 @@ class WritingOut(BaseModel):
     tutor_overall: float | None
     scores: dict[str, float]
     level_id: int | None
+    test_key: str | None
     plan_task_id: int | None
     submitted_at: datetime | None
     created_at: datetime
@@ -122,13 +133,20 @@ def _check_task(session, plan_task_id: int | None) -> None:
         raise HTTPException(422, {"error": "bad_task", "message": "no such plan task"})
 
 
+def _check_test(session, key: str | None) -> None:
+    if key is not None and session.scalars(select(ContentItem.id).where(
+            ContentItem.kind == "test", ContentItem.key == key)).first() is None:
+        raise HTTPException(422, {"error": "bad_test", "message": "no such test"})
+
+
 @router.post("/writing", response_model=WritingOut, status_code=201)
 def new_writing(body: WritingIn, ctx: Ctx) -> WritingOut:
     now = utcnow()
     with ctx.session_factory.begin() as session:
         _check_task(session, body.plan_task_id)
+        _check_test(session, body.test_key)
         row = WritingAttempt(task=body.task, prompt=body.prompt, plan_task_id=body.plan_task_id,
-                             created_at=now, updated_at=now)
+                             test_key=body.test_key, created_at=now, updated_at=now)
         session.add(row)
         session.flush()
         return _writing_out(row)
@@ -213,6 +231,7 @@ class SpeakingIn(BaseModel):
     self_rating: dict[CRITERIA, int] = Field(default_factory=dict)
     notes: str = Field(default="", max_length=5000)
     plan_task_id: int | None = None
+    test_key: str | None = Field(default=None, max_length=200)  # v0.0.14: named test
 
     @field_validator("recording")
     @classmethod
@@ -264,6 +283,7 @@ class SpeakingOut(BaseModel):
     tutor_overall: float | None
     scores: dict[str, float]
     level_id: int | None
+    test_key: str | None
     plan_task_id: int | None
     created_at: datetime
     updated_at: datetime
@@ -288,10 +308,12 @@ def new_speaking(body: SpeakingIn, ctx: Ctx) -> SpeakingOut:
     now = utcnow()
     with ctx.session_factory.begin() as session:
         _check_task(session, body.plan_task_id)
+        _check_test(session, body.test_key)
         row = SpeakingAttempt(
             part=body.part, prompt=body.prompt, recording=body.recording, seconds=body.seconds,
             transcript=body.transcript, self_rating_json=json.dumps(body.self_rating),
-            notes=body.notes, plan_task_id=body.plan_task_id, created_at=now, updated_at=now,
+            notes=body.notes, plan_task_id=body.plan_task_id, test_key=body.test_key,
+            created_at=now, updated_at=now,
         )
         session.add(row)
         session.flush()

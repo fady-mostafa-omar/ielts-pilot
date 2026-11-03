@@ -46,9 +46,8 @@ File: `%APPDATA%\IELTS Pilot\data\ielts_pilot.db`
 | id | INTEGER PK | |
 | skill | TEXT | four skills only |
 | band | REAL | |
-| source_type | TEXT | `official_practice` \| `external_marker` \| `placement_quiz` (0003, from a Dalilk test) \| `self_estimate` |
+| source_type | TEXT | `official_practice` \| `external_marker` \| `placement_quiz` (0003, from a Dalilk test) \| `self_estimate` \| `ai_tutor` (0011) \| `practice_site` (0012) |
 | source_note | TEXT | e.g. test title |
-| practice_result_id | INTEGER FK NULL → practice_results | **added in Sprint 4** with `practice_results` |
 | recorded_at | DATETIME | |
 
 Latest row per skill = current level used by the planner. Index `(skill, recorded_at)`.
@@ -220,6 +219,7 @@ Index `(feed, number)`. Re-importing the feed updates titles and links by `guid`
 | active | BOOLEAN | false when an item left the catalogue (progress kept) |
 | started_at, completed_at | DATETIME NULL | the owner's progress; never touched by a sync |
 | position_url | TEXT NULL | 0008: a novel's last page (same flip-book only), to carry on from there |
+| meta_json | TEXT NULL | 0012: a test's `part`, `qtype`, `answer_url`, `transcript_url`, `format` (`computer`/`paper`); tests' `grp` = `sample` / `full` / `task1` / `task2` for the official ones |
 | created_at, updated_at | DATETIME | |
 
 Index `(kind, sort)`. Synced at start from `content/catalog/items/*.csv` (facts only, D-036). `plan_tasks.content_json` holds what a task opens (CURRICULUM §4b), e.g. `{"kind": "videos", "groups": [...], "skills": ["L"], "minutes": 120}`; `app_settings.exam_format` = `computer` | `paper` (D-037).
@@ -261,6 +261,7 @@ Index `(kind, due)`. Read on the owner's computer from Dalilk's two pages (D-041
 | tutor_overall | REAL NULL | the tutor's overall mark, typed in by the owner; since 0011 it is a level entry with the source `ai_tutor` (D-043) |
 | scores_json | TEXT | 0011: the tutor's marks per criterion (`task`, `coherence`, `lexical`, `grammar`) |
 | level_id | INTEGER NULL | 0011: the `skill_levels` row the mark made |
+| test_key | TEXT NULL | 0012: the named question (a test's key), e.g. `eng:cambridge-ielts-21-academic-writing-test-1` |
 | plan_task_id | INTEGER FK NULL | `ON DELETE SET NULL` |
 | submitted_at, created_at, updated_at | DATETIME | |
 
@@ -277,6 +278,7 @@ Index `(kind, due)`. Read on the owner's computer from Dalilk's two pages (D-041
 | notes, tutor_reply | TEXT | |
 | tutor_overall | REAL NULL | the tutor's overall mark; a level entry since 0011 (D-043) |
 | scores_json, level_id | TEXT, INTEGER NULL | 0011: marks per criterion (`fluency`, `lexical`, `grammar`); the level entry |
+| test_key | TEXT NULL | 0012: the named test whose questions were answered |
 | plan_task_id | INTEGER FK NULL | `ON DELETE SET NULL` |
 | created_at, updated_at | DATETIME | |
 
@@ -353,21 +355,24 @@ Index `(next_review_at)`.
 ### review_events
 `id`, `item_kind` (`error` \| `vocab`), `item_id`, `reviewed_at`, `grade` (0–5), `interval_before`, `interval_after`. Index `(item_kind, item_id)`.
 
-### practice_results
+### practice_results (0012, D-044)
 | Column | Type | Notes |
 |---|---|---|
 | id | INTEGER PK | |
-| source_title | TEXT | |
-| section | TEXT | `listening`, `reading`, `writing`, `speaking`, `full` |
-| raw_score, max_score | INTEGER NULL | |
-| reported_band | REAL NULL | |
-| band_source | TEXT NULL | `CHECK (reported_band IS NULL OR band_source IS NOT NULL)` |
-| time_used_seconds | INTEGER NULL | |
-| taken_on | DATE | |
-| qtype_breakdown_json | TEXT NULL | |
-| notes | TEXT NULL | |
-| resource_id | INTEGER FK NULL | |
+| content_id | INTEGER FK NULL → content_items | `ON DELETE SET NULL` |
+| test_key, title, provider | TEXT | copied from the test, so the result stays readable if the catalogue changes |
+| skill | TEXT | `listening`…`speaking` or `full` (CHECK) |
+| kind | TEXT | `sample` (an official sample question, recorded only) or `full` (CHECK) |
+| part, qtype | INTEGER NULL, TEXT | a sample's part and question type |
+| correct, total | INTEGER NULL | right answers out of the questions, both or neither (CHECK `correct <= total`) |
+| band | REAL NULL | the band the site showed (full tests only; half bands) |
+| bands_json | TEXT | a final full test: the band of each skill |
+| wrong_types_json | TEXT | question types the owner marked as wrong in a full test |
+| level_ids_json | TEXT | the `skill_levels` rows its bands made; deleting the result deletes them |
+| plan_task_id | INTEGER FK NULL | `ON DELETE SET NULL` |
 | created_at | DATETIME | |
+
+Index `(created_at)`. Only a full test's band becomes a level entry: `official_practice` for ielts.org, Cambridge (engnovate) and British Council material, `practice_site` for other websites. The app never turns right answers into a band.
 
 ## 4. Deferred to v0.2+ (from the master spec)
 
@@ -388,6 +393,7 @@ Index `(next_review_at)`.
 | 0009 | 0.0.11 | add `cards` (flashcards, SM-2) |
 | 0010 | 0.0.12 | `cards` rebuilt (kind `mistake`, columns `code`, `source`; rows and ids kept; downgrade drops mistakes); add `writing_attempts`, `speaking_attempts` |
 | 0011 | 0.0.13 | `skill_levels` rebuilt with the source `ai_tutor` (rows and ids kept; downgrade drops AI entries); `writing_attempts` / `speaking_attempts` get `scores_json` and `level_id` |
+| 0012 | 0.0.14 | `skill_levels` rebuilt with the source `practice_site`; `content_items.meta_json`; `writing_attempts` / `speaking_attempts` get `test_key` (the named question); new `practice_results` |
 
 - One Alembic revision per schema change; `alembic_version` holds the schema version.
 - The backend runs pending migrations at startup, immediately after an automatic `pre-migration` backup. A database whose revision this app does not know (made by a newer version) is never touched: the backend refuses to start, and the app offers to restore the newest backup this version can read (D-027).

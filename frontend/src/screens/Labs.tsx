@@ -16,13 +16,16 @@ import {
   readTutorScores,
   speakingAnswerMessage,
   speakingStarterPrompt,
+  speakingTestPrompt,
   TUTOR_SITES,
   writingAnswerMessage,
   writingStarterPrompt,
+  writingTestPrompt,
   type Learner,
 } from "../tutor";
 import type {
   Card,
+  ContentItem,
   MistakeInput,
   SpeakingAttempt,
   SpeakingCriterion,
@@ -278,6 +281,58 @@ function StarterCard(props: { site: TutorSite; prompt: () => string | null; hint
   );
 }
 
+/** v0.0.14 (D-044): the lab's named question — the official one first, then Cambridge
+ *  21, 20, 19, then ieltsonlinetests; each answered once. `undefined` while loading. */
+export function useLabTest(
+  skill: "writing" | "speaking",
+  task: number,
+  planTaskId: number | null,
+  enabled: boolean,
+) {
+  const [test, setTest] = useState<ContentItem | null | undefined>(enabled ? undefined : null);
+  const reload = useCallback(() => {
+    if (!enabled) {
+      setTest(null);
+      return;
+    }
+    void api
+      .labTest(skill, task, planTaskId)
+      .then(setTest)
+      .catch(() => setTest(null));
+  }, [skill, task, planTaskId, enabled]);
+  useEffect(() => reload(), [reload]);
+  return { test, reload };
+}
+
+/** Step 1 with a named question: open it beside the lab and copy it in. */
+function QuestionCard(props: {
+  test: ContentItem;
+  hint: string;
+  onShow?: () => void;
+  extra?: ReactNode;
+}) {
+  const { t } = useI18n();
+  return (
+    <section className="lab-card stack-xs">
+      <span className="field-label">
+        <span className="step-no">1</span> {t("lab_step_question")}
+      </span>
+      <strong dir="ltr" className="small">
+        {props.test.title}
+      </strong>
+      <p className="muted small">{props.hint}</p>
+      <div className="row wrap">
+        {props.onShow && (
+          <button className="btn primary" onClick={props.onShow}>
+            <Icon name="globe" size={14} /> {t("lab_open_question")}
+          </button>
+        )}
+        {props.extra}
+      </div>
+    </section>
+  );
+}
+
 const BANDS = Array.from({ length: 19 }, (_, i) => i / 2);
 
 export function overallOf(values: number[]): number | null {
@@ -399,6 +454,9 @@ export function WritingLab(props: {
   planTaskId: number | null;
   opened?: WritingAttempt | null; // an earlier answer chosen in the side list
   onChanged?: () => void;
+  test?: ContentItem | null; // v0.0.14: the named question (D-044)
+  onShowQuestion?: () => void;
+  onNextQuestion?: () => void; // a new answer: the next named question
 }) {
   const { t } = useI18n();
   const { learner, site } = useLearner("writing");
@@ -414,6 +472,8 @@ export function WritingLab(props: {
   const [answerCopied, setAnswerCopied] = useState<boolean | null>(null);
   const creating = useRef<Promise<WritingAttempt> | null>(null);
   const submitted = attempt?.status === "submitted";
+  const test = props.test ?? null;
+  const named = !!test && task !== 0;
   const limit = LIMITS[task] ?? 0;
   const words = countWords(text);
   const min = MIN_WORDS[task] ?? 0;
@@ -455,13 +515,13 @@ export function WritingLab(props: {
   const ensure = useCallback(async (): Promise<WritingAttempt> => {
     if (attempt) return attempt;
     if (!creating.current) {
-      creating.current = api.writingNew(task, prompt, props.planTaskId).then((a) => {
+      creating.current = api.writingNew(task, prompt, props.planTaskId, test?.key ?? null).then((a) => {
         setAttempt(a);
         return a;
       });
     }
     return creating.current;
-  }, [attempt, task, prompt, props.planTaskId]);
+  }, [attempt, task, prompt, props.planTaskId, test]);
 
   // autosave a moment after the last change
   useEffect(() => {
@@ -487,6 +547,7 @@ export function WritingLab(props: {
   const fresh = () => {
     creating.current = null;
     show(null);
+    props.onNextQuestion?.();
   };
 
   const saveReview = (patch: { checklist?: string[]; reply?: string }) => {
@@ -545,7 +606,14 @@ export function WritingLab(props: {
         )}
       </header>
 
-      {!submitted && task !== 0 && (
+      {!submitted && named && test && (
+        <QuestionCard
+          test={test}
+          hint={task === 1 ? t("lab_question_hint_t1") : t("lab_question_hint_t2")}
+          onShow={props.onShowQuestion}
+        />
+      )}
+      {!submitted && task !== 0 && !named && (
         <StarterCard
           site={site}
           hint={t("lab_starter_hint_writing", { site: name })}
@@ -563,7 +631,7 @@ export function WritingLab(props: {
           lang="en"
           value={prompt}
           readOnly={submitted}
-          placeholder={t("lab_question_paste_ph", { site: name })}
+          placeholder={named ? t("lab_question_copy_ph") : t("lab_question_paste_ph", { site: name })}
           onChange={(e) => setPrompt(e.target.value)}
         />
       </section>
@@ -608,18 +676,57 @@ export function WritingLab(props: {
             </p>
             {task !== 0 && (
               <>
-                <button
-                  className="btn primary self-start"
-                  onClick={async () =>
-                    setAnswerCopied(
-                      await copyOnly(writingAnswerMessage(text, words, Math.round(seconds / 60))),
-                    )
-                  }
-                >
-                  <Icon name="cards" size={14} /> {t("lab_copy_answer")}
-                </button>
+                {named && test ? (
+                  <>
+                    <button
+                      className="btn primary self-start"
+                      disabled={!learner}
+                      onClick={async () =>
+                        learner &&
+                        setAnswerCopied(
+                          await copyAndOpen(
+                            writingTestPrompt(
+                              task as 1 | 2,
+                              test.title,
+                              prompt,
+                              text,
+                              words,
+                              Math.round(seconds / 60),
+                              learner,
+                            ),
+                            site,
+                          ),
+                        )
+                      }
+                    >
+                      <Icon name="external" size={14} /> {t("lab_copy_marking", { site: name })}
+                    </button>
+                    {task === 1 && <p className="note small">{t("lab_t1_screenshot")}</p>}
+                    {test.meta?.answer_url && (
+                      <button
+                        className="btn subtle small self-start"
+                        onClick={() => void window.ipBridge?.openExternal(test.meta!.answer_url!)}
+                      >
+                        <Icon name="book" size={12} /> {t("lab_examiner_answers")}
+                      </button>
+                    )}
+                  </>
+                ) : (
+                  <button
+                    className="btn primary self-start"
+                    onClick={async () =>
+                      setAnswerCopied(
+                        await copyOnly(writingAnswerMessage(text, words, Math.round(seconds / 60))),
+                      )
+                    }
+                  >
+                    <Icon name="cards" size={14} /> {t("lab_copy_answer")}
+                  </button>
+                )}
                 {answerCopied === true && (
-                  <p className="ok small">✓ {t("lab_answer_copied", { site: name })}</p>
+                  <p className="ok small">
+                    ✓ {named ? t("lab_marking_copied", { site: name }) : t("lab_answer_copied", { site: name })}
+                  </p>
                 )}
                 {answerCopied === false && <p className="error-box small">{t("tutor_copy_failed")}</p>}
               </>
@@ -743,6 +850,8 @@ export function SpeakingLab(props: {
   planTaskId: number | null;
   parts?: (1 | 2 | 3)[]; // v0.0.13: the parts this plan task practises
   onChanged?: () => void;
+  test?: ContentItem | null; // v0.0.14: the named test whose questions are answered
+  onShowQuestion?: () => void;
 }) {
   const { t } = useI18n();
   const { learner, site } = useLearner("speaking");
@@ -760,6 +869,7 @@ export function SpeakingLab(props: {
   const rec = useRecorder(SPEAK_LIMIT, "speaking");
   const recStart = rec.start;
   const name = TUTOR_SITES[site].name;
+  const test = props.test ?? null;
 
   // Part 2: one minute to prepare, then the recording starts by itself
   useEffect(() => {
@@ -800,6 +910,7 @@ export function SpeakingLab(props: {
       self_rating: rating,
       notes,
       plan_task_id: props.planTaskId,
+      test_key: test?.key ?? null,
     });
     setAttempt(a);
     props.onChanged?.();
@@ -840,11 +951,19 @@ export function SpeakingLab(props: {
         </span>
       </header>
 
-      <StarterCard
-        site={site}
-        hint={t("lab_starter_hint_speaking", { site: name, part })}
-        prompt={() => (learner ? speakingStarterPrompt(part, learner) : null)}
-      />
+      {test ? (
+        <QuestionCard
+          test={test}
+          hint={t("lab_question_hint_speaking", { part })}
+          onShow={props.onShowQuestion}
+        />
+      ) : (
+        <StarterCard
+          site={site}
+          hint={t("lab_starter_hint_speaking", { site: name, part })}
+          prompt={() => (learner ? speakingStarterPrompt(part, learner) : null)}
+        />
+      )}
 
       <section className="lab-card stack-xs">
         <span className="field-label">
@@ -855,7 +974,7 @@ export function SpeakingLab(props: {
           dir="ltr"
           lang="en"
           value={prompt}
-          placeholder={t("lab_question_paste_ph", { site: name })}
+          placeholder={test ? t("lab_question_copy_ph") : t("lab_question_paste_ph", { site: name })}
           onChange={(e) => setPrompt(e.target.value)}
         />
       </section>
@@ -915,15 +1034,29 @@ export function SpeakingLab(props: {
           />
           <button
             className="btn primary self-start"
-            disabled={!transcript.trim()}
+            disabled={!transcript.trim() || (!!test && !learner)}
             onClick={async () => {
               await save();
-              setCopied(await copyOnly(speakingAnswerMessage(transcript, rec.seconds)));
+              if (test && learner) {
+                setCopied(
+                  await copyAndOpen(
+                    speakingTestPrompt(part, test.title, prompt, transcript, rec.seconds, learner),
+                    site,
+                  ),
+                );
+              } else {
+                setCopied(await copyOnly(speakingAnswerMessage(transcript, rec.seconds)));
+              }
             }}
           >
-            <Icon name="cards" size={14} /> {t("lab_copy_transcript")}
+            <Icon name={test ? "external" : "cards"} size={14} />{" "}
+            {test ? t("lab_copy_marking", { site: name }) : t("lab_copy_transcript")}
           </button>
-          {copied === true && <p className="ok small">✓ {t("lab_answer_copied", { site: name })}</p>}
+          {copied === true && (
+            <p className="ok small">
+              ✓ {test ? t("lab_marking_copied", { site: name }) : t("lab_answer_copied", { site: name })}
+            </p>
+          )}
           {copied === false && <p className="error-box small">{t("tutor_copy_failed")}</p>}
           <details>
             <summary className="small">{t("lab_self_rating")}</summary>
@@ -1070,27 +1203,32 @@ export function SpeakingHistory(props: { refresh: number }) {
   );
 }
 
-/** Speaking lab with Dalilk's questions page beside it, one shown at a time. */
+/** A lab with a page beside it (Dalilk's questions, or since v0.0.14 the named test's
+ *  question), one shown at a time. */
 export function SpeakingArea(props: {
   page: ((visible: boolean) => ReactNode) | null;
-  lab: ReactNode;
+  lab: ReactNode | ((showPage: () => void) => ReactNode);
   hidden: boolean; // a break covers everything
+  pageLabel?: string;
+  labLabel?: string;
+  labIcon?: "mic" | "pen";
 }) {
   const { t } = useI18n();
   const [tab, setTab] = useState<"lab" | "page">("lab");
+  const lab = typeof props.lab === "function" ? props.lab(() => setTab("page")) : props.lab;
   return (
     <div className="lab-tabs-area">
       {props.page && (
         <div className="seg lab-tabs" role="tablist">
           <button role="tab" aria-selected={tab === "lab"} className={tab === "lab" ? "on" : ""} onClick={() => setTab("lab")}>
-            <Icon name="mic" size={14} /> {t("lab_tab_lab")}
+            <Icon name={props.labIcon ?? "mic"} size={14} /> {props.labLabel ?? t("lab_tab_lab")}
           </button>
           <button role="tab" aria-selected={tab === "page"} className={tab === "page" ? "on" : ""} onClick={() => setTab("page")}>
-            <Icon name="globe" size={14} /> {t("lab_tab_page")}
+            <Icon name="globe" size={14} /> {props.pageLabel ?? t("lab_tab_page")}
           </button>
         </div>
       )}
-      <div className={tab === "lab" ? "lab-scroll" : "hidden-under"}>{props.lab}</div>
+      <div className={tab === "lab" ? "lab-scroll" : "hidden-under"}>{lab}</div>
       {props.page && (
         <div className={tab === "page" && !props.hidden ? "fill" : "hidden-under"}>
           {props.page(tab === "page" && !props.hidden)}

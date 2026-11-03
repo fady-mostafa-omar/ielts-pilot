@@ -14,8 +14,10 @@ import type {
   Levels,
   NovelLevel,
   PanelTarget,
+  PracticeResult,
   TaskContent,
 } from "../types";
+import { savedLine, TestDetails, TestScoreForm } from "./Tests";
 
 /** A Dalilk novel takes about half an hour (owner, 2026-11-03). */
 export const NOVEL_MINUTES = 30;
@@ -48,6 +50,10 @@ export function libraryQueue(
   format: ExamFormat | null,
 ): QueueContent | null {
   if (catalogId === "DLK-07") return { kind: "novel", level: novelLevelOf(levels), endless: true };
+  if (catalogId === "OFF-01") {
+    // v0.0.14: the official sample questions by name, each with its result box (D-044)
+    return { kind: "tests", skills: ["listening", "reading"], series: "samples", count: 18, endless: true };
+  }
   if (catalogId === "DLK-06") {
     return { kind: "videos", groups: ["phrases"], skills: ["S"], count: 1, endless: true };
   }
@@ -69,7 +75,10 @@ function params(c: QueueContent): Record<string, string | number | boolean | und
     return {
       kind: "test",
       skills: c.skills.join(","),
-      providers: c.providers.join(","),
+      // v0.0.14: by name, in the approved order (D-044); older tasks name the sites
+      series: c.series,
+      providers: c.series ? undefined : (c.providers ?? []).join(","),
+      minutes: c.series === "samples" ? c.minutes : undefined,
       limit: Math.max(1, c.count),
     };
   }
@@ -83,8 +92,17 @@ function params(c: QueueContent): Record<string, string | number | boolean | und
   };
 }
 
-export function queueTarget(item: ContentItem): PanelTarget {
+/** What the panel shows for a test: the test, or its answer key / transcript (PDF). */
+export type TestView = "test" | "answers" | "transcript";
+
+export function queueTarget(item: ContentItem, view: TestView = "test"): PanelTarget {
   if (item.kind === "video") return { video: item.key };
+  if (item.kind === "test" && view === "answers" && item.meta?.answer_url) {
+    return { url: item.meta.answer_url };
+  }
+  if (item.kind === "test" && view === "transcript" && item.meta?.transcript_url) {
+    return { url: item.meta.transcript_url };
+  }
   // a novel opens at the page where it was left (when the site shows the page in its link)
   return { url: item.kind === "novel" && item.position_url ? item.position_url : item.url };
 }
@@ -116,6 +134,7 @@ export function useContentQueue(content: QueueContent | null) {
   // v0.0.13: the videos finished in this task count by their length (owner, 2026-11-03)
   const [finishedSeconds, setFinishedSeconds] = useState(0);
   const [series, setSeries] = useState<{ total: number; done: number } | null>(null);
+  const [view, setView] = useState<TestView>("test");
   const key = content ? JSON.stringify(content) : "";
 
   const load = useCallback(async () => {
@@ -145,6 +164,8 @@ export function useContentQueue(content: QueueContent | null) {
 
   const current = items?.find((i) => i.id === currentId) ?? null;
   const index = current && items ? items.indexOf(current) : -1;
+
+  useEffect(() => setView("test"), [currentId]);
 
   useEffect(() => {
     if (current && !current.started_at) {
@@ -199,6 +220,8 @@ export function useContentQueue(content: QueueContent | null) {
     finishedSeconds,
     series,
     nextNovel: load,
+    view,
+    setView,
   };
 }
 
@@ -250,11 +273,13 @@ export function QueueSide(props: {
   queue: ReturnType<typeof useContentQueue>;
   position: { current: number; duration: number } | null;
   onNextTask?: () => void; // in a plan task: "Next" goes on with the path
+  planTaskId?: number | null; // v0.0.14: a test's result belongs to the plan task
 }) {
   const { t } = useI18n();
   const { content, queue } = props;
   const [busy, setBusy] = useState(false);
   const [bonus, setBonus] = useState<number | null>(null);
+  const [saved, setSaved] = useState<PracticeResult | null>(null);
   const kind = content.kind;
   const item = queue.current;
   const total = queue.items?.length ?? 0;
@@ -288,11 +313,25 @@ export function QueueSide(props: {
       </div>
     );
   }
-  if (queue.items.length === 0) return <p className="note small">{t(`q_empty_${kind}`)}</p>;
+  const savedBox = saved ? (
+    <p className="ok-box small" role="status">
+      ✓ {savedLine(saved, t)}
+    </p>
+  ) : null;
+  if (queue.items.length === 0) {
+    return (
+      <p className="note small">
+        {content.kind === "tests" && content.series === "samples"
+          ? t("tq_samples_done")
+          : t(`q_empty_${kind}`)}
+      </p>
+    );
+  }
   if (!item) {
     return (
       <div className="stack-xs">
         {bonusLine}
+        {savedBox}
         <p className="ok-box">{t("q_all_done")}</p>
       </div>
     );
@@ -333,6 +372,7 @@ export function QueueSide(props: {
   return (
     <div className="queue-now stack">
       {bonusLine}
+      {savedBox}
       <span className="queue-counter">
         <Icon name={kind === "videos" ? "play" : kind === "novel" ? "book" : "target"} size={14} />
         {counter}
@@ -375,9 +415,29 @@ export function QueueSide(props: {
         </div>
       )}
       {overTime && <p className="warn-box small">{t("q_novel_late")}</p>}
-      {kind === "tests" && <p className="muted small">{t("q_note_tests")}</p>}
-      {/* videos are marked at their last second: no button (owner, 2026-11-03) */}
-      {kind !== "videos" && (
+      {item.kind === "test" && (
+        <>
+          <TestDetails item={item} view={queue.view} onView={queue.setView} />
+          <p className="muted small">{t("q_note_tests")}</p>
+          <TestScoreForm
+            key={item.id}
+            item={item}
+            planTaskId={props.planTaskId ?? null}
+            busy={busy}
+            onSaved={(r) => {
+              setSaved(r);
+              void finish();
+            }}
+            onSkip={() => {
+              setSaved(null);
+              void finish();
+            }}
+          />
+        </>
+      )}
+      {/* videos are marked at their last second: no button (owner, 2026-11-03); a test is
+          finished from its result box (v0.0.14) */}
+      {kind !== "videos" && kind !== "tests" && (
         <button className="btn primary self-start" disabled={busy} onClick={() => void finish()}>
           <Icon name="check" size={16} />{" "}
           {kind === "novel" && last && props.onNextTask && !content.endless

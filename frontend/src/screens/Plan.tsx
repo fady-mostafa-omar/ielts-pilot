@@ -473,6 +473,9 @@ function ContentCard(props: { content: ContentTotals }) {
       label: t("plan_content_videos", { h: c.video_hours }),
     },
     { icon: "target", color: "#B45309", n: c.tests, label: t("plan_content_tests") },
+    ...(c.samples
+      ? [{ icon: "check" as IconName, color: "#0F766E", n: c.samples, label: t("plan_content_samples") }]
+      : []),
     {
       icon: "pen",
       color: "#BE185D",

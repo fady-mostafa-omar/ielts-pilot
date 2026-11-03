@@ -27,6 +27,11 @@ publish:
   repo: ielts-pilot-releases
   releaseType: release
 nsis:
+  # v0.0.14: the name people see (owner, 2026-11-03). productName stays "IELTS Pilot" so the
+  # install folder, the exe and the data folder (%APPDATA%\IELTS Pilot) do not move; the
+  # installer renames the old shortcuts on update.
+  shortcutName: IELTS Band Up
+  uninstallDisplayName: IELTS Band Up ${version}
   oneClick: true
   perMachine: false
   runAfterFinish: false

@@ -20,6 +20,7 @@ import {
   SpeakingArea,
   SpeakingHistory,
   SpeakingLab,
+  useLabTest,
   WritingHistory,
   WritingLab,
 } from "./Labs";
@@ -59,6 +60,7 @@ export interface StudyTarget {
   labTask?: 0 | 1 | 2 | null; // writing: Task 1 / Task 2; null lets the owner pick
   labCount?: number; // answers planned in the task
   labParts?: (1 | 2 | 3)[]; // v0.0.13: speaking parts the task practises
+  labTest?: boolean; // v0.0.14: the lab's question comes from a named test (D-044)
   queue?: QueueContent; // planner-4: videos / novel / practice tests opened directly
 }
 
@@ -450,6 +452,22 @@ export function StudyScreen(props: {
   const [labRefresh, setLabRefresh] = useState(0);
   const [openedWriting, setOpenedWriting] = useState<WritingAttempt | null>(null);
   const labChanged = useCallback(() => setLabRefresh((n) => n + 1), []);
+  const labTest = useLabTest(
+    study.lab ?? "writing",
+    study.lab === "writing" ? (study.labTask ?? 0) : 0,
+    focus?.task.id ?? null,
+    !!study.lab && !!study.labTest,
+  );
+  const testPage = labTest.test
+    ? (visible: boolean) => (
+        <PanelArea
+          key={labTest.test!.id}
+          target={{ url: labTest.test!.url }}
+          keepSignIn={props.keepSignIn}
+          visible={visible}
+        />
+      )
+    : null;
   // v0.0.12: the day's short writing suggests words from the cards
   const [suggestions, setSuggestions] = useState<string[]>([]);
   useEffect(() => {
@@ -779,6 +797,7 @@ export function StudyScreen(props: {
             queue={queue}
             position={videoPosition}
             onNextTask={focus ? () => void next() : undefined}
+            planTaskId={focus?.task.id ?? null}
           />
         )}
 
@@ -941,41 +960,77 @@ export function StudyScreen(props: {
           />
         ) : study.lab === "writing" ? (
           <>
-            <div className={onBreak ? "hidden-under" : "fill lab-scroll"}>
-              <WritingLab
-                task={study.labTask ?? null}
-                count={study.labCount ?? 1}
-                planTaskId={focus?.task.id ?? null}
-                opened={openedWriting}
-                onChanged={labChanged}
-              />
-            </div>
+            {study.labTest ? (
+              <div className={onBreak ? "hidden-under" : "fill"}>
+                {labTest.test === undefined ? (
+                  <div className="spinner" aria-hidden="true" />
+                ) : (
+                  <SpeakingArea
+                    hidden={onBreak}
+                    page={testPage}
+                    pageLabel={t("lab_tab_question")}
+                    labLabel={t("lab_tab_writing")}
+                    labIcon="pen"
+                    lab={(showPage) => (
+                      <WritingLab
+                        task={study.labTask ?? null}
+                        count={study.labCount ?? 1}
+                        planTaskId={focus?.task.id ?? null}
+                        opened={openedWriting}
+                        onChanged={labChanged}
+                        test={labTest.test}
+                        onShowQuestion={showPage}
+                        onNextQuestion={labTest.reload}
+                      />
+                    )}
+                  />
+                )}
+              </div>
+            ) : (
+              <div className={onBreak ? "hidden-under" : "fill lab-scroll"}>
+                <WritingLab
+                  task={study.labTask ?? null}
+                  count={study.labCount ?? 1}
+                  planTaskId={focus?.task.id ?? null}
+                  opened={openedWriting}
+                  onChanged={labChanged}
+                />
+              </div>
+            )}
             {main}
           </>
         ) : study.lab === "speaking" ? (
           <>
             <div className={onBreak ? "hidden-under" : "fill"}>
-              <SpeakingArea
-                hidden={onBreak}
-                page={
-                  study.target
-                    ? (visible) => (
-                        <PanelArea
-                          target={study.target!}
-                          keepSignIn={props.keepSignIn}
-                          visible={visible}
-                        />
-                      )
-                    : null
-                }
-                lab={
-                  <SpeakingLab
-                    planTaskId={focus?.task.id ?? null}
-                    parts={study.labParts}
-                    onChanged={labChanged}
-                  />
-                }
-              />
+              {study.labTest && labTest.test === undefined ? (
+                <div className="spinner" aria-hidden="true" />
+              ) : (
+                <SpeakingArea
+                  hidden={onBreak}
+                  page={
+                    testPage ??
+                    (study.target
+                      ? (visible) => (
+                          <PanelArea
+                            target={study.target!}
+                            keepSignIn={props.keepSignIn}
+                            visible={visible}
+                          />
+                        )
+                      : null)
+                  }
+                  pageLabel={labTest.test ? t("lab_tab_question") : undefined}
+                  lab={(showPage) => (
+                    <SpeakingLab
+                      planTaskId={focus?.task.id ?? null}
+                      parts={study.labParts}
+                      onChanged={labChanged}
+                      test={labTest.test}
+                      onShowQuestion={showPage}
+                    />
+                  )}
+                />
+              )}
             </div>
             {main}
           </>
@@ -1076,8 +1131,8 @@ export function StudyScreen(props: {
             ) : queue.current ? (
               <div className={onBreak ? "hidden-under" : "fill"}>
                 <PanelArea
-                  key={queue.current.id}
-                  target={queueTarget(queue.current)}
+                  key={`${queue.current.id}-${queue.view}`}
+                  target={queueTarget(queue.current, queue.view)}
                   keepSignIn={props.keepSignIn}
                   visible={!onBreak}
                   minimal={queue.current.kind === "video"}

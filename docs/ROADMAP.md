@@ -199,14 +199,25 @@ The owner's screenshot showed Daily English Listening (DLK-11) opening the old p
 - [x] No "how long did you study?" box: videos count by their length, podcast stages 15 minutes each, the rest by the timer
 - [x] Listening and novel tasks without the instructions box; the stage button goes once the task's stages are done; each novel has a half-hour clock (red after, with a skip), a fixed number of novels, "Finished the novel — Next" on the last
 - [x] Words and phrases: when Dalilk's page cannot be read as cards, the page itself opens in the app
-- [ ] App name and logo — the owner picks one of four (names_and_logos.png)
-- [ ] Free tests map approved (docs/research/tests_map.md) → tests by name at their moment in the plan, score boxes, progress page
+- [x] App name and logo — the owner picked 4, "IELTS Band Up" (done in 0.0.14)
+- [x] Free tests map approved (docs/research/tests_map.md) → done in 0.0.14
 - [x] Windows CI build green; v0.0.13 published (2026-11-03)
 
-## Sprint 4 — Exam preparation and progress · v0.0.14 → v0.1
-- Practice tests with result entry → levels and the overall chart, the plan adapts (technique videos and tests already in the plan since 0.0.8)
-- Introduction video first, before the name-and-band step (D-040): infographic with Fady Mostafa's introduction and the app's steps from setup to studying, made on the final screens
-- Progress page and weekly report; vocabulary and mistakes reviews
+## v0.0.14 — Tests by name, results, progress, the new name (D-044, D-045)
+- [x] The official sample questions of ielts.org in the catalogue (part, question type, answer key, transcript); first-round technique days open them after the videos
+- [x] Practice days open named full tests in the approved order: official, Cambridge 21, 20, 19, then ieltsonlinetests; each once (planner-10)
+- [x] A result box under every test: a sample → right answers (recorded only); a full test → right answers and the band the site showed (a level entry); a final full test → a band per skill; optional question types got wrong (migration 0012: practice results, level source `practice_site`)
+- [x] Writing lab on named questions (official Task 1/2, then Cambridge Writing Test N), the question in a tab beside the lab, one marking message for a new chat; the writing week's last day = Task 1 then Task 2
+- [x] Speaking week on named tests (the official questions, then Cambridge Speaking Test N) in the speaking lab
+- [x] «تقدّمي»: levels per skill with their source, right answers by question type, recent tests (delete one = its band goes too), marked lab answers
+- [x] Library: "official sample questions" open one by one with their result box
+- [x] Name "IELTS Band Up" and logo 4 in the app, window, installer shortcuts and uninstall entry; data folder, program file and update feed unchanged; "not connected with IELTS" line
+- [ ] Windows CI build green; v0.0.14 published
+
+## Sprint 4 — Exam preparation and progress · v0.1
+- Introduction video first, before anything else, on the first start, with skip and "watch again" in Settings (D-040, owner 2026-11-03): Eng. Fady Mostafa made the app free to help people; the app explained from the first step until the target band, on the final screens
+- Content-policy review before the app is given to the public (the personal-use rules change, D-045)
+- Weekly report; the plan adapts to test results
 - Optional: AI method B (official API keys, provider switch, key stored encrypted)
 
 **Exit = v0.1:** every PRD acceptance criterion passes on the baseline laptop.

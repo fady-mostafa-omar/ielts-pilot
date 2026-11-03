@@ -210,7 +210,7 @@ export class StudyPanel {
             width: 520,
             height: 700,
             autoHideMenuBar: true,
-            title: "IELTS Pilot",
+            title: "IELTS Band Up",
             webPreferences: {
               partition,
               sandbox: true,

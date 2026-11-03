@@ -7,6 +7,7 @@ but marked inactive.
 """
 
 import csv
+import json
 import logging
 from pathlib import Path
 
@@ -90,21 +91,64 @@ def catalogue(directory: Path | None = None) -> list[dict]:
             }
         )
     for r in _read(directory / "practice_tests.csv"):
+        meta = {k: (r.get(k) or "").strip() for k in TEST_META}
+        meta = {k: (int(v) if k == "part" else v) for k, v in meta.items() if v}
         rows.append(
             {
                 "kind": "test",
                 "key": r["test_key"].strip(),
                 "title": r["title"].strip(),
-                "grp": "",
+                "grp": (r.get("group") or "").strip(),
                 "skill": r["skill"].strip(),
                 "level": "",
                 "provider": r["provider"].strip(),
                 "sort": int(r["order"]),
                 "duration_seconds": int(r["minutes"]) * 60,
                 "url": r["url"].strip(),
+                "meta_json": json.dumps(meta, sort_keys=True) if meta else None,
             }
         )
     return rows
+
+
+# v0.0.14 (owner, 2026-11-03, D-044): tests by name, in the order of the approved map
+# (docs/research/tests_map.md). Each test once; one done goes on to the next.
+REAL_TEST_MINUTES = {"listening": 30, "reading": 60}  # the exam's own time (planner too)
+TEST_META = ("part", "qtype", "answer_url", "transcript_url", "format")
+# official samples first (technique days), then the full tests of the practice days
+SERIES = {
+    "samples": [("official", "sample")],
+    "practice": [("official", "full"), ("engnovate", None), ("ieltsonlinetests", None)],
+    # the labs: the official question first, then Cambridge 21, 20, 19, then the rest
+    "lab": [("official", None), ("engnovate", None), ("ieltsonlinetests", None)],
+}
+
+
+def meta(item: ContentItem) -> dict:
+    try:
+        return json.loads(item.meta_json) if item.meta_json else {}
+    except ValueError:
+        return {}
+
+
+def test_kind(item: ContentItem) -> str:
+    """"sample" for an official sample question (a part of a test), else "full"."""
+    return "sample" if item.provider == "official" and item.grp == "sample" else "full"
+
+
+def series_order(rows: list[ContentItem], series: str) -> list[ContentItem]:
+    """The rows of a test series in its order (rows outside the series are left out)."""
+    steps = SERIES.get(series, [])
+
+    def rank(r: ContentItem) -> int | None:
+        for i, (provider, grp) in enumerate(steps):
+            if r.provider == provider and (grp is None or r.grp == grp):
+                return i
+        return None
+
+    ranked = [(rank(r), r) for r in rows]
+    return [r for k, r in sorted((x for x in ranked if x[0] is not None),
+                                 key=lambda x: (x[0], x[1].sort))]
 
 
 def sync(session: Session, directory: Path | None = None) -> int:
@@ -153,6 +197,7 @@ def queue(
     minutes: int | None = None,
     limit: int | None = None,
     include_done: bool = False,
+    series: str | None = None,
 ) -> list[ContentItem]:
     """The next unfinished items of a kind, in catalogue order (each item once).
 
@@ -177,7 +222,14 @@ def queue(
                 return found[: limit or 1]
         return []
     rows = list(session.scalars(base.order_by(ContentItem.sort)))
-    if kind == "test" and providers:
+    if kind == "test" and series:
+        rows = series_order(rows, series)
+        real = REAL_TEST_MINUTES.get(skills[0]) if skills and len(skills) == 1 else None
+        if not rows and series == "samples" and minutes and real and minutes >= real:
+            # the samples were done before: the next full test, when the task has its time
+            rows = series_order(
+                list(session.scalars(base.order_by(ContentItem.sort))), "practice")[:1]
+    elif kind == "test" and providers:
         rank = {p: i for i, p in enumerate(providers)}
         rows = [r for r in rows if r.provider in rank]
         rows.sort(key=lambda r: (rank[r.provider], r.sort))

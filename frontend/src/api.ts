@@ -33,6 +33,9 @@ import type {
   CardImportItem,
   CardStats,
   ContentItem,
+  PracticeResult,
+  PracticeResultInput,
+  ProgressData,
 } from "./types";
 
 export class ApiError extends Error {
@@ -229,8 +232,16 @@ export const api = {
     for (const [k, v] of Object.entries(params)) if (v !== undefined) q.set(k, String(v));
     return request<WritingAttempt[]>(`writing?${q.toString()}`);
   },
-  writingNew: (task: 0 | 1 | 2, prompt: string, planTaskId: number | null) =>
-    request<WritingAttempt>("writing", json("POST", { task, prompt, plan_task_id: planTaskId })),
+  writingNew: (
+    task: 0 | 1 | 2,
+    prompt: string,
+    planTaskId: number | null,
+    testKey: string | null = null,
+  ) =>
+    request<WritingAttempt>(
+      "writing",
+      json("POST", { task, prompt, plan_task_id: planTaskId, test_key: testKey }),
+    ),
   writingPatch: (
     id: number,
     patch: Partial<{
@@ -255,6 +266,7 @@ export const api = {
     self_rating: Record<string, number>;
     notes: string;
     plan_task_id: number | null;
+    test_key?: string | null;
   }) => request<SpeakingAttempt>("speaking", json("POST", input)),
   speakingPatch: (
     id: number,
@@ -281,6 +293,22 @@ export const api = {
   contentPosition: (id: number, url: string) =>
     request<ContentItem>(`content/${id}/position`, json("POST", { url })),
   contentDone: (id: number) => request<ContentItem>(`content/${id}/done`, { method: "POST" }),
+  contentItem: (id: number) => request<ContentItem>(`content/${id}`),
+  // v0.0.14 (D-044): tests by name and their results
+  practiceSave: (input: PracticeResultInput) =>
+    request<PracticeResult>("practice-results", json("POST", input)),
+  practiceResults: (params: { content_id?: number; limit?: number } = {}) => {
+    const q = new URLSearchParams();
+    for (const [k, v] of Object.entries(params)) if (v !== undefined) q.set(k, String(v));
+    return request<PracticeResult[]>(`practice-results?${q.toString()}`);
+  },
+  practiceDelete: (id: number) => request<null>(`practice-results/${id}`, { method: "DELETE" }),
+  labTest: (skill: "writing" | "speaking", task: number, planTaskId: number | null) => {
+    const q = new URLSearchParams({ skill, task: String(task) });
+    if (planTaskId !== null) q.set("plan_task_id", String(planTaskId));
+    return request<ContentItem | null>(`lab-test?${q.toString()}`);
+  },
+  progress: () => request<ProgressData>("progress"),
 
   achievements: () =>
     request<Achievements>(`stats/achievements?tz=${new Date().getTimezoneOffset()}`),

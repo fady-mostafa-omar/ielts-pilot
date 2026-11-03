@@ -20,6 +20,7 @@ from app.api import (
     placements,
     plan,
     podcast,
+    practice,
     profile,
     resources,
     sessions,
@@ -109,8 +110,8 @@ def create_app(settings: Settings, engine: Engine | None = None) -> FastAPI:
         )
 
     for module in (
-        cards, content, data, labs, profile, placements, plan, podcast, resources, sessions,
-        stats,
+        cards, content, data, labs, profile, placements, plan, podcast, practice, resources,
+        sessions, stats,
     ):
         app.include_router(module.router)
     return app

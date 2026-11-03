@@ -187,7 +187,7 @@ export function registerIpc(deps: IpcDeps): void {
     guard(async (event) => {
       const win = BrowserWindow.fromWebContents(event.sender) ?? undefined;
       const options = {
-        title: "IELTS Pilot",
+        title: "IELTS Band Up",
         filters: [
           {
             name: "PDF, audio, video, text",
@@ -335,8 +335,8 @@ export function registerIpc(deps: IpcDeps): void {
     guard(async (event) => {
       const win = BrowserWindow.fromWebContents(event.sender) ?? undefined;
       const options = {
-        title: "IELTS Pilot",
-        filters: [{ name: "IELTS Pilot backup", extensions: ["zip"] }],
+        title: "IELTS Band Up",
+        filters: [{ name: "IELTS Band Up backup", extensions: ["zip"] }],
         properties: ["openFile" as const],
       };
       const result = win
@@ -360,9 +360,9 @@ export function registerIpc(deps: IpcDeps): void {
       }
       const win = BrowserWindow.fromWebContents(event.sender) ?? undefined;
       const options = {
-        title: "IELTS Pilot",
+        title: "IELTS Band Up",
         defaultPath: join(deps.documentsDir(), name),
-        filters: [{ name: "IELTS Pilot backup", extensions: ["zip"] }],
+        filters: [{ name: "IELTS Band Up backup", extensions: ["zip"] }],
       };
       const result = win
         ? await dialog.showSaveDialog(win, options)

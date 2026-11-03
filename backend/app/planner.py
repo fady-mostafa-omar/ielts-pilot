@@ -21,7 +21,7 @@ import math
 from dataclasses import asdict, dataclass, field
 from datetime import date, timedelta
 
-GENERATOR = "planner-9"  # v0.0.13: daily phrases, speaking lab step by step (D-043)
+GENERATOR = "planner-10"  # v0.0.14: tests by name, official samples (D-044)
 SKILLS = ("listening", "reading", "writing", "speaking")
 HOURS_PER_BAND = 100  # owner, 2026-11-03: fixed, not edited, not learned (D-043)
 DEV_SHARE = {"foundation": 0.75, "development": 0.6, "exam": 0.35}
@@ -372,10 +372,12 @@ TEXT = {
         "VID-T2.title": "فيديوهات تكنيكات Task 2",
         "PVID.title": "تدريب عملي مع الفيديو ({skill})",
         "PVID.do": "حل مع الفيديو، ووقّف وحل لوحدك قبل ما تشوف الإجابة.",
-        "TEST.title": "اختبار {skill} تجريبي ({n})",
-        "TEST.do": "الاختبار بيفتح على طول. حلّه بالوقت، وبعدين صحّح وارجع لكل غلطة.",
-        "W-T1x.do": "اكتب {n} إجابة Task 1 في معمل الكتابة: كل واحدة 20 دقيقة (150 كلمة على الأقل) + 10 دقايق مراجعة مع المدرّس الذكي، وضيف غلطاتك للكراسة.",
-        "W-T2x.do": "اكتب {n} إجابة Task 2 في معمل الكتابة: كل واحدة 40 دقيقة (250 كلمة على الأقل) + 10 دقايق مراجعة مع المدرّس الذكي، وضيف غلطاتك للكراسة.",
+        "TEST.title": "اختبار {skill} كامل ({n})",
+        "TEST.do": "الاختبار بيفتح على طول باسمه. حلّه بالوقت، وصحّح، واكتب عدد الصح والدرجة اللي الموقع طلّعها في المربع: الدرجة بتتسجّل في مستواك.",
+        "SAMPLE.title": "نماذج أسئلة رسمية — {skill} ({n})",
+        "SAMPLE.do": "بعد الفيديوهات: نماذج الأسئلة الرسمية من ielts.org، كل نموذج نوع سؤال. حل، وافتح ملف الإجابات، واكتب عدد الصح. النماذج بتتسجّل في صفحة «تقدّمي» ومش بتغيّر مستواك.",
+        "W-T1x.do": "اكتب {n} إجابة Task 1 في معمل الكتابة، كل واحدة على سؤال باسمه (الرسمي الأول، وبعده Cambridge): 20 دقيقة (150 كلمة على الأقل) + 10 دقايق تصحيح مع المدرّس الذكي.",
+        "W-T2x.do": "اكتب {n} إجابة Task 2 في معمل الكتابة، كل واحدة على سؤال باسمه (الرسمي الأول، وبعده Cambridge): 40 دقيقة (250 كلمة على الأقل) + 10 دقايق تصحيح مع المدرّس الذكي.",
         "W-DEV.title": "كتابة يومية",
         "W-DEV.do": "اكتب 5 جمل أو أكتر عن يومك أو عن اللي سمعته وقريته النهارده.",
         "S-PHRASE.title": "العبارات اليومية (فيديو)",
@@ -395,7 +397,7 @@ TEXT = {
         "W-T2.do": "اكتب Task 2 في 40 دقيقة (250 كلمة على الأقل). بعدها قارنها بنموذج رسمي "
         "من المكتبة.",
         "S-PRAC.title": "تدريب Speaking بالوقت",
-        "S-PRAC.do": "ابدأ بتسجيل دقيقة عن يومك أو عرّف نفسك. وبعدين في معمل المحادثة: جاوب أسئلة Part 1 و2 و3 بالوقت (Part 2 دقيقة تحضير ودقيقتين كلام)، اسمع نفسك، واكتب كلامك عشان المدرّس الذكي يصحّحه.",
+        "S-PRAC.do": "ابدأ بتسجيل دقيقة عن يومك أو عرّف نفسك. وبعدين في معمل المحادثة: أسئلة اختبار باسمه (الرسمي الأول، وبعده Cambridge). جاوب Part 1 و2 و3 بالوقت (Part 2 دقيقة تحضير ودقيقتين كلام)، واكتب كلامك عشان المدرّس الذكي يصحّحه.",
         "exam.reason": "أسبوع {skill} في جزء الامتحان (فرقك فيها {gap}). نفس ترتيب جدول دليلك: "
         "تكنيك الأول، وبعدين تدريب.",
         "MOCK.title": "اختبار تجريبي كامل",
@@ -460,10 +462,12 @@ TEXT = {
         "VID-T2.title": "Task 2 technique videos",
         "PVID.title": "Practice with the video ({skill})",
         "PVID.do": "Solve along; pause and try on your own before the answer.",
-        "TEST.title": "{skill} practice test ({n})",
-        "TEST.do": "The test opens directly. Do it on time, then check and go back to each mistake.",
-        "W-T1x.do": "Write {n} Task 1 answers in the writing lab: 20 minutes each (at least 150 words) + 10 minutes reviewing with the AI tutor; add your mistakes to the notebook.",
-        "W-T2x.do": "Write {n} Task 2 answers in the writing lab: 40 minutes each (at least 250 words) + 10 minutes reviewing with the AI tutor; add your mistakes to the notebook.",
+        "TEST.title": "Full {skill} test ({n})",
+        "TEST.do": "The test opens directly, by name. Do it on time, check it, and type the right answers and the band the site showed in the box: the band goes into your level.",
+        "SAMPLE.title": "Official sample questions — {skill} ({n})",
+        "SAMPLE.do": "After the videos: the official sample questions from ielts.org, one question type each. Answer, open the answer key and type how many you got right. Samples are kept on «My progress» and do not change your level.",
+        "W-T1x.do": "Write {n} Task 1 answers in the writing lab, each on a named question (the official one first, then Cambridge): 20 minutes (at least 150 words) + 10 minutes of marking with the AI tutor.",
+        "W-T2x.do": "Write {n} Task 2 answers in the writing lab, each on a named question (the official one first, then Cambridge): 40 minutes (at least 250 words) + 10 minutes of marking with the AI tutor.",
         "W-DEV.title": "Daily writing",
         "W-DEV.do": "Write 5 sentences or more about your day or what you heard and read today.",
         "S-PHRASE.title": "Daily phrases (video)",
@@ -484,8 +488,9 @@ TEXT = {
         "official sample from the library.",
         "S-PRAC.title": "Timed speaking practice",
         "S-PRAC.do": "Start with a one-minute recording about your day or yourself. Then, in the "
-        "speaking lab, answer Part 1, 2 and 3 questions on time (Part 2: one minute to prepare, "
-        "two to speak), listen to yourself, and write what you said for the AI tutor.",
+        "speaking lab, the questions of a named test (the official one first, then Cambridge): "
+        "answer Part 1, 2 and 3 on time (Part 2: one minute to prepare, two to speak) and write "
+        "what you said for the AI tutor.",
         "exam.reason": "{skill} week in the exam part (your gap: {gap}). Same order as Dalilk's "
         "plan: technique first, then practice.",
         "MOCK.title": "Full practice test",
@@ -521,6 +526,10 @@ WRITE_DEV = SPEAK_DEV = 5
 PHRASE_VIDEO_MINUTES = 20  # Dalilk's daily-phrases videos average ~19 min
 TEST_MINUTES = {"listening": 40, "reading": 75, "writing": 70, "speaking": 20}
 REAL_TEST_MINUTES = {"listening": 30, "reading": 60}  # the exam's own time
+# v0.0.14 (D-044): the official sample questions on the technique days of the first round,
+# about the time one takes with its answer key (8 listening and 10 reading samples)
+SAMPLE_MINUTES = {"listening": 8, "reading": 12}
+SAMPLES_PER_DAY = {"listening": 4, "reading": 5}
 # caps per day, so a very long day does not become 14 tests in a row; the rest of the
 # focus time goes to podcast + novels (Dalilk: listening/reading input is the backbone)
 MAX_TECH_VIDEO = 240
@@ -746,6 +755,8 @@ def _overflow(inputs: PlanInputs, t: dict, minutes: int, reason: str) -> list[Bl
     level = _mean_level(inputs)
     feed = "dalilk_english" if level is not None and level < 5.0 else "dalilk_ielts"
     listen = _round5(minutes * 0.6)
+    if minutes - listen < MIN_BLOCK:
+        listen = minutes  # too little for a novel: all of it to the podcast
     out = [Block("listening", "listening", "L-EXT", listen,
                  LISTEN_EASY if feed == "dalilk_english" else LISTEN_IELTS,
                  t["FOCUS-L.title"], t["FOCUS-L.do"], t["overflow.reason"],
@@ -768,10 +779,12 @@ def _tests(inputs: PlanInputs, t: dict, skill: str, rnd: int, minutes: int,
                       {"kind": "videos", "groups": ["practice", "high"],
                        "skills": [SKILL_CODE.get(skill, "W1")], "minutes": minutes})]
     count = max(1, min(MAX_TESTS, round(minutes * TEST_SHARE / per)))
-    providers = ["engnovate", "ieltsonlinetests"] if rnd >= 2 else ["ieltsonlinetests"]
     test_minutes = min(minutes, count * per)
     title = t["TEST.title"].format(skill=t["skill"][skill], n=count)
-    content = {"kind": "tests", "skills": [skill], "providers": providers, "count": count}
+    # by name, in the approved order (D-044): the official full test, then Cambridge 21, 20,
+    # 19 (engnovate), then ieltsonlinetests; each once, so the second round goes on from there
+    content = {"kind": "tests", "skills": [skill], "series": "practice", "count": count}
+    del rnd
     blocks = [Block("exam", skill, "P-TEST", test_minutes, None, title, t["TEST.do"], reason,
                     content)]
     rest = minutes - test_minutes
@@ -785,18 +798,44 @@ def _tests(inputs: PlanInputs, t: dict, skill: str, rnd: int, minutes: int,
     return blocks + _overflow(inputs, t, rest, reason)
 
 
+def _samples(inputs: PlanInputs, t: dict, skill: str, minutes: int,
+             reason: str) -> list[Block]:
+    """The first round's technique days (D-044): the official sample questions after the
+    videos, one question type each (day 1: Parts 1–2 / the first five types, day 2: the
+    rest). Done before? The block opens the next full test when it has the time."""
+    per = SAMPLE_MINUTES[skill]
+    count = min(SAMPLES_PER_DAY[skill], minutes // per)
+    if count < 1:
+        return _overflow(inputs, t, minutes, reason)
+    used = count * per
+    if used < REAL_TEST_MINUTES[skill] <= minutes:
+        used = REAL_TEST_MINUTES[skill]  # room for a full test if the samples were done
+    if minutes - used < 2 * MIN_BLOCK:
+        used = minutes  # a few minutes left: more time on the answer keys
+    blocks = [Block("exam", skill, "P-SAMPLE", used, None,
+                    t["SAMPLE.title"].format(skill=t["skill"][skill], n=count), t["SAMPLE.do"],
+                    reason, {"kind": "tests", "skills": [skill], "series": "samples",
+                             "count": count, "minutes": used})]
+    return blocks + _overflow(inputs, t, minutes - used, reason)
+
+
 def _techniques(inputs: PlanInputs, t: dict, skills: list[str], groups: list[str],
                 minutes: int, reason: str, skill: str, rnd: int,
                 title_key: str = "VID.title") -> list[Block]:
     video = min(_round5(minutes * TECH_SHARE) if minutes >= 60 else minutes, MAX_TECH_VIDEO)
-    real = REAL_TEST_MINUTES.get(skill)
+    if rnd == 1 and skill in SAMPLE_MINUTES and 30 <= minutes < 60:
+        # a short day still gets one official sample after the videos (D-044)
+        video = 5 * ((minutes - SAMPLE_MINUTES[skill]) // 5)
+    real = REAL_TEST_MINUTES.get(skill) if rnd >= 2 else None  # round 1: samples, any size
     if real and 0 < minutes - video < real:
         # never a cut-down test: give the test its real time, or keep the day for videos
         video = minutes - real if minutes - real >= 15 else min(minutes, MAX_TECH_VIDEO)
     blocks = [_videos(t, skills, groups, video, reason, skill, title_key)]
     rest = minutes - video
     if rest >= MIN_BLOCK:
-        if skill in ("listening", "reading"):
+        if skill in ("listening", "reading") and rnd == 1:
+            blocks += _samples(inputs, t, skill, rest, reason)
+        elif skill in ("listening", "reading"):
             blocks += _tests(inputs, t, skill, rnd, rest, reason)
         elif skill == "writing":
             task = 2 if skills == ["W2"] else 1
@@ -814,7 +853,7 @@ def _writing(inputs: PlanInputs, t: dict, task: int, minutes: int, reason: str) 
     used = min(minutes, count * per)
     blocks = [Block("exam", "writing", f"W-T{task}", used, None, t[f"W-T{task}.title"],
                     t[f"W-T{task}x.do"].format(n=count), reason,
-                    {"kind": "writing", "task": task, "count": count})]
+                    {"kind": "writing", "task": task, "count": count, "test": True})]
     rest = minutes - used
     video = min(_round5(rest / 2) if rest >= 40 else rest, MAX_PRACTICE_VIDEO)
     if video >= 10:
@@ -830,7 +869,7 @@ def _speaking(inputs: PlanInputs, t: dict, minutes: int, reason: str) -> list[Bl
     practice = min(MAX_SPEAKING, _round5(minutes / 2) if minutes >= 40 else minutes)
     blocks = [Block("exam", "speaking", "S-PRAC", practice, SPEAK_IELTS,
                     t["S-PRAC.title"], t["S-PRAC.do"], reason,
-                    {"kind": "speaking", "parts": [1, 2, 3]})]
+                    {"kind": "speaking", "parts": [1, 2, 3], "test": True})]
     rest = minutes - practice
     video = min(_round5(rest / 2) if rest >= 40 else rest, MAX_PRACTICE_VIDEO)
     if video >= 10:
@@ -885,17 +924,11 @@ def _focus_blocks(inputs: PlanInputs, t: dict, d: date, focus: int) -> list[Bloc
             return _techniques(inputs, t, [f"W{task}"], groups, focus, reason, "writing", rnd,
                                f"VID-T{task}.title")
         blocks: list[Block] = []
-        if k == n - 1 and n >= 3:
-            per_test = TEST_MINUTES["writing"]
-            blocks.append(Block("exam", "writing", "P-TEST", min(focus, per_test), None,
-                                t["TEST.title"].format(skill=t["skill"]["writing"], n=1),
-                                t["TEST.do"], reason,
-                                {"kind": "tests", "skills": ["writing"],
-                                 "providers": (["engnovate", "ieltsonlinetests"] if rnd >= 2
-                                               else ["ieltsonlinetests"]), "count": 1}))
-            focus -= blocks[0].minutes
-            if focus < MIN_BLOCK:
-                return blocks
+        if k == n - 1 and n >= 3 and focus >= T1_MINUTES + MIN_BLOCK:
+            # the week's last day: a whole writing test, Task 1 then Task 2 (in the labs, on
+            # named questions, D-044), then Task 2 practice as before
+            blocks += _writing(inputs, t, 1, T1_MINUTES, reason)
+            focus -= T1_MINUTES
         return blocks + _writing(inputs, t, task, focus, reason)
     # speaking
     if k == 0:
@@ -1058,7 +1091,7 @@ def content_minutes(inputs: PlanInputs, max_days: int = 400) -> dict:
     end = inputs.exam_date - timedelta(days=1) if inputs.exam_date else last
     out = {"podcast": 0, "novel": 0, "video": 0, "phrase_videos": 0, "tests": 0,
            "test_minutes": 0, "writing_t1": 0, "writing_t2": 0, "full_tests": 0,
-           "days": 0}
+           "samples": 0, "days": 0}
     day = inputs.today
     for _ in range(max_days):
         if day > end:
@@ -1081,6 +1114,9 @@ def content_minutes(inputs: PlanInputs, max_days: int = 400) -> dict:
             elif ck == "tests":
                 if c.get("skills") == ["full"]:
                     out["full_tests"] += 1
+                elif c.get("series") == "samples":
+                    out["samples"] += c.get("count", 1)
+                    out["test_minutes"] += b.minutes
                 else:
                     out["tests"] += c.get("count", 1)
                     out["test_minutes"] += b.minutes

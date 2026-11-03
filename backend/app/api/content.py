@@ -34,6 +34,9 @@ class ContentOut(BaseModel):
     completed_at: datetime | None
     position_url: str | None = None  # 0008: a novel's last page, to carry on from there
     note: str = ""  # v0.0.13: what this video gives, in one line
+    # v0.0.14 (D-044): a test's part, question type, answer key and transcript links
+    meta: dict = Field(default_factory=dict)
+    test_kind: str = ""  # "sample" (part of a test, recorded only) or "full"
 
 
 class PositionIn(BaseModel):
@@ -46,6 +49,9 @@ def _out(item: ContentItem) -> ContentOut:
     out = ContentOut.model_validate(item, from_attributes=True)
     if item.kind == "video":
         out.note = content.video_note(item.key, item.grp, item.skill)
+    elif item.kind == "test":
+        out.meta = content.meta(item)
+        out.test_kind = content.test_kind(item)
     return out
 
 
@@ -66,6 +72,7 @@ def get_queue(
     minutes: Annotated[int | None, Query(ge=1, le=900)] = None,
     limit: Annotated[int | None, Query(ge=1, le=50)] = None,
     review: bool = False,
+    series: Literal["samples", "practice", "lab"] | None = None,
 ) -> list[ContentOut]:
     if level is not None and level not in content.NOVEL_LEVELS:
         raise HTTPException(422, {"error": "bad_level", "message": "unknown novel level"})
@@ -80,6 +87,7 @@ def get_queue(
             minutes=minutes,
             limit=limit,
             include_done=review,
+            series=series,
         )
         return [_out(r) for r in rows]
 

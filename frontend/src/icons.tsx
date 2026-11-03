@@ -318,3 +318,22 @@ export function SkillBadge(props: { skill: ResourceSkill; size?: number }) {
     </span>
   );
 }
+
+/** v0.0.14: the IELTS Band Up mark (the owner's logo 4): two chevrons up, the goal above. */
+export function BrandMark(props: { size?: number }) {
+  const size = props.size ?? 32;
+  return (
+    <svg width={size} height={size} viewBox="0 0 120 120" aria-hidden="true" className="brand-svg">
+      <defs>
+        <linearGradient id="bandup-g" x1="0" y1="1" x2="0" y2="0">
+          <stop offset="0" stopColor="#be185d" />
+          <stop offset="1" stopColor="#e11d48" />
+        </linearGradient>
+      </defs>
+      <rect width="120" height="120" rx="30" fill="url(#bandup-g)" />
+      <path d="M30 76 L60 46 L90 76" fill="none" stroke="#fff" strokeWidth="12" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M40 94 L60 74 L80 94" fill="none" stroke="#fff" strokeWidth="9" strokeLinecap="round" strokeLinejoin="round" opacity=".55" />
+      <circle cx="60" cy="28" r="8" fill="#fde047" />
+    </svg>
+  );
+}

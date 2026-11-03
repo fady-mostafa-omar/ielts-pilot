@@ -10,7 +10,8 @@ from app.models import SKILLS
 Band = Annotated[float, Field(ge=0, le=9, multiple_of=0.5)]
 Skill = Literal["listening", "reading", "writing", "speaking"]
 SourceType = Literal[
-    "official_practice", "external_marker", "placement_quiz", "self_estimate", "ai_tutor"
+    "official_practice", "external_marker", "placement_quiz", "self_estimate", "ai_tutor",
+    "practice_site",
 ]
 ResourceSkill = Literal[
     "listening", "reading", "writing", "speaking", "grammar", "vocabulary", "techniques", "general"

@@ -3199,3 +3199,61 @@ details.lab-card > summary {
   cursor: pointer;
   font-weight: 600;
 }
+
+/* ---------- v0.0.14: tests by name, results, progress (D-044) ---------- */
+.test-score {
+  border-top: 1px solid var(--border);
+  padding-top: 10px;
+  margin-top: 4px;
+}
+
+.test-marks input {
+  width: 72px;
+  text-align: center;
+}
+
+.chip-btn.small {
+  padding: 3px 10px;
+  font-size: 12.5px;
+}
+
+.progress-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.progress-skill h3 {
+  font-size: 18px;
+}
+
+.plain-list {
+  list-style: none;
+  padding: 0;
+  margin: 6px 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.qtype-row {
+  display: grid;
+  grid-template-columns: minmax(180px, 260px) minmax(80px, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+}
+
+.qtype-row .meter span.low {
+  background: var(--bad);
+}
+
+@media (max-width: 720px) {
+  .progress-grid {
+    grid-template-columns: 1fr;
+  }
+  .qtype-row {
+    grid-template-columns: 1fr;
+    gap: 4px;
+  }
+}

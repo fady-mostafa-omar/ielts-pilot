@@ -512,15 +512,21 @@ def test_listening_exam_week_techniques_then_tests() -> None:
     assert tech[0].content["skills"] == ["L"]
     _, paper = day_blocks(p4(exam_format="paper"), week(4))
     assert "paper" in paper[0].content["groups"]
+    # v0.0.14 (D-044): the official sample questions right after the first round's videos
+    sample = next(b for b in tech if b.activity_code == "P-SAMPLE")
+    assert sample.content["series"] == "samples" and sample.content["skills"] == ["listening"]
     _, practice = day_blocks(p4(), week(4, 2))
     assert practice[0].activity_code == "P-TEST"
-    assert practice[0].content["providers"] == ["ieltsonlinetests"]
+    # named full tests in the approved order (official, Cambridge 21-19, then the rest)
+    assert practice[0].content["series"] == "practice"
     # about half the focus time (110 min after the word cards) in tests, the rest practice
     # videos and input
     assert practice[0].content["count"] == 1
     assert codes(practice)[:2] == ["P-TEST", "P-VID"]
     _, round2 = day_blocks(p4(), week(8, 2))
-    assert round2[0].content["providers"] == ["engnovate", "ieltsonlinetests"]
+    assert round2[0].content["series"] == "practice"
+    _, round2_tech = day_blocks(p4(), week(8))
+    assert "P-SAMPLE" not in codes(round2_tech)  # the samples are the first round's
     # no spelling or phrases outside development weeks
     assert "L-SPELL" not in codes(practice) and "S-PHRASE" not in codes(practice)
 
@@ -529,9 +535,12 @@ def test_writing_week_task1_then_task2_then_a_test() -> None:
     days = [day_blocks(p4(), week(6, i))[1] for i in (0, 1, 2, 3, 4, 5)]
     assert days[0][0].content["skills"] == ["W1"]
     assert days[1][0].activity_code == "W-T1" and days[1][0].content["count"] == 2
+    assert days[1][0].content["test"] is True  # on named questions (D-044)
     assert days[3][0].content["skills"] == ["W2"]
     assert days[4][0].activity_code == "W-T2"
-    assert days[5][0].activity_code == "P-TEST" and days[5][0].content["skills"] == ["writing"]
+    # the last day: a whole writing test in the lab, Task 1 then Task 2
+    assert codes(days[5])[:2] == ["W-T1", "W-T2"]
+    assert days[5][0].content["count"] == 1
 
 
 def test_speaking_week() -> None:
@@ -539,6 +548,7 @@ def test_speaking_week() -> None:
     assert first[0].content["skills"] == ["S"]
     _, later = day_blocks(p4(), week(7, 1))
     assert codes(later)[:2] == ["S-PRAC", "P-VID"]
+    assert later[0].content == {"kind": "speaking", "parts": [1, 2, 3], "test": True}
 
 
 def test_final_days_use_dalilk_mocks_and_the_official_test() -> None:
@@ -557,7 +567,9 @@ def test_six_hours_share_every_part() -> None:
     six = p4(daily_minutes=360)
     _, tech = day_blocks(six, week(4))
     assert tech[0].activity_code == "T-VID" and tech[0].minutes == 135  # 60 % of 225
-    assert "P-TEST" in codes(tech)  # practice right after the techniques
+    # practice right after the techniques: the official samples in the first round
+    sample = next(b for b in tech if b.activity_code == "P-SAMPLE")
+    assert sample.content["count"] == 4 and sample.minutes == 32
     assert sum(b.minutes for b in tech) == 360
     _, tests = day_blocks(six, week(4, 2))
     assert tests[0].content["count"] == 3  # ~half of 240 min in 40-min tests
@@ -672,4 +684,19 @@ def test_daily_phrases_and_the_speaking_lab_step_by_step() -> None:
     # the speaking week: all three parts in the lab
     _, speak = day_blocks(i, week(7, 2))
     prac = [b for b in speak if b.activity_code == "S-PRAC"][0]
-    assert prac.content == {"kind": "speaking", "parts": [1, 2, 3]}
+    assert prac.content == {"kind": "speaking", "parts": [1, 2, 3], "test": True}
+
+
+def test_official_samples_on_short_and_long_technique_days() -> None:
+    # v0.0.14 (D-044): a 2-hour day still gets one sample after the videos
+    _, short = day_blocks(p4(daily_minutes=120), week(4))
+    sample = next(b for b in short if b.activity_code == "P-SAMPLE")
+    assert sample.content["count"] == 1 and short[0].activity_code == "T-VID"
+    _, reading = day_blocks(p4(daily_minutes=180), week(5))
+    sample = next(b for b in reading if b.activity_code == "P-SAMPLE")
+    assert sample.content == {"kind": "tests", "skills": ["reading"], "series": "samples",
+                              "count": 3, "minutes": 40}
+    for minutes in (120, 180, 360):
+        for k in (0, 1):
+            _, blocks = day_blocks(p4(daily_minutes=minutes), week(4, k))
+            assert sum(b.minutes for b in blocks) == minutes

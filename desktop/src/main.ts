@@ -1,4 +1,4 @@
-// IELTS Pilot — Electron main process.
+// IELTS Band Up (internal name IELTS Pilot) — Electron main process.
 //
 // Startup order: window first (shows a loading state), backend second. The UI polls
 // app://ui/api/v1/health and gets 503 "backend_starting" until the backend is ready.
@@ -111,7 +111,7 @@ function createWindow(hidden: boolean): { win: BrowserWindow; loaded: Promise<vo
     minHeight: 580,
     show: false,
     backgroundColor: "#f6f7f9",
-    title: "IELTS Pilot",
+    title: "IELTS Band Up",
     autoHideMenuBar: true,
     webPreferences: {
       preload: join(__dirname, "preload.js"),
@@ -341,7 +341,7 @@ if (!smokeOutFile && !app.requestSingleInstanceLock()) {
   });
   void app.whenReady().then(main).catch((err: unknown) => {
     log(`fatal: ${String(err)}`);
-    dialog.showErrorBox("IELTS Pilot", String(err));
+    dialog.showErrorBox("IELTS Band Up", String(err));
     app.exit(1);
   });
 }

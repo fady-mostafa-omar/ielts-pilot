@@ -791,6 +791,7 @@ function UpdateTab() {
           </button>
         )}
         <p className="muted small">{t("upd_how")}</p>
+        <p className="muted small">{t("about_independent")}</p>
       </section>
 
       <section className="card stack">

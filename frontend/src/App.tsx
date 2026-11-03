@@ -1,13 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api, ApiError, onBackendFailure } from "./api";
 import { I18nProvider, useI18n } from "./i18n";
-import { Icon, type IconName } from "./icons";
+import { BrandMark, Icon, type IconName } from "./icons";
 import { BootScreen, FailedScreen } from "./screens/Boot";
 import { FocusRunner } from "./screens/Focus";
 import { HomeScreen } from "./screens/Home";
 import { LibraryScreen } from "./screens/Library";
 import { PlacementTestView } from "./screens/Placement";
 import { PlanScreen } from "./screens/Plan";
+import { ProgressScreen } from "./screens/Progress";
 import { SettingsScreen, type SettingsTab } from "./screens/Settings";
 import { SetupScreen } from "./screens/Setup";
 import { StudyScreen, type StudyTarget } from "./screens/Study";
@@ -33,6 +34,7 @@ type Page =
   | { kind: "plan"; restart?: boolean }
   | { kind: "focus" }
   | { kind: "library"; skill?: ResourceSkill }
+  | { kind: "progress" }
   | { kind: "settings"; tab?: SettingsTab }
   | { kind: "study"; study: StudyTarget; back: Page }
   | { kind: "test"; test: PlacementTest; back: Page };
@@ -176,6 +178,9 @@ export function App() {
                 onOpenLibrary={() => setPage({ kind: "library" })}
               />
             )}
+            {page.kind === "progress" && (
+              <ProgressScreen profile={phase.profile} onLevelsChanged={() => void refreshLevels()} />
+            )}
             {page.kind === "library" && (
               <LibraryScreen
                 initialFilter={page.skill}
@@ -230,9 +235,10 @@ export function App() {
   );
 }
 
-const NAV: { kind: "home" | "plan" | "library" | "settings"; icon: IconName }[] = [
+const NAV: { kind: "home" | "plan" | "progress" | "library" | "settings"; icon: IconName }[] = [
   { kind: "home", icon: "home" },
   { kind: "plan", icon: "route" },
+  { kind: "progress", icon: "trend" },
   { kind: "library", icon: "library" },
   { kind: "settings", icon: "settings" },
 ];
@@ -253,9 +259,7 @@ function Shell(props: {
       {!focus && (
       <nav className="topbar">
         <span className="brand">
-          <span className="brand-mark">
-            <Icon name="logo" color="#FFFFFF" size={18} strokeWidth={2.2} />
-          </span>
+          <BrandMark size={32} />
           <span dir="ltr">{t("app_name")}</span>
         </span>
         {NAV.map((item) => {

@@ -100,6 +100,70 @@ export function speakingAnswerMessage(transcript: string, seconds: number): stri
   return `Here is what I said (about ${Math.round(seconds)} seconds). Please mark it as agreed.\n\n${transcript.trim()}`;
 }
 
+/** v0.0.14 (D-044): the question comes from a named test, so one message holds it all —
+ *  the question, the answer and how to mark it — for a new chat. */
+export function writingTestPrompt(
+  task: 1 | 2,
+  testTitle: string,
+  question: string,
+  answer: string,
+  words: number,
+  minutes: number,
+  l: Learner,
+): string {
+  const first = task === 1 ? "TA" : "TR";
+  return [
+    `Act as my IELTS Writing examiner. Mark my IELTS Academic Writing Task ${task} answer exactly as an IELTS examiner would.`,
+    `The question is from "${testTitle}".`,
+    task === 1
+      ? "I am also sending a screenshot of the chart, table, map or process from the question. If you cannot see it, mark the answer from the question text and say so."
+      : "",
+    "",
+    `The question:
+${question.trim() || "(I did not paste the question.)"}`,
+    "",
+    `My answer (${words} words, written in about ${minutes} minutes):`,
+    "<<<",
+    answer.trim(),
+    ">>>",
+    "",
+    `First give a band in half bands for ${first}, CC, LR and GRA and the overall band for the task, each on its own line like "${first}: 6.0" and "OVERALL: 6.0". ${OPINION_NOTE}`,
+    "Then the three changes that would raise my band the most.",
+    MISTAKES_FORMAT,
+    `Then give a better version of my answer that keeps my ideas, at about band ${l.target.toFixed(1)}.`,
+    `${aboutMe(l, "writing")} ${language(l.explain)}`,
+  ]
+    .filter((line, i, all) => line !== "" || (all[i - 1] ?? "") !== "")
+    .join("\n");
+}
+
+export function speakingTestPrompt(
+  part: 1 | 2 | 3,
+  testTitle: string,
+  question: string,
+  transcript: string,
+  seconds: number,
+  l: Learner,
+): string {
+  return [
+    `Act as my IELTS Speaking examiner. Mark my answer to IELTS Speaking Part ${part} exactly as an IELTS examiner would. The questions are from "${testTitle}".`,
+    "Below is what I said; it may come from voice typing, so ignore obvious recognition errors. You cannot hear me: do not judge my pronunciation.",
+    "",
+    `The questions:
+${question.trim() || "(I did not paste the questions.)"}`,
+    "",
+    `My answer (spoken for about ${Math.round(seconds)} seconds):`,
+    "<<<",
+    transcript.trim(),
+    ">>>",
+    "",
+    `First give a band in half bands for FC, LR and GRA and an overall band, each on its own line like "FC: 6.0" and "OVERALL: 6.0" (pronunciation not assessed). ${OPINION_NOTE}`,
+    MISTAKES_FORMAT,
+    `Then show a better answer that keeps my ideas, at about band ${l.target.toFixed(1)}, in natural spoken English.`,
+    `${aboutMe(l, "speaking")} ${language(l.explain)}`,
+  ].join("\n");
+}
+
 /** Copies a message for the chat that is already open (no new tab). */
 export async function copyOnly(text: string): Promise<boolean> {
   try {

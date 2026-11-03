@@ -20,7 +20,7 @@ import {
   type TimeDraft,
 } from "../forms";
 import { useI18n } from "../i18n";
-import { Icon } from "../icons";
+import { BrandMark, Icon } from "../icons";
 import { formatHM, todayIso } from "../plan";
 
 const HOURS_PER_BAND = 100; // owner, 2026-11-03: fixed
@@ -179,9 +179,11 @@ export function SetupScreen(props: {
 
         {current === "welcome" && (
           <section className="stack">
+            <BrandMark size={56} />
             <h1>{t("welcome_title")}</h1>
             <p>{t("welcome_body")}</p>
             <p className="note">{t("welcome_local")}</p>
+            <p className="muted small">{t("about_independent")}</p>
             <div className="segmented" role="radiogroup" aria-label={t("field_language")}>
               {(["ar", "en"] as const).map((l) => (
                 <button

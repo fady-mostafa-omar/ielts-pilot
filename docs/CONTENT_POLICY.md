@@ -4,7 +4,7 @@ Status: **draft for approval** · 2026-11-02
 
 ---
 
-1. **Scope.** IELTS Pilot is a personal, non-distributed study tool (D-001). If that ever changes, this policy must be rewritten **before** any distribution, and the master spec §2 content-rights rules apply in full.
+1. **Scope.** IELTS Pilot (shown as "IELTS Band Up" since v0.0.14, D-045) is a personal, non-distributed study tool (D-001). If that ever changes, this policy must be rewritten **before** any distribution, and the master spec §2 content-rights rules apply in full. The owner has said he means to give the app to people for free: this review is due before v0.1 (ROADMAP Sprint 4).
 
 2. **Third-party files** (Dalilk PDFs, official practice tests, books) are downloaded by the owner from where the provider offers them. They are stored only under `%APPDATA%\IELTS Pilot\library\`. They are never committed to the repository, never included in the installer, and never uploaded anywhere.
 
@@ -14,7 +14,7 @@ Status: **draft for approval** · 2026-11-02
 
 5. **Every resource records** provider, URL and a licence note. Dalilk's note: "Free access. No licence or terms of use found on the library page (checked 2026-11-02). Personal use only."
 
-6. **Official IELTS material** is used for personal practice only. Official band descriptors are linked, not embedded. The app's checklists use our own wording built on the four official criteria (D-012).
+6. **Official IELTS material** is used for personal practice only. Official band descriptors are linked, not embedded. Since v0.0.14 (D-044) the catalogue holds the links to ielts.org's free sample questions with their title, part and question type and the links to their answer keys and transcripts — the questions, keys and transcripts themselves open on ielts.org and are never copied. The app's checklists use our own wording built on the four official criteria (D-012).
 
 7. **"Expected questions" resources** (e.g. Dalilk's expected speaking questions, DLK-19) may be based on questions recalled from live tests. They are used as practice prompts only and never presented as official IELTS material.
 

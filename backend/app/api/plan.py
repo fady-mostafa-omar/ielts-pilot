@@ -222,6 +222,7 @@ def _content_totals(session: Session | None, inputs: planner.PlanInputs) -> dict
         "videos": int(video_count) + minutes["phrase_videos"],
         "video_hours": round((video_seconds + minutes["phrase_videos"] * 20 * 60) / 3600, 1),
         "tests": minutes["tests"],
+        "samples": minutes["samples"],  # v0.0.14: the official sample questions (D-044)
         "full_tests": minutes["full_tests"],
         "writing_t1": minutes["writing_t1"],
         "writing_t2": minutes["writing_t2"],

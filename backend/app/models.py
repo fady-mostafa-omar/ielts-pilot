@@ -20,7 +20,8 @@ from app.db import Base, UTCDateTime
 
 SKILLS = ("listening", "reading", "writing", "speaking")
 LEVEL_SOURCES = (
-    "official_practice", "external_marker", "placement_quiz", "self_estimate", "ai_tutor"
+    "official_practice", "external_marker", "placement_quiz", "self_estimate", "ai_tutor",
+    "practice_site",
 )
 RESOURCE_SKILLS = (*SKILLS, "grammar", "vocabulary", "techniques", "general")
 PLACEMENT_TESTS = ("dalilk_13english", "dalilk_3min")
@@ -82,7 +83,7 @@ class SkillLevel(Base):
         CheckConstraint(
             "source_type IN "
             "('official_practice', 'external_marker', 'placement_quiz', 'self_estimate', "
-            "'ai_tutor')",
+            "'ai_tutor', 'practice_site')",
             name="source_type",
         ),
         Index("ix_skill_levels_skill_recorded", "skill", "recorded_at"),
@@ -266,8 +267,53 @@ class ContentItem(Base):
     started_at: Mapped[datetime | None] = mapped_column(UTCDateTime)
     completed_at: Mapped[datetime | None] = mapped_column(UTCDateTime)
     position_url: Mapped[str | None] = mapped_column(String(1000))  # 0008: novel's last page
+    # 0012: a test's part, question type, answer key / transcript links, paper or computer
+    meta_json: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime)
     updated_at: Mapped[datetime] = mapped_column(UTCDateTime)
+
+
+class PracticeResult(Base):
+    """A practice test's result as the owner read it (0012, D-044): the right answers out of
+    the questions, the band the site showed (full tests only) and the question types he got
+    wrong. Only a full test's band is a level entry; a sample is recorded only."""
+
+    __tablename__ = "practice_results"
+    __table_args__ = (
+        CheckConstraint("skill IN ('listening', 'reading', 'writing', 'speaking', 'full')",
+                        name="skill"),
+        CheckConstraint("kind IN ('sample', 'full')", name="kind"),
+        CheckConstraint(
+            "(correct IS NULL AND total IS NULL) OR "
+            "(total > 0 AND correct >= 0 AND correct <= total)",
+            name="marks",
+        ),
+        CheckConstraint(f"band IS NULL OR ({_band_check('band')})", name="band"),
+        Index("ix_practice_results_created", "created_at"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    content_id: Mapped[int | None] = mapped_column(
+        ForeignKey("content_items.id", ondelete="SET NULL")
+    )
+    test_key: Mapped[str] = mapped_column(String(200))
+    title: Mapped[str] = mapped_column(String(300))
+    provider: Mapped[str] = mapped_column(String(30))
+    skill: Mapped[str] = mapped_column(String(10))
+    kind: Mapped[str] = mapped_column(String(10))
+    part: Mapped[int | None] = mapped_column(Integer)
+    qtype: Mapped[str] = mapped_column(String(30), default="")
+    correct: Mapped[int | None] = mapped_column(Integer)  # NULL: only the band was known
+    total: Mapped[int | None] = mapped_column(Integer)
+    band: Mapped[float | None] = mapped_column(Float)
+    # a full mock's band per skill, e.g. {"listening": 6.5, "reading": 6.0}
+    bands_json: Mapped[str] = mapped_column(Text, default="{}")
+    wrong_types_json: Mapped[str] = mapped_column(Text, default="[]")
+    level_ids_json: Mapped[str] = mapped_column(Text, default="[]")
+    plan_task_id: Mapped[int | None] = mapped_column(
+        ForeignKey("plan_tasks.id", ondelete="SET NULL")
+    )
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime)
 
 
 PODCAST_FEEDS = ("dalilk_ielts", "dalilk_english")
@@ -376,6 +422,7 @@ class WritingAttempt(Base):
     # 0011: the marks per criterion the owner typed in, and the level entry they made (D-043)
     scores_json: Mapped[str] = mapped_column(Text, default="{}", server_default="{}")
     level_id: Mapped[int | None] = mapped_column(Integer)
+    test_key: Mapped[str | None] = mapped_column(String(200))  # 0012: the named question
     plan_task_id: Mapped[int | None] = mapped_column(
         ForeignKey("plan_tasks.id", ondelete="SET NULL")
     )
@@ -406,6 +453,7 @@ class SpeakingAttempt(Base):
     tutor_overall: Mapped[float | None] = mapped_column(Float)  # the AI tutor's overall mark
     scores_json: Mapped[str] = mapped_column(Text, default="{}", server_default="{}")  # 0011
     level_id: Mapped[int | None] = mapped_column(Integer)  # 0011: the level entry it made
+    test_key: Mapped[str | None] = mapped_column(String(200))  # 0012: the named test
     plan_task_id: Mapped[int | None] = mapped_column(
         ForeignKey("plan_tasks.id", ondelete="SET NULL")
     )

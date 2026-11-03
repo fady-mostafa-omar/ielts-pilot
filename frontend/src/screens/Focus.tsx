@@ -56,6 +56,7 @@ function targetFor(task: PlanTask, resource: Resource | null): StudyTarget {
       lab: "writing",
       labTask: content.task,
       labCount: content.count,
+      labTest: content.test === true, // v0.0.14: on named questions (D-044)
     };
   }
   if (content?.kind === "writing") {
@@ -100,6 +101,7 @@ function targetFor(task: PlanTask, resource: Resource | null): StudyTarget {
       ? {
           lab: "speaking" as const,
           labParts: content?.kind === "speaking" ? content.parts : undefined,
+          labTest: content?.kind === "speaking" && content.test === true,
         }
       : {}),
   };

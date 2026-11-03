@@ -8,7 +8,8 @@ export type SourceType =
   | "external_marker"
   | "placement_quiz"
   | "self_estimate"
-  | "ai_tutor"; // v0.0.13: marks from the AI tutor, typed in by the owner (D-043)
+  | "ai_tutor" // v0.0.13: marks from the AI tutor, typed in by the owner (D-043)
+  | "practice_site"; // v0.0.14: a practice website's band (not official material, D-044)
 
 export const RESOURCE_SKILLS = [
   "listening",
@@ -141,6 +142,7 @@ export interface WritingAttempt {
   tutor_overall: number | null; // the AI tutor's overall mark (counts in the level, D-043)
   scores: Record<string, number>; // v0.0.13: the tutor's marks per criterion
   level_id: number | null;
+  test_key: string | null; // v0.0.14: the named question (D-044)
   plan_task_id: number | null;
   submitted_at: string | null;
   created_at: string;
@@ -160,6 +162,7 @@ export interface SpeakingAttempt {
   tutor_overall: number | null;
   scores: Record<string, number>;
   level_id: number | null;
+  test_key: string | null; // v0.0.14: the named test (D-044)
   plan_task_id: number | null;
   created_at: string;
   updated_at: string;
@@ -525,10 +528,83 @@ export type TaskContent =
       count?: number;
       review?: boolean;
     }
-  | { kind: "tests"; skills: string[]; providers: string[]; count: number }
-  | { kind: "writing"; task: 0 | 1 | 2; count: number }
+  | {
+      kind: "tests";
+      skills: string[];
+      providers?: string[]; // before v0.0.14
+      series?: TestSeries; // v0.0.14: tests by name in the approved order (D-044)
+      count: number;
+      minutes?: number;
+    }
+  | { kind: "writing"; task: 0 | 1 | 2; count: number; test?: boolean }
   | { kind: "cards"; deck: CardDeck }
-  | { kind: "speaking"; parts: (1 | 2 | 3)[] };
+  | { kind: "speaking"; parts: (1 | 2 | 3)[]; test?: boolean };
+
+export type TestSeries = "samples" | "practice" | "lab";
+
+export interface TestMeta {
+  part?: number;
+  qtype?: string;
+  answer_url?: string;
+  transcript_url?: string;
+  format?: "computer" | "paper";
+}
+
+/** A practice test's result as the owner read it (v0.0.14, D-044). */
+export interface PracticeResult {
+  id: number;
+  content_id: number | null;
+  test_key: string;
+  title: string;
+  provider: string;
+  skill: Skill | "full";
+  kind: "sample" | "full";
+  part: number | null;
+  qtype: string;
+  correct: number | null;
+  total: number | null;
+  band: number | null;
+  bands: Partial<Record<Skill, number>>;
+  wrong_types: string[];
+  level_ids: number[];
+  plan_task_id: number | null;
+  created_at: string;
+}
+
+export interface PracticeResultInput {
+  content_id: number;
+  correct?: number;
+  total?: number;
+  band?: number;
+  bands?: Partial<Record<Skill, number>>;
+  wrong_types?: string[];
+  plan_task_id?: number | null;
+}
+
+export interface ProgressData {
+  levels: { id: number; skill: Skill; band: number; source_type: SourceType; source_note: string; recorded_at: string }[];
+  question_types: {
+    skill: "listening" | "reading";
+    qtype: string;
+    correct: number;
+    total: number;
+    samples: number;
+    wrong_in_full: number;
+  }[];
+  results: PracticeResult[];
+  labs: {
+    kind: "writing" | "speaking";
+    task?: number;
+    part?: number;
+    test_key: string | null;
+    test_title: string;
+    prompt: string;
+    overall: number;
+    scores: Record<string, number>;
+    created_at: string;
+  }[];
+  tests_done: number;
+}
 
 export interface ContentItem {
   id: number;
@@ -546,6 +622,8 @@ export interface ContentItem {
   completed_at: string | null;
   position_url: string | null; // a novel's last page (0008)
   note?: string; // v0.0.13: what a video gives, in one line
+  meta?: TestMeta; // v0.0.14: a test's part, question type, answer key, transcript
+  test_kind?: "sample" | "full" | ""; // a sample is recorded only; a full test's band counts
 }
 
 export interface ContentTotals {
@@ -559,6 +637,7 @@ export interface ContentTotals {
   videos: number;
   video_hours: number;
   tests: number;
+  samples?: number; // v0.0.14: official sample questions
   full_tests: number;
   writing_t1: number;
   writing_t2: number;
