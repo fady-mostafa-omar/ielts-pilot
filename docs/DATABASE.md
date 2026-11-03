@@ -155,6 +155,8 @@ Index `(scheduled_date, status)`.
 
 Index `(started_at)`.
 
+v0.0.7: a hand-logged session (`origin = manual`) may carry `plan_task_id` — time the owner says he spent on a task beyond what the timer counted (D-033); it takes the task's `activity_code` and `resource_id`.
+
 Rules: a heartbeat adds at most 120 s and never more than the wall time since the previous heartbeat (+5 s); idle time (no input for 5 min and no sound from the panel) is not sent. Starting a session closes any running one as `unconfirmed`; sessions still `running` at start-up become `unconfirmed` and the owner confirms or discards them on Home. Stopping confirms; the owner can lower (never raise) the minutes afterwards. `track` and `plan_task_id` arrive with the planner in Sprint 2.
 
 ### plan_tasks (0004)

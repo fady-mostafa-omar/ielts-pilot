@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { api, ApiError } from "../api";
 import { Confetti, Donut, Hourglass, LevelChart, SkillBar, WeekBars, type DayBar } from "../charts";
 import { useI18n } from "../i18n";
-import { Icon, SKILL_STYLE, SkillBadge } from "../icons";
+import { Icon, type IconName, SKILL_STYLE, SkillBadge } from "../icons";
 import {
   CATEGORY_COLOR,
   addDays,
@@ -26,6 +26,7 @@ import {
 import {
   RESOURCE_SKILLS,
   SKILLS,
+  type Achievements,
   type DayPlan,
   type PlanSummary,
   type Levels,
@@ -46,6 +47,7 @@ interface HomeData {
   resources: Resource[];
   summary: PlanSummary | null;
   today: DayPlan | null;
+  achievements: Achievements | null;
 }
 
 const SPLIT_ROWS = ["listening", "reading", "output", "exam"] as const;
@@ -76,15 +78,17 @@ export function HomeScreen(props: {
   const load = useCallback(async () => {
     try {
       const iso = todayIso();
-      const [sessions, open, placements, resources, summary, today] = await Promise.all([
-        api.sessions(weekStart),
-        api.openSessions(),
-        api.placements(),
-        api.resources(),
-        api.planSummary(iso).catch(() => null),
-        api.planDay(iso, iso).catch(() => null),
-      ]);
-      setData({ sessions, open, placements, resources, summary, today });
+      const [sessions, open, placements, resources, summary, today, achievements] =
+        await Promise.all([
+          api.sessions(weekStart),
+          api.openSessions(),
+          api.placements(),
+          api.resources(),
+          api.planSummary(iso).catch(() => null),
+          api.planDay(iso, iso).catch(() => null),
+          api.achievements().catch(() => null),
+        ]);
+      setData({ sessions, open, placements, resources, summary, today, achievements });
     } catch (e) {
       setError(e instanceof ApiError ? e.message : String(e));
     }
@@ -280,6 +284,8 @@ export function HomeScreen(props: {
           </div>
         </section>
       )}
+
+      {data?.achievements && <AchievementStrip a={data.achievements} />}
 
       <section className="cards-3">
         {/* today's goal */}
@@ -707,5 +713,59 @@ function ManualLog(props: { onDone: () => void }) {
       </div>
       {error && <p className="field-message">{error}</p>}
     </div>
+  );
+}
+
+/** What has been done so far (owner's request, v0.0.7): finished things, not only hours. */
+function AchievementStrip(props: { a: Achievements }) {
+  const { t } = useI18n();
+  const a = props.a;
+  const tiles: { icon: IconName; color: string; value: string; label: string; hint?: string }[] = [
+    {
+      icon: "headphones",
+      color: "#2563EB",
+      value: String(a.episodes.dalilk_ielts),
+      label: t("ach_ep_ielts"),
+    },
+    {
+      icon: "headphones",
+      color: "#0E7490",
+      value: String(a.episodes.dalilk_english),
+      label: t("ach_ep_english"),
+    },
+    { icon: "check", color: "#15803D", value: String(a.tasks_done), label: t("ach_tasks") },
+    {
+      icon: "clock",
+      color: "#B45309",
+      value: formatHM(Math.round(a.hours * 60)),
+      label: t("ach_hours"),
+      hint:
+        a.hours_self_logged > 0
+          ? t("ach_self_logged", { h: formatHM(Math.round(a.hours_self_logged * 60)) })
+          : undefined,
+    },
+    { icon: "calendar", color: "#7C3AED", value: String(a.study_days), label: t("ach_days") },
+  ];
+  return (
+    <section className="card achievements" aria-label={t("ach_title")}>
+      <h2 className="row">
+        <Icon name="trend" color="#15803D" /> {t("ach_title")}
+      </h2>
+      <div className="ach-grid">
+        {tiles.map((tile) => (
+          <div className="ach-tile" key={tile.label}>
+            <span className="ach-icon" style={{ color: tile.color }}>
+              <Icon name={tile.icon} size={20} />
+            </span>
+            <strong className="ach-value">
+              <bdi dir="ltr">{tile.value}</bdi>
+            </strong>
+            <span className="ach-label">{tile.label}</span>
+            {tile.hint && <span className="muted small">{tile.hint}</span>}
+          </div>
+        ))}
+      </div>
+      <p className="muted small">{t("ach_more_soon")}</p>
+    </section>
   );
 }

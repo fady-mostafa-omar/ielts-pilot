@@ -403,6 +403,9 @@ export function StudyScreen(props: {
   const [minutes, setMinutes] = useState(0);
   const [busy, setBusy] = useState(false);
   const [skipping, setSkipping] = useState(false);
+  // v0.0.7: the timer counted less than the task's time -> ask how long he really studied
+  const [credit, setCredit] = useState<{ recorded: number; seconds: number } | null>(null);
+  const [creditMinutes, setCreditMinutes] = useState(0);
   const [skipReason, setSkipReason] = useState("");
 
   useEffect(() => {
@@ -460,7 +463,29 @@ export function StudyScreen(props: {
       await saveResourceFields();
       const stopped = await timer.finish(resource ? "" : notes);
       if (usePad) saveDraft(padId, "");
-      await focus.onNext(stopped?.active_seconds ?? 0);
+      const seconds = stopped?.active_seconds ?? 0;
+      const recorded = Math.floor(focus.task.done_minutes + seconds / 60);
+      if (recorded < focus.task.planned_minutes - 1) {
+        setCredit({ recorded, seconds });
+        setCreditMinutes(focus.task.planned_minutes);
+        return;
+      }
+      await focus.onNext(seconds);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function confirmCredit(minutes: number) {
+    if (!focus || !credit) return;
+    setBusy(true);
+    try {
+      const extra = Math.round(minutes) - credit.recorded;
+      if (extra >= 1) {
+        const start = new Date(Date.now() - extra * 60_000);
+        await api.logManual(study.skill, start, extra, "", focus.task.id);
+      }
+      await focus.onNext(credit.seconds);
     } finally {
       setBusy(false);
     }
@@ -628,7 +653,17 @@ export function StudyScreen(props: {
                 </span>
               </div>
             )}
-            <div className="row">
+            {focus && credit && (
+              <CreditBox
+                recorded={credit.recorded}
+                planned={focus.task.planned_minutes}
+                minutes={creditMinutes}
+                busy={busy}
+                onMinutes={setCreditMinutes}
+                onSave={() => void confirmCredit(creditMinutes)}
+              />
+            )}
+            <div className={`row${credit ? " hidden" : ""}`}>
               <button
                 className="btn"
                 disabled={!timer.session || onBreak}
@@ -657,7 +692,7 @@ export function StudyScreen(props: {
                 </button>
               )}
             </div>
-            {focus && !skipping && (
+            {focus && !skipping && !credit && (
               <button className="btn subtle small self-start" onClick={() => setSkipping(true)}>
                 {t("focus_skip")}
               </button>
@@ -810,6 +845,53 @@ export function StudyScreen(props: {
           </>
         )}
       </section>
+    </div>
+  );
+}
+
+/** v0.0.7: "How long did you study this task?" when the timer counted less than its time. */
+function CreditBox(props: {
+  recorded: number;
+  planned: number;
+  minutes: number;
+  busy: boolean;
+  onMinutes: (m: number) => void;
+  onSave: () => void;
+}) {
+  const { t, lang } = useI18n();
+  const max = props.planned + 120;
+  const valid =
+    Number.isFinite(props.minutes) && props.minutes >= props.recorded && props.minutes <= max;
+  return (
+    <div className="credit-box stack" role="dialog" aria-label={t("credit_title")}>
+      <strong>{t("credit_title")}</strong>
+      <p className="muted small">
+        {t("credit_body", { recorded: props.recorded, planned: props.planned })}
+      </p>
+      <div className="row wrap">
+        <label className="field credit-field">
+          <span className="field-label">{t("credit_minutes")}</span>
+          <input
+            type="number"
+            dir="ltr"
+            min={props.recorded}
+            max={max}
+            value={props.minutes}
+            onChange={(e) => props.onMinutes(Number(e.target.value))}
+          />
+        </label>
+        <button className="btn subtle small" onClick={() => props.onMinutes(props.recorded)}>
+          {t("credit_use_timer", { m: props.recorded })}
+        </button>
+      </div>
+      <p className="muted small">{t("credit_note")}</p>
+      <button
+        className="btn primary big-btn self-start"
+        disabled={props.busy || !valid}
+        onClick={props.onSave}
+      >
+        {t("credit_save")} <Icon name={lang === "ar" ? "arrowLeft" : "arrowRight"} size={16} />
+      </button>
     </div>
   );
 }

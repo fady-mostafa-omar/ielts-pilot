@@ -743,9 +743,9 @@ function UpdateTab() {
             <button
               className="btn primary self-start"
               disabled={busy}
-              onClick={() => void run(() => bridge.updates.download())}
+              onClick={() => void run(() => bridge.updates.now())}
             >
-              <Icon name="download" size={16} /> {t("upd_download", { v: state.version ?? "" })}
+              <Icon name="download" size={16} /> {t("upd_now", { v: state.version ?? "" })}
             </button>
           </div>
         )}
@@ -772,9 +772,14 @@ function UpdateTab() {
           <button
             className="btn self-start"
             disabled={busy}
-            onClick={() => void run(() => bridge.updates.check())}
+            onClick={() =>
+              void run(async () => {
+                const found = await bridge.updates.check();
+                if (found.status === "available" && !found.downgrade) await bridge.updates.now();
+              })
+            }
           >
-            {t("upd_check")}
+            <Icon name="download" size={16} /> {t("upd_check")}
           </button>
         )}
         <p className="muted small">{t("upd_how")}</p>
@@ -812,7 +817,8 @@ function UpdateTab() {
               onClick={() =>
                 void run(async () => {
                   if (older) await api.createBackup();
-                  await bridge.updates.check(chosen);
+                  const found = await bridge.updates.check(chosen);
+                  if (found.status === "available") await bridge.updates.now();
                 })
               }
             >

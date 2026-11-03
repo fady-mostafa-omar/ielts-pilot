@@ -317,6 +317,8 @@ export interface UpdateBridge {
   check(version?: string): Promise<UpdateState>;
   download(): Promise<UpdateState>;
   install(): Promise<boolean>;
+  /** Download (if needed), install and reopen — one press. */
+  now(): Promise<UpdateState>;
   releases(): Promise<ReleaseInfo[]>;
   onState(callback: (state: UpdateState) => void): () => void;
 }
@@ -367,4 +369,15 @@ declare global {
   interface Window {
     ipBridge?: Bridge;
   }
+}
+
+/** Achievement counters (v0.0.7). */
+export interface Achievements {
+  episodes: Record<PodcastFeed, number>;
+  episodes_total: number;
+  tasks_done: number;
+  tasks_skipped: number;
+  hours: number;
+  hours_self_logged: number;
+  study_days: number;
 }

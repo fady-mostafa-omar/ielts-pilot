@@ -18,6 +18,7 @@ import {
   downloadUpdate,
   installUpdate,
   listReleases,
+  updateNow,
   updateState,
 } from "./updater";
 
@@ -188,6 +189,7 @@ export function registerIpc(deps: IpcDeps): void {
     "ip:update-install",
     guard(async () => installUpdate(deps.beforeUpdateInstall)),
   );
+  ipcMain.handle("ip:update-now", guard(async () => updateNow(deps.beforeUpdateInstall)));
 
   ipcMain.handle(
     "ip:podcast-feed",

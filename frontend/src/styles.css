@@ -2350,3 +2350,51 @@ fieldset.field.plain {
   border-color: #bfdbfe;
   box-shadow: 0 0 0 3px #dbeafe;
 }
+
+/* v0.0.7: how long did you study this task? */
+.credit-box {
+  padding: 14px;
+  border-radius: 14px;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+}
+
+.credit-field input {
+  width: 110px;
+}
+
+.hidden {
+  display: none !important;
+}
+
+/* v0.0.7: achievement counters */
+.achievements {
+  gap: 12px;
+}
+
+.ach-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 10px;
+}
+
+.ach-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: var(--soft-2);
+  border: 1px solid var(--border);
+}
+
+.ach-value {
+  font-size: 1.6rem;
+  line-height: 1.2;
+  color: var(--text);
+}
+
+.ach-label {
+  font-size: 0.9rem;
+  color: var(--muted);
+}

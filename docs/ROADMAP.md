@@ -94,6 +94,8 @@ The owner asked for the podcast player first, as soon as possible. Versions from
 
 **Re-ordered 2026-11-03 (owner, second list of additions):** 0.0.6 quick fixes → 0.0.7 content map → 0.0.8 words, phrases and stories → 0.0.9 writing/speaking with the AI tutor → 0.1 exams and progress → optional "Pro" add-on.
 
+**Re-ordered again 2026-11-03 (owner's third list):** 0.0.7 quick requests → content map (.md for approval) → 0.0.8 plan on Dalilk's method with its content → 0.0.9 words, phrases and stories → 0.0.10 writing/speaking with the AI tutor → 0.1 exams and progress → optional "Pro" add-on.
+
 ## Sprint 2b-1 — Podcast player · v0.0.5
 - [x] Dalilk IELTS podcast from its public feed (D-028): episode list, next episode, resume position, listened / comprehension 1–5
 - [x] Player: play/pause, back / forward 5 s (also ← / → / Space), seek, speed 0.75–1.25×; break pauses the audio
@@ -128,19 +130,34 @@ The owner's screenshot showed Daily English Listening (DLK-11) opening the old p
 - [x] Planner-3: spelling challenge (DLK-21) on two fixed study days a week outside the exam phase, 15 min from the listening time
 - [x] Dalilk's 90-day plan read (owner's PDF): structure and links in `docs/research/dalilk_plans.md` for 0.0.7
 - [x] Windows CI build green (152 tests, installer smoke incl. both podcasts); v0.0.6 published to ielts-pilot-releases (2026-11-03)
-- [ ] Owner updates through the Update tab and checks both podcasts on the laptop
+- [x] Owner updated through the Update tab — the first real in-app update — and reports everything working (2026-11-03)
 
-## v0.0.7 — Content map
-- Analyse Dalilk's 30-day and 90-day plans, the two podcasts, the 100 stories, the technique playlists and the practice-test sites; the result goes to the owner as a .md file for approval before any code
+## v0.0.7 — Owner's quick requests (2026-11-03)
+- [x] Updates in one press (D-034)
+- [x] "How long did you study?" when Next closes a task the timer under-counted; the difference counts as hand-logged time (D-033)
+- [x] Achievement counters on Home: episodes per podcast, tasks finished, hours (h:mm, hand-logged shown), study days
+- [ ] Windows CI build green; v0.0.7 published
+- [ ] Owner updates with the one-press button
+
+## Content map (between 0.0.7 and 0.0.8)
+- Analyse every Dalilk playlist (techniques, practice, speaking, "daily phrases" series) video by video: title, duration, question type, level (required for everyone / by level / optional)
+- ieltsonlinetests.com (the site Dalilk's 90-day plan links), engnovate, Dalilk's mock page: free full and section tests with direct links
+- The 100 stories (levels, length, audio, direct links), both podcast feeds, Dalilk's 350 words and 150 phrases pages
+- Result to the owner as a .md file for approval before any code
+
+## v0.0.8 — The plan on Dalilk's method (D-035) and the content
+- Planner-4: fixed development hour + weekly focus (listening → reading → listening/reading/writing/speaking exam weeks, twice), adapted to the time left and the level; honest about what is cut when there are fewer than 12 weeks
 - Plan header: the hours as content (episodes, stories, videos, writing tasks, mock tests), each item once, with links
-- Technique videos per level, full screen, alone; direct links to each free practice test; exam simulation in the final days
+- Videos one after another, alone and full screen — technique playlists by level, and the "daily phrases" series (DLK-06) as part of the plan
+- Direct links to each free practice test; IELTS exam simulation in the final days
+- Counters: stories read and videos watched
 
-## v0.0.8 — Words, phrases and stories
+## v0.0.9 — Words, phrases and stories
 - Dalilk's 350 words first (coloured cards, Arabic and English), then words captured from the podcasts and stories → flashcards (SM-2) → reviews in Today
 - Dalilk's 150 phrases one by one in the pauses between tasks
-- Reading: Dalilk graded stories by level, opened like the podcast player (owner, 2026-11-03): the next story at the owner's level opens directly, text with its audio if the story has one, remembers where he stopped, "finished" moves to the next; how far this is possible depends on the stories site (checked in 0.0.7)
+- Reading: Dalilk graded stories by level, opened like the podcast player (owner, 2026-11-03): the next story at the owner's level opens directly, text with its audio if the story has one, remembers where he stopped, "finished" moves to the next; how far this is possible depends on the stories site (checked in the content map)
 
-## Sprint 3 — Output labs with the AI tutor · v0.0.9
+## Sprint 3 — Output labs with the AI tutor · v0.0.10
 - Writing Task 1 / Task 2 and Speaking Parts 1–3 with timers (addition 7)
 - Shadowing with recording; sentence building from flashcard words (write / say); phrase bank by IELTS topic
 - Mistakes notebook fed by the owner from the tutor's feedback

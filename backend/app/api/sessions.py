@@ -173,14 +173,20 @@ def log_manual(body: ManualSessionIn, ctx: Ctx) -> SessionOut:
     if ended > now + timedelta(minutes=1):
         raise HTTPException(422, {"error": "future", "message": "that time has not ended yet"})
     with ctx.session_factory.begin() as session:
+        task = None
+        if body.plan_task_id is not None:
+            task = session.get(PlanTask, body.plan_task_id)
+            if task is None:
+                raise HTTPException(404, {"error": "not_found", "message": "no such plan task"})
         row = StudySession(
             started_at=body.started_at,
             ended_at=ended,
             last_heartbeat_at=ended,
             active_seconds=body.minutes * 60,
             skill=body.skill,
-            activity_code=None,
-            resource_id=None,
+            activity_code=task.activity_code if task else None,
+            resource_id=task.resource_id if task else None,
+            plan_task_id=task.id if task else None,
             state="confirmed",
             origin="manual",
             notes=body.notes.strip(),

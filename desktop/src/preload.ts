@@ -15,6 +15,7 @@ contextBridge.exposeInMainWorld("ipBridge", {
     check: (version?: string): Promise<unknown> => ipcRenderer.invoke("ip:update-check", version),
     download: (): Promise<unknown> => ipcRenderer.invoke("ip:update-download"),
     install: (): Promise<boolean> => ipcRenderer.invoke("ip:update-install"),
+    now: (): Promise<unknown> => ipcRenderer.invoke("ip:update-now"),
     releases: (): Promise<unknown> => ipcRenderer.invoke("ip:update-releases"),
     onState: (callback: (state: unknown) => void): (() => void) => {
       const handler = (_event: IpcRendererEvent, s: unknown) => callback(s);

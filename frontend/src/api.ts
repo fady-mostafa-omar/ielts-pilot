@@ -24,6 +24,7 @@ import type {
   ResourceSkill,
   StudySession,
   SystemInfo,
+  Achievements,
 } from "./types";
 
 export class ApiError extends Error {
@@ -183,9 +184,24 @@ export const api = {
     patch: { position_seconds?: number; listened?: boolean; comprehension?: number; started?: boolean },
   ) => request<Episode>(`podcasts/episodes/${id}`, json("PATCH", patch)),
 
-  logManual: (skill: ResourceSkill, startedAt: Date, minutes: number, notes: string) =>
+  achievements: () =>
+    request<Achievements>(`stats/achievements?tz=${new Date().getTimezoneOffset()}`),
+
+  logManual: (
+    skill: ResourceSkill,
+    startedAt: Date,
+    minutes: number,
+    notes: string,
+    planTaskId?: number,
+  ) =>
     request<StudySession>(
       "sessions/manual",
-      json("POST", { skill, started_at: startedAt.toISOString(), minutes, notes }),
+      json("POST", {
+        skill,
+        started_at: startedAt.toISOString(),
+        minutes,
+        notes,
+        ...(planTaskId !== undefined ? { plan_task_id: planTaskId } : {}),
+      }),
     ),
 };

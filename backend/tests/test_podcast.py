@@ -1,5 +1,6 @@
 """Listening player: RSS import, next episode, progress (Sprint 2b-1)."""
 
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
@@ -142,3 +143,30 @@ def test_feeds_are_separate(client: TestClient) -> None:
     assert client.get("/api/v1/podcasts/dalilk_ielts/next").json()["number"] == 1
     assert client.get("/api/v1/podcasts/dalilk_english/next").json()["number"] == 2
     assert client.get("/api/v1/podcasts/unknown").status_code == 422
+
+
+def test_achievements_count_what_was_done(client: TestClient) -> None:
+    empty = client.get("/api/v1/stats/achievements").json()
+    assert empty == {
+        "episodes": {"dalilk_ielts": 0, "dalilk_english": 0},
+        "episodes_total": 0,
+        "tasks_done": 0,
+        "tasks_skipped": 0,
+        "hours": 0,
+        "hours_self_logged": 0,
+        "study_days": 0,
+    }
+    _import(client)
+    client.post("/api/v1/podcasts/dalilk_english/import", json={"xml": ENGLISH})
+    first = client.get("/api/v1/podcasts/dalilk_ielts/next").json()
+    client.patch(f"/api/v1/podcasts/episodes/{first['id']}", json={"listened": True})
+    eng = client.get("/api/v1/podcasts/dalilk_english/next").json()
+    client.patch(f"/api/v1/podcasts/episodes/{eng['id']}", json={"listened": True})
+    start = datetime.now(UTC) - timedelta(hours=2)
+    client.post("/api/v1/sessions/manual",
+                json={"skill": "listening", "started_at": start.isoformat(), "minutes": 30})
+    stats = client.get("/api/v1/stats/achievements").json()
+    assert stats["episodes"] == {"dalilk_ielts": 1, "dalilk_english": 1}
+    assert stats["episodes_total"] == 2
+    assert stats["hours"] == 0.5 and stats["hours_self_logged"] == 0.5
+    assert stats["study_days"] == 1

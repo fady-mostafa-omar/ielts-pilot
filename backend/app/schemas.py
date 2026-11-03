@@ -364,6 +364,8 @@ class ManualSessionIn(BaseModel):
     started_at: datetime
     minutes: int = Field(ge=1, le=MAX_DAY_MINUTES)
     notes: str = Field(default="", max_length=2000)
+    # v0.0.7: time the owner says he spent on a plan task beyond what the timer counted
+    plan_task_id: int | None = None
 
     _check_start = field_validator("started_at")(_aware)
 

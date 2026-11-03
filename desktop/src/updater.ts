@@ -131,6 +131,26 @@ export async function downloadUpdate(): Promise<UpdateState> {
   return state;
 }
 
+// read through a function so TypeScript does not keep an earlier narrowing of `state`
+const currentStatus = (): UpdateState["status"] => state.status;
+
+/** One press (owner, v0.0.7): download the version found by the last check, then install
+ *  it and reopen the app. */
+export async function updateNow(beforeQuit: () => Promise<void>): Promise<UpdateState> {
+  if (state.status === "available") {
+    set({ status: "downloading", percent: 0 });
+    try {
+      await autoUpdater.downloadUpdate();
+    } catch (err) {
+      set({ status: "error", error: err instanceof Error ? err.message : String(err) });
+      return state;
+    }
+    if (currentStatus() !== "downloaded") set({ status: "downloaded", percent: 100 });
+  }
+  if (currentStatus() === "downloaded") await installUpdate(beforeQuit);
+  return state;
+}
+
 /** Stops the backend first (so no file of the install folder is in use), then quits
  *  and runs the installer, which reopens the app. */
 export async function installUpdate(beforeQuit: () => Promise<void>): Promise<boolean> {

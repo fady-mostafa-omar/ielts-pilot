@@ -428,3 +428,35 @@ def test_interlude_setting_defaults_to_a_minute(client: TestClient) -> None:
     res = client.put("/api/v1/settings", json={"interlude_seconds": 0})
     assert res.json()["interlude_seconds"] == 0
     assert client.put("/api/v1/settings", json={"interlude_seconds": 999}).status_code == 422
+
+
+def test_self_logged_time_counts_toward_a_task(client: TestClient) -> None:
+    client.put("/api/v1/profile", json={**VALID_PROFILE, "study_days_per_week": 7})
+    today = date.today().isoformat()
+    task = client.get("/api/v1/plan/day", params={"date": today}).json()["tasks"][0]
+    client.post(f"/api/v1/plan/tasks/{task['id']}/start")
+    client.post(f"/api/v1/plan/tasks/{task['id']}/done")
+    start = datetime.now(UTC) - timedelta(minutes=task["planned_minutes"])
+    res = client.post(
+        "/api/v1/sessions/manual",
+        json={
+            "skill": task["skill"],
+            "started_at": start.isoformat(),
+            "minutes": task["planned_minutes"],
+            "plan_task_id": task["id"],
+        },
+    )
+    assert res.status_code == 201, res.text
+    body = res.json()
+    assert body["origin"] == "manual" and body["plan_task_id"] == task["id"]
+    assert body["resource_id"] == task["resource_id"]
+    day = client.get("/api/v1/plan/day", params={"date": today}).json()["tasks"]
+    assert day[0]["done_minutes"] == pytest.approx(task["planned_minutes"])
+    summary = client.get("/api/v1/plan/summary", params={"today": today}).json()
+    assert summary["hours_done"] == pytest.approx(task["planned_minutes"] / 60, abs=0.01)
+    missing = client.post(
+        "/api/v1/sessions/manual",
+        json={"skill": "reading", "started_at": start.isoformat(), "minutes": 5,
+              "plan_task_id": 99999},
+    )
+    assert missing.status_code == 404
