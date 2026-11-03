@@ -1,7 +1,7 @@
 {
   "name": "ielts-pilot-frontend",
   "private": true,
-  "version": "0.0.10",
+  "version": "0.0.11",
   "type": "module",
   "scripts": {
     "typecheck": "tsc --noEmit -p tsconfig.json",

@@ -21,7 +21,7 @@ import math
 from dataclasses import asdict, dataclass, field
 from datetime import date, timedelta
 
-GENERATOR = "planner-6"  # v0.0.10: at least 1 h of development, podcast/novel units (D-039)
+GENERATOR = "planner-7"  # v0.0.11: 10 min of word cards a day (D-041)
 SKILLS = ("listening", "reading", "writing", "speaking")
 DEV_SHARE = {"foundation": 0.75, "development": 0.6, "exam": 0.35}
 FINAL_MOCK_OFFSETS = (4, 3, 2)  # days before the exam
@@ -348,6 +348,9 @@ TEXT = {
         "devR.reason": "أسبوع تطوير القراءة (خطة دليلك): ساعات التركيز كلها روايات على مستواك.",
         "round.reason": "أسبوع {skill} (الدورة {round} من خطة دليلك): أول يومين تكنيكات، وبعدها تدريب.",
         "overflow.reason": "باقي وقتك النهارده بعد التدريب: استماع وقراءة (العمود الفقري في خطة دليلك).",
+        "CARDS.title": "كلمات اليوم",
+        "CARDS.do": "كروت الكلمات: المراجعات الأول، وبعدين كلمات جديدة من أهم 350 كلمة. اقلب الكارت، اسمع النطق، واختار قد إيه كنت فاكرها.",
+        "CARDS.reason": "كل كلمة بترجعلك قبل ما تنساها بالظبط (تكرار متباعد). 10 دقايق من وقت التركيز، والتطوير زي ما هو.",
         "MOCKREV.title": "مراجعة غلطات الاختبار",
         "MOCKREV.do": "ارجع لكل سؤال غلطت فيه في الاختبار: ليه غلطت؟ واكتب التركة اللي كانت هتحله.",
         "FOCUS-L.title": "ساعات الاستماع",
@@ -426,6 +429,9 @@ TEXT = {
         "devR.reason": "Reading development week (Dalilk's plan): the focus hours are novels at your level.",
         "round.reason": "{skill} week (round {round} of Dalilk's plan): two days of techniques, then practice.",
         "overflow.reason": "The rest of today's time after practice: listening and reading (the backbone of Dalilk's plan).",
+        "CARDS.title": "Today's words",
+        "CARDS.do": "Word cards: reviews first, then new words from the 350. Flip the card, hear it, and say how well you knew it.",
+        "CARDS.reason": "Each word comes back just before you would forget it (spaced repetition). 10 minutes from the focus time; development stays as it is.",
         "MOCKREV.title": "Review the test's mistakes",
         "MOCKREV.do": "Go back to every question you missed: why? Note the trick that would have solved it.",
         "FOCUS-L.title": "Listening hours",
@@ -482,6 +488,7 @@ TEXT = {
 
 LISTEN_EASY, LISTEN_IELTS = "DLK-11", "DLK-20"
 STORIES = "DLK-07"
+WORDS = "DLK-04"
 SPELLING = "DLK-21"
 SPEAK_EASY, SPEAK_IELTS = "DLK-13", "DLK-19"
 TECHNIQUES = "DLK-17"
@@ -492,6 +499,7 @@ DEV_HOUR = 60
 STAGE_MINUTES = 15  # one of the podcast's four stages (owner, 2026-11-03)
 PODCAST_MINUTES = 4 * STAGE_MINUTES
 NOVEL_MINUTES = 30  # a Dalilk novel, on average (owner, 2026-11-03)
+CARDS_MINUTES = 10  # word cards every study day, from the focus time (D-041)
 WRITE_DEV = SPEAK_DEV = 5
 PHRASE_VIDEO_MINUTES = 20  # Dalilk's daily-phrases videos average ~19 min
 TEST_MINUTES = {"listening": 40, "reading": 75, "writing": 70, "speaking": 20}
@@ -825,7 +833,7 @@ def _focus_blocks(inputs: PlanInputs, t: dict, d: date, focus: int) -> list[Bloc
     if code == "devL":
         reason = t["devL.reason"]
         blocks = []
-        if k == 0:
+        if k == 0 and focus >= 10 + MIN_BLOCK:
             blocks.append(_videos(t, ["L"], ["dev"], 10, reason, "listening", "DEVVID.title"))
             focus -= 10
         feed = "dalilk_english" if level is not None and level < 5.0 else "dalilk_ielts"
@@ -837,7 +845,7 @@ def _focus_blocks(inputs: PlanInputs, t: dict, d: date, focus: int) -> list[Bloc
     if code == "devR":
         reason = t["devR.reason"]
         blocks = []
-        if k == 0:
+        if k == 0 and focus >= 20 + MIN_BLOCK:
             blocks.append(_videos(t, ["R"], ["dev"], 20, reason, "reading", "DEVVID.title"))
             focus -= 20
         blocks.append(Block("reading", "reading", "R-EXT", focus, STORIES,
@@ -918,8 +926,19 @@ def day_blocks(inputs: PlanInputs, d: date) -> tuple[str, list[Block]]:
     focus = inputs.daily_minutes - sum(dev.values())
     code, _, k, _ = week_info(inputs, d)
     tail, focus = _dev_tail(inputs, t, d, dev, code.startswith("dev"), focus)
+    # word cards: from the focus time, or from the novel on a day with no focus time
+    reading = next((b for b in tail if b.activity_code == "R-EXT"), None)
+    room = focus >= CARDS_MINUTES
+    if room:
+        focus -= CARDS_MINUTES
+    elif reading is not None and reading.minutes >= CARDS_MINUTES + MIN_BLOCK:
+        reading.minutes -= CARDS_MINUTES
+        room = True
+    cards = [Block("support", "vocabulary", "V-CARDS", CARDS_MINUTES, WORDS, t["CARDS.title"],
+                   t["CARDS.do"], t["CARDS.reason"], {"kind": "cards", "deck": "word"})
+             ] if room else []
     blocks: list[Block] = []
-    for b in _focus_blocks(inputs, t, d, focus) + tail:
+    for b in _focus_blocks(inputs, t, d, focus) + cards + tail:
         same = next((x for x in blocks if x.activity_code == b.activity_code
                      and x.content == b.content and b.activity_code in ("L-EXT", "R-EXT")), None)
         if same is not None:

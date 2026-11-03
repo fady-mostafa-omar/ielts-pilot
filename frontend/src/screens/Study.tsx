@@ -15,6 +15,7 @@ import {
   useVideoEnded,
   type QueueContent,
 } from "./ContentQueue";
+import { AddWordForm, CardsSession, CardsSide, useCardDeck } from "./Cards";
 import { SpeakingRecorder } from "./Recorder";
 import { formatClock } from "../plan";
 import {
@@ -25,6 +26,7 @@ import {
   type ListenStep,
 } from "./Listening";
 import type {
+  CardDeck,
   PanelState,
   PanelTarget,
   PlanTask,
@@ -43,6 +45,7 @@ export interface StudyTarget {
   timer: boolean;
   podcast?: PodcastFeed; // the listening player instead of a web page
   podcastStages?: number; // v0.0.10: the task's time in 15-minute stages
+  cards?: CardDeck; // v0.0.11: flashcards instead of a web page
   queue?: QueueContent; // planner-4: videos / novel / practice tests opened directly
 }
 
@@ -409,6 +412,7 @@ export function StudyScreen(props: {
   );
   const podcast = usePodcast(study.podcast ?? null);
   const queueContent = study.queue ?? null;
+  const cards = useCardDeck(study.cards ?? null);
   const queue = useContentQueue(queueContent);
   const finishCurrent = queue.finish;
   const currentItem = queue.current;
@@ -618,7 +622,7 @@ export function StudyScreen(props: {
         focus?.onBreakTaken(timer.display);
       }}
     />
-  ) : study.target || study.podcast || queueContent ? null : usePad ? (
+  ) : study.target || study.podcast || queueContent || study.cards ? null : usePad ? (
     <WritingPad
       value={notes}
       onChange={updateNotes}
@@ -706,6 +710,10 @@ export function StudyScreen(props: {
             today={podcastToday}
           />
         )}
+
+        {study.cards && <CardsSide deck={study.cards} cards={cards} />}
+
+        {(study.podcast || queueContent?.kind === "novel") && <AddWordForm />}
 
         {queueContent && (
           <QueueSide
@@ -803,7 +811,7 @@ export function StudyScreen(props: {
             )}
             {!focus && <p className="muted small">{t("study_idle_hint")}</p>}
 
-            {resource && !study.podcast && !queueContent && (
+            {resource && !study.podcast && !queueContent && !study.cards && (
               <label className="field">
                 <span className="field-label">{t("study_progress")}</span>
                 <input
@@ -829,7 +837,7 @@ export function StudyScreen(props: {
                 />
               </label>
             )}
-            {resource && !study.podcast && !queueContent && (
+            {resource && !study.podcast && !queueContent && !study.cards && (
               <label className="check">
                 <input
                   type="checkbox"
@@ -879,6 +887,13 @@ export function StudyScreen(props: {
             }
             onContinue={() => setRecorded(true)}
           />
+        ) : study.cards ? (
+          <>
+            <div className={onBreak ? "hidden-under" : "fill cards-area"}>
+              <CardsSession deck={study.cards} cards={cards} inFocus={!!focus} />
+            </div>
+            {main}
+          </>
         ) : study.podcast ? (
           <>
             <div className={onBreak ? "hidden-under" : "listen-main"}>

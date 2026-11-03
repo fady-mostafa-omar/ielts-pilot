@@ -5,6 +5,7 @@ import { api, ApiError } from "../api";
 import { useI18n } from "../i18n";
 import { Icon, SkillBadge } from "../icons";
 import {
+  type CardDeck,
   type ExamFormat,
   type Levels,
   type PodcastFeed,
@@ -45,6 +46,8 @@ export const PODCAST_FEEDS: Record<string, PodcastFeed> = {
   "DLK-11": "dalilk_english",
 };
 
+const CARD_DECKS: Record<string, CardDeck> = { "DLK-04": "word", "DLK-12": "phrase" };
+
 export function podcastFeedOf(r: Resource | null): PodcastFeed | null {
   return (r?.catalog_id && PODCAST_FEEDS[r.catalog_id]) || null;
 }
@@ -65,6 +68,19 @@ export function studyTargetFor(
       activityCode: r.activity_codes.split(";")[0] || null,
       timer: true,
       queue,
+    };
+  }
+  // v0.0.11: Dalilk's 350 words and 150 phrases open as cards (D-041)
+  const deck = r.catalog_id ? CARD_DECKS[r.catalog_id] : undefined;
+  if (deck) {
+    return {
+      title: r.title,
+      target: null,
+      resource: r,
+      skill: r.skill,
+      activityCode: "V-CARDS",
+      timer: true,
+      cards: deck,
     };
   }
   const feed = podcastFeedOf(r);

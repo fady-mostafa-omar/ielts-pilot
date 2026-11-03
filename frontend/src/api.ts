@@ -25,6 +25,10 @@ import type {
   StudySession,
   SystemInfo,
   Achievements,
+  Card,
+  CardDeck,
+  CardImportItem,
+  CardStats,
   ContentItem,
 } from "./types";
 
@@ -197,6 +201,20 @@ export const api = {
     return request<ContentItem[]>(`content/queue?${q.toString()}`);
   },
   contentStart: (id: number) => request<ContentItem>(`content/${id}/start`, { method: "POST" }),
+  cardsImport: (kind: CardDeck, items: CardImportItem[]) =>
+    request<{ kind: string; total: number; added: number; updated: number }>(
+      "cards/import",
+      json("POST", { kind, items }),
+    ),
+  cardStats: (today: string) => request<CardStats>(`cards/stats?today=${today}`),
+  cardsToday: (deck: CardDeck, today: string) =>
+    request<Card[]>(`cards/today?deck=${deck}&today=${today}`),
+  cardReview: (id: number, grade: number, today: string) =>
+    request<Card>(`cards/${id}/review`, json("POST", { grade, today })),
+  cardAdd: (front: string, meaning: string) =>
+    request<Card>("cards", json("POST", { front, meaning })),
+  phraseNext: () => request<Card>("cards/phrase/next"),
+  phraseShown: (id: number) => request<Card>(`cards/${id}/shown`, { method: "POST" }),
   contentPosition: (id: number, url: string) =>
     request<ContentItem>(`content/${id}/position`, json("POST", { url })),
   contentDone: (id: number) => request<ContentItem>(`content/${id}/done`, { method: "POST" }),

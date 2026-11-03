@@ -374,6 +374,8 @@ export interface Bridge {
   openExternal(url: string): Promise<boolean>;
   /** v0.0.10: keeps a speaking recording in the data folder; returns its file name */
   saveRecording?(data: ArrayBuffer): Promise<string>;
+  /** v0.0.11: one of Dalilk's two card pages, as served or as a browser shows it */
+  dalilkPage?(which: "words" | "phrases", rendered: boolean): Promise<string>;
   setFullScreen(on: boolean): Promise<boolean>;
   updates: UpdateBridge;
   openFolder(which: "data" | "backups"): Promise<boolean>;
@@ -404,6 +406,52 @@ export interface Achievements {
   video_hours: number;
   novels: number;
   tests: number;
+  words: number; // v0.0.11: cards learned (Dalilk's words + the owner's)
+  phrases: number;
+}
+
+/** v0.0.11 (D-041): flashcards. */
+export type CardDeck = "word" | "phrase";
+export interface Card {
+  id: number;
+  kind: "word" | "phrase" | "mine";
+  key: string;
+  section: string;
+  situation: string;
+  sort: number;
+  front: string;
+  meaning: string;
+  example: string;
+  example_ar: string;
+  reps: number;
+  lapses: number;
+  ease: number;
+  interval_days: number;
+  due: string | null;
+  learned_on: string | null;
+  reviewed_at: string | null;
+}
+export interface CardCounts {
+  total: number;
+  learned: number;
+  due: number;
+  mastered: number;
+  new_today: number;
+}
+export interface CardStats {
+  word: CardCounts;
+  mine: CardCounts;
+  phrase: CardCounts;
+}
+export interface CardImportItem {
+  key: string;
+  section: string;
+  situation: string;
+  sort: number;
+  front: string;
+  meaning: string;
+  example: string;
+  example_ar: string;
 }
 
 /** planner-4 (v0.0.8): what a plan task opens. */
@@ -420,7 +468,8 @@ export type TaskContent =
       review?: boolean;
     }
   | { kind: "tests"; skills: string[]; providers: string[]; count: number }
-  | { kind: "writing"; task: 0 | 1 | 2; count: number };
+  | { kind: "writing"; task: 0 | 1 | 2; count: number }
+  | { kind: "cards"; deck: CardDeck };
 
 export interface ContentItem {
   id: number;

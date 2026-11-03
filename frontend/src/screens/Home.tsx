@@ -36,6 +36,7 @@ import {
   type ResourceSkill,
   type StudySession,
 } from "../types";
+import { ensureDalilkCards } from "../dalilk";
 import { dayOutcome, nextTask, reopenTasks } from "./Focus";
 import { studyTargetFor } from "./Library";
 import type { StudyTarget } from "./Study";
@@ -97,6 +98,11 @@ export function HomeScreen(props: {
   useEffect(() => {
     void load();
   }, [load]);
+
+  // v0.0.11: Dalilk's words and phrases are read once in the background if missing
+  useEffect(() => {
+    void ensureDalilkCards(todayIso());
+  }, []);
 
   const fallbackSplit = useMemo(() => dailySplit(profile, levels), [profile, levels]);
   const split = data?.summary
@@ -736,6 +742,7 @@ function AchievementStrip(props: { a: Achievements }) {
     { icon: "play", color: "#7C3AED", value: String(a.videos), label: t("ach_videos") },
     { icon: "book", color: "#0F766E", value: String(a.novels), label: t("ach_novels") },
     { icon: "target", color: "#B45309", value: String(a.tests), label: t("ach_tests") },
+    { icon: "cards", color: "#DB2777", value: String(a.words), label: t("ach_words") },
     { icon: "check", color: "#15803D", value: String(a.tasks_done), label: t("ach_tasks") },
     {
       icon: "clock",

@@ -171,9 +171,13 @@ The owner's screenshot showed Daily English Listening (DLK-11) opening the old p
 - [x] Windows CI build green; v0.0.10 published (2026-11-03)
 - [ ] Owner checks on the laptop: podcast stages, novel count, recording with his microphone
 
-## v0.0.11 — Words and phrases
-- Dalilk's 350 words first (coloured cards, Arabic and English), then words captured from the podcasts and stories → flashcards (SM-2) → reviews in Today
-- Dalilk's 150 phrases one by one in the pauses between tasks
+## v0.0.11 — Words and phrases (D-041)
+- [x] Dalilk's 350 words as cards coloured by section (basic, nouns, verbs, adjectives), English with the computer's voice, Arabic meaning, example and translation; read from Dalilk's page on the owner's computer (migration 0009)
+- [x] SM-2 review (forgot / hard / knew it / easy, keys 1–4); "Today's words" 10 minutes every study day from the focus time: reviews first, then up to 15 new
+- [x] "Add a new word" in podcast and novel tasks → the owner's own cards, learned first
+- [x] Dalilk's 150 phrases: one in each pause between tasks, in order; the Library opens both decks as cards
+- [ ] Windows CI build green; v0.0.11 published
+- [ ] Owner checks on the laptop: the words and phrases are read from Dalilk's pages, the voice speaks
 
 ## Sprint 3 — Output labs with the AI tutor · v0.0.12
 - Writing Task 1 / Task 2 and Speaking Parts 1–3 with timers (addition 7)

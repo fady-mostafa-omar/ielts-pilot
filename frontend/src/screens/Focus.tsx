@@ -32,6 +32,18 @@ function targetFor(task: PlanTask, resource: Resource | null): StudyTarget {
           : content,
     };
   }
+  if (content?.kind === "cards") {
+    // v0.0.11: today's word cards (D-041)
+    return {
+      title: task.title,
+      target: null,
+      resource,
+      skill: task.skill,
+      activityCode: task.activity_code,
+      timer: true,
+      cards: content.deck,
+    };
+  }
   if (content?.kind === "writing") {
     return {
       title: task.title,

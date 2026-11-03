@@ -172,6 +172,8 @@ def test_achievements_count_what_was_done(client: TestClient) -> None:
         "video_hours": 0,
         "novels": 0,
         "tests": 0,
+        "words": 0,
+        "phrases": 0,
     }
     _import(client)
     client.post("/api/v1/podcasts/dalilk_english/import", json={"xml": ENGLISH})

@@ -11,7 +11,13 @@ import {
 } from "electron";
 import { copyFile, mkdir, writeFile } from "node:fs/promises";
 import { basename, extname, join } from "node:path";
-import { clearWebData, type Bounds, type PanelTarget, type StudyPanel } from "./panel";
+import {
+  clearWebData,
+  TEMP_PARTITION,
+  type Bounds,
+  type PanelTarget,
+  type StudyPanel,
+} from "./panel";
 import { APP_ORIGIN } from "./protocol";
 import {
   checkForUpdate,
@@ -30,6 +36,44 @@ const FEEDS: Record<string, string> = {
   dalilk_english: "https://anchor.fm/s/f5d461d8/podcast/rss",
 };
 const MAX_FEED_BYTES = 30_000_000;
+
+// v0.0.11 (D-041): the two Dalilk pages the word and phrase cards are read from, on this
+// computer, like the podcast feeds. Nothing else can be fetched this way.
+const DALILK_PAGES: Record<string, string> = {
+  words: "https://dalilk.com/resources/foundation/words",
+  phrases: "https://dalilk.com/resources/fluency/workplace",
+};
+const MAX_PAGE_BYTES = 10_000_000;
+
+/** The page as a browser shows it (scripts run), for pages built in the browser. */
+async function renderedPage(url: string): Promise<string> {
+  const win = new BrowserWindow({
+    show: false,
+    webPreferences: {
+      partition: TEMP_PARTITION,
+      sandbox: true,
+      contextIsolation: true,
+      nodeIntegration: false,
+    },
+  });
+  win.webContents.on("will-navigate", (event, target) => {
+    if (target !== url) event.preventDefault();
+  });
+  win.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
+  win.webContents.setAudioMuted(true);
+  try {
+    await win.loadURL(url);
+    await new Promise((resolve) => setTimeout(resolve, 2500));
+    const html = await win.webContents.executeJavaScript(
+      "document.documentElement.outerHTML",
+      true,
+    );
+    if (typeof html !== "string" || html.length > MAX_PAGE_BYTES) throw new Error("bad page");
+    return html;
+  } finally {
+    win.destroy();
+  }
+}
 
 export interface IpcDeps {
   dataDir: () => string;
@@ -219,6 +263,20 @@ export function registerIpc(deps: IpcDeps): void {
       if (!res.ok) throw new Error(`feed answered ${res.status}`);
       const text = await res.text();
       if (text.length > MAX_FEED_BYTES) throw new Error("feed too large");
+      return text;
+    }),
+  );
+
+  ipcMain.handle(
+    "ip:dalilk-page",
+    guard(async (_event, which: unknown, rendered: unknown) => {
+      const url = typeof which === "string" ? DALILK_PAGES[which] : undefined;
+      if (!url) throw new Error("unknown page");
+      if (rendered === true) return renderedPage(url);
+      const res = await net.fetch(url, { headers: { "user-agent": "IELTS-Pilot" } });
+      if (!res.ok) throw new Error(`page answered ${res.status}`);
+      const text = await res.text();
+      if (text.length > MAX_PAGE_BYTES) throw new Error("page too large");
       return text;
     }),
   );

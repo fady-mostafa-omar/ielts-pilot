@@ -489,7 +489,7 @@ def test_listening_development_week() -> None:
     assert blocks[1].content == {"kind": "podcast", "feed": "dalilk_ielts"}
     # development hour last (its podcast time joins the focus podcast task), with the
     # daily-phrases video in development weeks
-    assert codes(blocks)[2:] == ["R-EXT", "W-DEV", "S-PHRASE"]
+    assert codes(blocks)[2:] == ["V-CARDS", "R-EXT", "W-DEV", "S-PHRASE"]
     assert blocks[-1].content["groups"] == ["phrases"]
     _, later = day_blocks(p4(), week(0, 2))  # Monday: no intro video
     assert codes(later)[0] == "L-EXT" and later[0].minutes > 60
@@ -515,8 +515,9 @@ def test_listening_exam_week_techniques_then_tests() -> None:
     _, practice = day_blocks(p4(), week(4, 2))
     assert practice[0].activity_code == "P-TEST"
     assert practice[0].content["providers"] == ["ieltsonlinetests"]
-    # about half the focus time in tests, the rest practice videos and input
-    assert practice[0].content["count"] == 2
+    # about half the focus time (110 min after the word cards) in tests, the rest practice
+    # videos and input
+    assert practice[0].content["count"] == 1
     assert codes(practice)[:2] == ["P-TEST", "P-VID"]
     _, round2 = day_blocks(p4(), week(8, 2))
     assert round2[0].content["providers"] == ["engnovate", "ieltsonlinetests"]
@@ -555,7 +556,7 @@ def test_final_days_use_dalilk_mocks_and_the_official_test() -> None:
 def test_six_hours_share_every_part() -> None:
     six = p4(daily_minutes=360)
     _, tech = day_blocks(six, week(4))
-    assert tech[0].activity_code == "T-VID" and tech[0].minutes == 145  # 60 % of 240
+    assert tech[0].activity_code == "T-VID" and tech[0].minutes == 140  # 60 % of 230
     assert "P-TEST" in codes(tech)  # practice right after the techniques
     assert sum(b.minutes for b in tech) == 360
     _, tests = day_blocks(six, week(4, 2))
@@ -630,3 +631,22 @@ def test_tests_are_never_cut_down() -> None:
             for b in blocks:
                 if b.activity_code == "P-TEST" and b.skill in planner.REAL_TEST_MINUTES:
                     assert b.minutes >= planner.REAL_TEST_MINUTES[b.skill], (daily, n, b)
+
+
+def test_word_cards_every_study_day_from_the_focus_time() -> None:
+    for daily in (90, 120, 180, 360):
+        for n in range(0, 70, 5):
+            day = SAT + timedelta(days=n)
+            kind, blocks = day_blocks(p4(daily_minutes=daily), day)
+            if kind != "study":
+                continue
+            cards = [b for b in blocks if b.activity_code == "V-CARDS"]
+            assert len(cards) == 1 and cards[0].minutes == planner.CARDS_MINUTES, (daily, n)
+            assert cards[0].content == {"kind": "cards", "deck": "word"}
+            assert sum(b.minutes for b in blocks) == daily
+            # development keeps Dalilk's ratio: writing and speaking untouched
+            dev = planner.dev_minutes(daily)
+            assert sum(b.minutes for b in blocks if b.activity_code == "W-DEV") == dev["writing"]
+    # a one-hour day has no focus time: the cards come out of the novel
+    kind, blocks = day_blocks(p4(daily_minutes=60), SAT + timedelta(days=1))
+    assert "V-CARDS" in codes(blocks) and sum(b.minutes for b in blocks) == 60

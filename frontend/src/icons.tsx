@@ -89,6 +89,13 @@ const PATHS = {
     </>
   ),
   stop: <rect x="5" y="5" width="14" height="14" rx="2" fill="currentColor" stroke="none" />,
+  volume: (
+    <>
+      <path d="M11 5 6 9H3v6h3l5 4z" />
+      <path d="M15.5 8.5a5 5 0 0 1 0 7" />
+      <path d="M18.5 5.5a9 9 0 0 1 0 13" />
+    </>
+  ),
   check: <path d="M20 6L9 17l-5-5" />,
   plus: (
     <>

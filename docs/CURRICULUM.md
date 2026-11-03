@@ -75,6 +75,8 @@ Supersedes the daily mix of §4a; the estimate (D-023), the final days (D-024 wi
 
 **Units** (D-039): a podcast = 4 stages × 15 min (listen without the PDF, listen with it, shadowing, reading for meaning) = 1 h; the day's podcast time is rounded to whole stages (the novel takes the difference) and a podcast left half-way carries on the next day from its stage. A novel = 30 min on average; a task holds round(minutes ÷ 30) novels, and a novel left half-way carries on the next day. Technique days never cut a test below the exam's own time (listening 30, reading 60): the videos give way, or the day stays videos only; a test day too short for a whole test gets a practice video instead. Final test days: the full test, a mistakes review, then the development split on the rest. Every speaking task starts with a one-minute recording.
 
+**Word cards** (v0.0.11, D-041, `planner-7`): "Today's words" (`V-CARDS`, 10 min) every study day, taken from the focus time (from the novel on a day with no focus time); development keeps Dalilk's ratio. SM-2: reviews first, then up to 15 new cards a day (the owner's own words before Dalilk's 350). One of Dalilk's 150 phrases in each pause between tasks.
+
 **Weeks** are calendar weeks from Saturday, counted from the plan start. Study weeks *W* = weeks up to the last study day (exam − 5); with no exam date, *W* = 12 and weeks after 12 repeat the consolidation round.
 
 | *W* | Sequence |

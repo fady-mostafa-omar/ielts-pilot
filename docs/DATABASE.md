@@ -105,7 +105,6 @@ Saving a result may also add `skill_levels` rows (`source_type = placement_quiz`
 
 `sequence_group`, `order_index`, `is_repeatable` arrive with the planner in Sprint 2.
 
-
 ### weekly_plans
 | Column | Type | Notes |
 |---|---|---|
@@ -225,6 +224,28 @@ Index `(feed, number)`. Re-importing the feed updates titles and links by `guid`
 
 Index `(kind, sort)`. Synced at start from `content/catalog/items/*.csv` (facts only, D-036). `plan_tasks.content_json` holds what a task opens (CURRICULUM §4b), e.g. `{"kind": "videos", "groups": [...], "skills": ["L"], "minutes": 120}`; `app_settings.exam_format` = `computer` | `paper` (D-037).
 
+### cards (0009)
+| Column | Type | Notes |
+|---|---|---|
+| id | INTEGER PK | |
+| kind | TEXT | `word` (Dalilk's 350), `phrase` (Dalilk's 150), `mine` (the owner's own) — CHECK; unique with `key` |
+| key | TEXT | words `basic-12`, `nouns-3`…; phrases `1`…`150`; own words `mine-<random>` |
+| section | TEXT | `basic`, `nouns`, `verbs`, `adjectives`, `emails`, `meetings`, `mine` (the card's colour) |
+| situation | TEXT | phrases: Dalilk's situation heading |
+| sort | INTEGER | Dalilk's order |
+| front | TEXT | English |
+| meaning | TEXT | Arabic |
+| example, example_ar | TEXT | example and its translation |
+| reps, lapses | INTEGER | SM-2 |
+| ease | REAL | SM-2, ≥ 1.3 (CHECK) |
+| interval_days | INTEGER | SM-2 |
+| due | DATE NULL | next review; NULL = not learned yet |
+| learned_on | DATE NULL | first review (today's new-card allowance) |
+| reviewed_at, shown_at | DATETIME NULL | last review; phrases: last pause shown |
+| created_at, updated_at | DATETIME | |
+
+Index `(kind, due)`. Read on the owner's computer from Dalilk's two pages (D-041); re-reading updates the text by `key` and never touches the progress.
+
 ### writing_prompts
 `id`, `task_type` (`task1` \| `task2`), `prompt_text`, `source_note`, `created_at`.
 
@@ -330,7 +351,7 @@ Index `(next_review_at)`.
 | 0006 | 0.0.6 | `podcast_episodes.feed` also allows `dalilk_english` (table rebuilt, rows and ids kept; downgrade drops English rows) |
 | 0007 | 0.0.8 | add `content_items`; `plan_tasks.content_json` |
 | 0008 | 0.0.10 | `podcast_episodes.stage` (1–4, default 1); `content_items.position_url` |
-
+| 0009 | 0.0.11 | add `cards` (flashcards, SM-2) |
 
 - One Alembic revision per schema change; `alembic_version` holds the schema version.
 - The backend runs pending migrations at startup, immediately after an automatic `pre-migration` backup. A database whose revision this app does not know (made by a newer version) is never touched: the backend refuses to start, and the app offers to restore the newest backup this version can read (D-027).

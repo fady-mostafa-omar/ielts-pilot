@@ -308,3 +308,38 @@ class PodcastEpisode(Base):
     listened_at: Mapped[datetime | None] = mapped_column(UTCDateTime)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime)
     updated_at: Mapped[datetime] = mapped_column(UTCDateTime)
+
+
+class Card(Base):
+    """A flashcard (0009): Dalilk's 350 words and 150 phrases, read from Dalilk's pages on the
+    owner's computer (D-041, never shipped), and the owner's own words. Spaced review by SM-2.
+    """
+
+    __tablename__ = "cards"
+    __table_args__ = (
+        UniqueConstraint("kind", "key", name="uq_card_kind_key"),
+        CheckConstraint("kind IN ('word', 'phrase', 'mine')", name="kind"),
+        CheckConstraint("ease >= 1.3", name="ease"),
+        Index("ix_card_kind_due", "kind", "due"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    kind: Mapped[str] = mapped_column(String(10))
+    key: Mapped[str] = mapped_column(String(100))
+    section: Mapped[str] = mapped_column(String(20), default="")  # basic, nouns, … emails, …
+    situation: Mapped[str] = mapped_column(String(200), default="")  # phrases: the situation
+    sort: Mapped[int] = mapped_column(Integer, default=0)
+    front: Mapped[str] = mapped_column(String(300))  # English
+    meaning: Mapped[str] = mapped_column(String(500), default="")  # Arabic
+    example: Mapped[str] = mapped_column(String(500), default="")
+    example_ar: Mapped[str] = mapped_column(String(500), default="")
+    reps: Mapped[int] = mapped_column(Integer, default=0)
+    lapses: Mapped[int] = mapped_column(Integer, default=0)
+    ease: Mapped[float] = mapped_column(Float, default=2.5)
+    interval_days: Mapped[int] = mapped_column(Integer, default=0)
+    due: Mapped[date | None] = mapped_column(Date)  # NULL: not learned yet
+    learned_on: Mapped[date | None] = mapped_column(Date)  # the day it was first reviewed
+    reviewed_at: Mapped[datetime | None] = mapped_column(UTCDateTime)
+    shown_at: Mapped[datetime | None] = mapped_column(UTCDateTime)  # phrases: last pause shown
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime)
+    updated_at: Mapped[datetime] = mapped_column(UTCDateTime)

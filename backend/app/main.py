@@ -13,6 +13,7 @@ from app import (
     models,  # noqa: F401  (registers tables)
 )
 from app.api import (
+    cards,
     content,
     data,
     placements,
@@ -106,6 +107,8 @@ def create_app(settings: Settings, engine: Engine | None = None) -> FastAPI:
             {"detail": {"error": exc.code, "message": exc.message}}, status_code=exc.status
         )
 
-    for module in (content, data, profile, placements, plan, podcast, resources, sessions, stats):
+    for module in (
+        cards, content, data, profile, placements, plan, podcast, resources, sessions, stats
+    ):
         app.include_router(module.router)
     return app

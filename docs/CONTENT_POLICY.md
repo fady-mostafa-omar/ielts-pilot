@@ -10,7 +10,7 @@ Status: **draft for approval** · 2026-11-02
 
 3. **The repository holds metadata only:** titles, URLs, provider, licence notes, and our own mapping to activity types.
 
-4. **No scraping and no bypassing** of logins, paywalls, forms or technical restrictions. Online tools open as live pages in the in-app web panel.
+4. **No scraping and no bypassing** of logins, paywalls, forms or technical restrictions. Online tools open as live pages in the in-app web panel. Exception approved by the owner (D-030, D-041): public feeds and two public Dalilk pages (the 350 words, the 150 phrases) are read on the owner's own computer for his personal study, the way a browser reads them, and kept only in the local database — nothing is redistributed, no login is involved.
 
 5. **Every resource records** provider, URL and a licence note. Dalilk's note: "Free access. No licence or terms of use found on the library page (checked 2026-11-02). Personal use only."
 

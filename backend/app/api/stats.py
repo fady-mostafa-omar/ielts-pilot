@@ -6,6 +6,7 @@ from datetime import timedelta
 from fastapi import APIRouter, Query
 from sqlalchemy import func, select
 
+from app.api.cards import learned_counts
 from app.api.content import done_counts
 from app.context import Ctx
 from app.models import PODCAST_FEEDS, PlanTask, PodcastEpisode, StudySession
@@ -36,6 +37,7 @@ def achievements(
             ).all()
         )
         finished = done_counts(session)
+        learned = learned_counts(session)
         rows = session.execute(
             select(StudySession.started_at, StudySession.active_seconds, StudySession.origin).where(
                 StudySession.state.in_(COUNTED)
@@ -57,4 +59,6 @@ def achievements(
         "video_hours": round(finished["video_seconds"] / 3600, 2),
         "novels": finished["novels"],
         "tests": finished["tests"],
+        "words": learned["words"],
+        "phrases": learned["phrases"],
     }
