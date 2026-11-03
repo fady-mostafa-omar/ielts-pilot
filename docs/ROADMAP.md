@@ -137,13 +137,13 @@ The owner's screenshot showed Daily English Listening (DLK-11) opening the old p
 - [x] "How long did you study?" when Next closes a task the timer under-counted; the difference counts as hand-logged time (D-033)
 - [x] Achievement counters on Home: episodes per podcast, tasks finished, hours (h:mm, hand-logged shown), study days
 - [x] Windows CI build green (154 tests, installer smoke); v0.0.7 published to ielts-pilot-releases (2026-11-03)
-- [ ] Owner updates with the one-press button
+- [x] Owner updated to 0.0.7 and reports everything working (2026-11-03); the one-press button is used from the next update
 
 ## Content map (between 0.0.7 and 0.0.8)
 - Analyse every Dalilk playlist (techniques, practice, speaking, "daily phrases" series) video by video: title, duration, question type, level (required for everyone / by level / optional)
 - ieltsonlinetests.com (the site Dalilk's 90-day plan links), engnovate, Dalilk's mock page: free full and section tests with direct links
 - The 100 stories (levels, length, audio, direct links), both podcast feeds, Dalilk's 350 words and 150 phrases pages
-- Result to the owner as a .md file for approval before any code
+- Result to the owner as a .md file for approval before any code — sent 2026-11-03: `docs/research/content_map_videos.md` (102 videos, ~61 h) and `docs/research/content_map_part2.md` (tests, novels, words, phrases, podcasts); waiting for the owner's answers
 
 ## v0.0.8 — The plan on Dalilk's method (D-035) and the content
 - Planner-4: fixed development hour + weekly focus (listening → reading → listening/reading/writing/speaking exam weeks, twice), adapted to the time left and the level; honest about what is cut when there are fewer than 12 weeks
