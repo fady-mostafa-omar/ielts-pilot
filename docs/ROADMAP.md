@@ -212,7 +212,7 @@ The owner's screenshot showed Daily English Listening (DLK-11) opening the old p
 - [x] «تقدّمي»: levels per skill with their source, right answers by question type, recent tests (delete one = its band goes too), marked lab answers
 - [x] Library: "official sample questions" open one by one with their result box
 - [x] Name "IELTS Band Up" and logo 4 in the app, window, installer shortcuts and uninstall entry; data folder, program file and update feed unchanged; "not connected with IELTS" line
-- [ ] Windows CI build green; v0.0.14 published
+- [x] Windows CI build green; v0.0.14 published (2026-11-03)
 
 ## Sprint 4 — Exam preparation and progress · v0.1
 - Introduction video first, before anything else, on the first start, with skip and "watch again" in Settings (D-040, owner 2026-11-03): Eng. Fady Mostafa made the app free to help people; the app explained from the first step until the target band, on the final screens
