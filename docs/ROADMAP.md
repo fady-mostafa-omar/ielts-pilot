@@ -176,7 +176,7 @@ The owner's screenshot showed Daily English Listening (DLK-11) opening the old p
 - [x] SM-2 review (forgot / hard / knew it / easy, keys 1–4); "Today's words" 10 minutes every study day from the focus time: reviews first, then up to 15 new
 - [x] "Add a new word" in podcast and novel tasks → the owner's own cards, learned first
 - [x] Dalilk's 150 phrases: one in each pause between tasks, in order; the Library opens both decks as cards
-- [ ] Windows CI build green; v0.0.11 published
+- [x] Windows CI build green; v0.0.11 published (2026-11-03)
 - [ ] Owner checks on the laptop: the words and phrases are read from Dalilk's pages, the voice speaks
 
 ## Sprint 3 — Output labs with the AI tutor · v0.0.12
