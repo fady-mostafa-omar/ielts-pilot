@@ -186,7 +186,7 @@ The owner's screenshot showed Daily English Listening (DLK-11) opening the old p
 - [x] Mistakes notebook: mistakes read from the reply (or added by hand) become cards in "Today's words"; same error code → older ones back tomorrow; list in the Library
 - [x] Shadowing recorder in the podcast's stage 3; recent words suggested in the daily writing
 - [ ] Phrase bank by IELTS topic — needs a content source (later)
-- [ ] Windows CI build green; v0.0.12 published
+- [x] Windows CI build green; v0.0.12 published (2026-11-03)
 - [ ] Owner checks on the laptop: prompt copied and the site opened, reply read back, recording with his microphone
 
 ## Sprint 4 — Exam preparation and progress · v0.0.13 → v0.1
