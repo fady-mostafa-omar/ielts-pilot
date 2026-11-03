@@ -29,7 +29,7 @@ router = APIRouter(prefix="/api/v1")
 
 DEFAULTS = {
     "web_keep_signin": None,
-    "hours_per_band": 200,
+    "hours_per_band": 100,  # owner, 2026-11-03: fixed at 100 hours per band (D-043)
     "study_weekdays": None,
     "break_every_minutes": 50,
     "break_minutes": 10,
@@ -173,7 +173,7 @@ def _inputs(session: Session, today: date) -> planner.PlanInputs:
         exam_date=profile.exam_date,
         daily_minutes=profile.study_minutes_per_day,
         weekdays=frozenset(settings.study_weekdays or []),
-        hours_per_band=settings.hours_per_band or 200,
+        hours_per_band=planner.HOURS_PER_BAND,
         plan_start=settings.plan_start or today,
         hours_done=_hours_since(session, _hours_baseline(session)),
         exam_format=settings.exam_format or "computer",
@@ -257,7 +257,7 @@ def estimate_preview(body: EstimateIn) -> dict:
         exam_date=body.exam_date,
         daily_minutes=body.daily_minutes,
         weekdays=frozenset(body.study_weekdays),
-        hours_per_band=body.hours_per_band,
+        hours_per_band=planner.HOURS_PER_BAND,
         plan_start=body.today,
     )
     return _estimate_dict(inputs)

@@ -139,7 +139,6 @@ function ProfileTab(props: {
     study_minutes_per_day: p.study_minutes_per_day,
     explanation_language: p.explanation_language,
   });
-  const [perBand, setPerBand] = useState(props.settings.hours_per_band ?? 200);
   const [breakEvery, setBreakEvery] = useState(props.settings.break_every_minutes ?? 50);
   const [breakMinutes, setBreakMinutes] = useState(props.settings.break_minutes ?? 10);
   const [interlude, setInterlude] = useState(props.settings.interlude_seconds ?? 60);
@@ -162,7 +161,6 @@ function ProfileTab(props: {
       props.onSettingsChanged(
         await api.saveSettings({
           study_weekdays: time.weekdays,
-          hours_per_band: perBand,
           break_every_minutes: breakEvery,
           break_minutes: breakMinutes,
           interlude_seconds: interlude,
@@ -204,16 +202,6 @@ function ProfileTab(props: {
       <section className="card stack">
         <h2>{t("set_plan_title")}</h2>
         <div className="grid-3">
-          <Field label={t("est_per_band")} hint={t("est_per_band_hint")}>
-            <input
-              type="number"
-              min={50}
-              max={600}
-              step={10}
-              value={perBand}
-              onChange={(e) => setPerBand(Math.min(600, Math.max(50, Number(e.target.value) || 200)))}
-            />
-          </Field>
           <Field label={t("set_break_every")} icon={<Icon name="coffee" color="#0F766E" />}>
             <select value={breakEvery} onChange={(e) => setBreakEvery(Number(e.target.value))}>
               {[25, 30, 40, 50, 60, 75, 90, 120].map((m) => (

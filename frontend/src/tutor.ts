@@ -57,6 +57,61 @@ WRONG: <my exact words> || RIGHT: <the corrected words> || WHY: <a short reason>
 const OPINION_NOTE =
   "Your marks are practice feedback and an opinion only, not an official IELTS score.";
 
+/** v0.0.13 (owner, 2026-11-03): one short prompt opens the chat — the tutor sends a topic
+ *  only and waits; the answer goes to the same chat and is marked like the exam. */
+export function writingStarterPrompt(task: 1 | 2, l: Learner): string {
+  const first = task === 1 ? "TA" : "TR";
+  return [
+    `Act as my IELTS Writing examiner. Send me ONE new IELTS Academic Writing Task ${task} question only — no tips, no model answer — and wait for my answer.`,
+    task === 1
+      ? "Describe the chart, table, map or process fully in text (give the numbers in a table), as I cannot see pictures here."
+      : "",
+    `When I send my answer, mark it exactly as an IELTS examiner would: a band in half bands for ${first}, CC, LR and GRA, and the overall band for the task, each on its own line like "${first}: 6.0". ${OPINION_NOTE}`,
+    MISTAKES_FORMAT,
+    `Then give a better version of my answer at about band ${l.target.toFixed(1)}.`,
+    `${aboutMe(l, "writing")} ${language(l.explain)}`,
+  ]
+    .filter(Boolean)
+    .join("\n");
+}
+
+export function writingAnswerMessage(answer: string, words: number, minutes: number): string {
+  return `Here is my answer (${words} words, about ${minutes} minutes). Please mark it as agreed.\n\n${answer.trim()}`;
+}
+
+export function speakingStarterPrompt(part: 1 | 2 | 3, l: Learner): string {
+  const ask =
+    part === 1
+      ? "ask me 4 IELTS Speaking Part 1 questions on one everyday topic"
+      : part === 2
+        ? "give me one IELTS Speaking Part 2 cue card (the topic and the 3–4 points to talk about)"
+        : "ask me 4 IELTS Speaking Part 3 discussion questions on one common topic";
+  return [
+    `Act as my IELTS Speaking examiner: ${ask} — questions only, no model answers — and wait.`,
+    "I will record my answer and send you what I said as text (it may come from voice typing, so ignore recognition errors; you cannot hear my pronunciation).",
+    `Then mark it like an IELTS examiner: a band in half bands for FC, LR and GRA and an overall band, each on its own line like "FC: 6.0" (pronunciation not assessed). ${OPINION_NOTE}`,
+    MISTAKES_FORMAT,
+    `Then show a better answer at about band ${l.target.toFixed(1)} in natural spoken English.`,
+    `${aboutMe(l, "speaking")} ${language(l.explain)}`,
+  ].join("\n");
+}
+
+export function speakingAnswerMessage(transcript: string, seconds: number): string {
+  return `Here is what I said (about ${Math.round(seconds)} seconds). Please mark it as agreed.\n\n${transcript.trim()}`;
+}
+
+/** Copies a message for the chat that is already open (no new tab). */
+export async function copyOnly(text: string): Promise<boolean> {
+  try {
+    const bridge = window.ipBridge;
+    if (bridge?.copyText && (await bridge.copyText(text))) return true;
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /** Asks the tutor for a fresh practice question. */
 export function writingQuestionPrompt(task: 1 | 2, l: Learner): string {
   if (task === 1) {
@@ -186,6 +241,27 @@ export function readTutorReply(reply: string): {
     if (mistakes.length >= 50) break;
   }
   return { overall, mistakes };
+}
+
+/** The marks per criterion in a pasted reply ("TR: 6.0", "CC 5.5"…), to fill the boxes. */
+export function readTutorScores(reply: string): Record<string, number> {
+  const plain = reply.replace(/\*\*|__|`/g, "");
+  const out: Record<string, number> = {};
+  const map: [RegExp, string][] = [
+    [/\b(?:TR|TA)\b\s*[:=]?\s*(\d(?:\.5)?)/i, "task"],
+    [/\bCC\b\s*[:=]?\s*(\d(?:\.5)?)/i, "coherence"],
+    [/\bLR\b\s*[:=]?\s*(\d(?:\.5)?)/i, "lexical"],
+    [/\bGRA\b\s*[:=]?\s*(\d(?:\.5)?)/i, "grammar"],
+    [/\bFC\b\s*[:=]?\s*(\d(?:\.5)?)/i, "fluency"],
+  ];
+  for (const [re, key] of map) {
+    const m = re.exec(plain);
+    if (m) {
+      const v = Number(m[1]);
+      if (v >= 0 && v <= 9) out[key] = v;
+    }
+  }
+  return out;
 }
 
 /** Copies the prompt and opens the tutor's site in the owner's browser. */

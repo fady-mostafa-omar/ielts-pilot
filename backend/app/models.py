@@ -19,7 +19,9 @@ from sqlalchemy.orm import Mapped, mapped_column
 from app.db import Base, UTCDateTime
 
 SKILLS = ("listening", "reading", "writing", "speaking")
-LEVEL_SOURCES = ("official_practice", "external_marker", "placement_quiz", "self_estimate")
+LEVEL_SOURCES = (
+    "official_practice", "external_marker", "placement_quiz", "self_estimate", "ai_tutor"
+)
 RESOURCE_SKILLS = (*SKILLS, "grammar", "vocabulary", "techniques", "general")
 PLACEMENT_TESTS = ("dalilk_13english", "dalilk_3min")
 SESSION_STATES = ("running", "confirmed", "unconfirmed", "discarded")
@@ -79,7 +81,8 @@ class SkillLevel(Base):
         CheckConstraint(_band_check("band"), name="band"),
         CheckConstraint(
             "source_type IN "
-            "('official_practice', 'external_marker', 'placement_quiz', 'self_estimate')",
+            "('official_practice', 'external_marker', 'placement_quiz', 'self_estimate', "
+            "'ai_tutor')",
             name="source_type",
         ),
         Index("ix_skill_levels_skill_recorded", "skill", "recorded_at"),
@@ -369,7 +372,10 @@ class WritingAttempt(Base):
     status: Mapped[str] = mapped_column(String(10), default="draft")
     checklist_json: Mapped[str] = mapped_column(Text, default="[]")
     tutor_reply: Mapped[str] = mapped_column(Text, default="")
-    tutor_overall: Mapped[float | None] = mapped_column(Float)  # AI opinion only
+    tutor_overall: Mapped[float | None] = mapped_column(Float)  # the AI tutor's overall mark
+    # 0011: the marks per criterion the owner typed in, and the level entry they made (D-043)
+    scores_json: Mapped[str] = mapped_column(Text, default="{}", server_default="{}")
+    level_id: Mapped[int | None] = mapped_column(Integer)
     plan_task_id: Mapped[int | None] = mapped_column(
         ForeignKey("plan_tasks.id", ondelete="SET NULL")
     )
@@ -397,7 +403,9 @@ class SpeakingAttempt(Base):
     self_rating_json: Mapped[str] = mapped_column(Text, default="{}")
     notes: Mapped[str] = mapped_column(Text, default="")
     tutor_reply: Mapped[str] = mapped_column(Text, default="")
-    tutor_overall: Mapped[float | None] = mapped_column(Float)  # AI opinion only
+    tutor_overall: Mapped[float | None] = mapped_column(Float)  # the AI tutor's overall mark
+    scores_json: Mapped[str] = mapped_column(Text, default="{}", server_default="{}")  # 0011
+    level_id: Mapped[int | None] = mapped_column(Integer)  # 0011: the level entry it made
     plan_task_id: Mapped[int | None] = mapped_column(
         ForeignKey("plan_tasks.id", ondelete="SET NULL")
     )

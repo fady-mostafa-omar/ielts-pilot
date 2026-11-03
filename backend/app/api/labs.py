@@ -1,7 +1,9 @@
 """Writing and speaking labs (v0.0.12, PRD F6/F7, D-042): attempts with the question, the
-answer, time used, the self-review and the AI tutor's reply — kept as an opinion only
-(D-026, D-008: it never changes the levels). Recordings stay in the data folder; the UI
-asks the desktop app to delete a file when its attempt is deleted."""
+answer, time used, the self-review and the AI tutor's reply. Since v0.0.13 (owner,
+2026-11-03, D-043) the marks the owner types in from the tutor count in his level: the
+overall mark of a submitted answer is a level entry with the source "ai_tutor", updated or
+removed with it. Recordings stay in the data folder; the UI asks the desktop app to delete
+a file when its attempt is deleted."""
 
 import json
 import re
@@ -12,14 +14,43 @@ from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 from sqlalchemy import select
 
+from app.api.plan import _stored
 from app.context import Ctx
 from app.db import utcnow
-from app.models import PlanTask, SpeakingAttempt, WritingAttempt
+from app.models import PlanTask, SkillLevel, SpeakingAttempt, WritingAttempt
 
 router = APIRouter(prefix="/api/v1")
 
 RECORDING = re.compile(r"^(speaking|shadow)-[0-9]{8}-[0-9]{6}(-[0-9]+)?\.webm$")
 CRITERIA = Literal["task", "coherence", "lexical", "grammar", "fluency", "pronunciation"]
+TUTOR_NAMES = {"chatgpt": "ChatGPT", "claude": "Claude", "gemini": "Gemini"}
+
+
+def _scores(value: dict[str, float] | None) -> dict[str, float] | None:
+    if value is not None:
+        for v in value.values():
+            _band(v)
+    return value
+
+
+def _sync_level(session, row, skill: str, label: str) -> None:
+    """The tutor's overall mark as a level entry (D-043): made, changed or removed with it."""
+    level = session.get(SkillLevel, row.level_id) if row.level_id else None
+    if row.tutor_overall is None:
+        if level is not None:
+            session.delete(level)
+        row.level_id = None
+        return
+    site = TUTOR_NAMES.get(_stored(session).get("tutor") or "chatgpt", "AI")
+    note = f"{site} · {label}"[:200]
+    if level is None:
+        level = SkillLevel(skill=skill, band=row.tutor_overall, source_type="ai_tutor",
+                           source_note=note, recorded_at=utcnow())
+        session.add(level)
+        session.flush()
+        row.level_id = level.id
+    else:
+        level.band, level.source_note = row.tutor_overall, note
 
 
 def count_words(text: str) -> int:
@@ -52,9 +83,12 @@ class WritingPatch(BaseModel):
     checklist: list[str] | None = Field(default=None, max_length=40)
     tutor_reply: str | None = Field(default=None, max_length=60000)
     tutor_overall: float | None = None
+    # 0011: the tutor's marks per criterion, typed in by the owner
+    scores: dict[Literal["task", "coherence", "lexical", "grammar"], float] | None = None
     submit: bool | None = None
 
     _overall = field_validator("tutor_overall")(classmethod(lambda cls, v: _band(v)))
+    _criteria = field_validator("scores")(classmethod(lambda cls, v: _scores(v)))
 
 
 class WritingOut(BaseModel):
@@ -68,6 +102,8 @@ class WritingOut(BaseModel):
     checklist: list[str]
     tutor_reply: str
     tutor_overall: float | None
+    scores: dict[str, float]
+    level_id: int | None
     plan_task_id: int | None
     submitted_at: datetime | None
     created_at: datetime
@@ -77,6 +113,7 @@ class WritingOut(BaseModel):
 def _writing_out(row: WritingAttempt) -> WritingOut:
     data = {c: getattr(row, c) for c in WritingOut.model_fields if hasattr(row, c)}
     data["checklist"] = json.loads(row.checklist_json or "[]")
+    data["scores"] = json.loads(row.scores_json or "{}")
     return WritingOut(**data)
 
 
@@ -140,9 +177,16 @@ def patch_writing(attempt_id: int, body: WritingPatch, ctx: Ctx) -> WritingOut:
             row.tutor_reply = body.tutor_reply
         if "tutor_overall" in body.model_fields_set:
             row.tutor_overall = body.tutor_overall
+        if body.scores is not None:
+            row.scores_json = json.dumps(body.scores)
         if body.submit:
             row.status = "submitted"
             row.submitted_at = row.submitted_at or now
+        if row.status == "submitted" and (
+            "tutor_overall" in body.model_fields_set or body.submit
+        ):
+            label = f"Writing Task {row.task}" if row.task else "writing"
+            _sync_level(session, row, "writing", label)
         row.updated_at = now
         session.flush()
         return _writing_out(row)
@@ -150,8 +194,12 @@ def patch_writing(attempt_id: int, body: WritingPatch, ctx: Ctx) -> WritingOut:
 
 @router.delete("/writing/{attempt_id}", status_code=204)
 def delete_writing(attempt_id: int, ctx: Ctx) -> None:
+    """Deletes the answer and the level entry its mark made."""
     with ctx.session_factory.begin() as session:
-        session.delete(_writing(session, attempt_id))
+        row = _writing(session, attempt_id)
+        row.tutor_overall = None
+        _sync_level(session, row, "writing", "")
+        session.delete(row)
 
 
 class SpeakingIn(BaseModel):
@@ -190,8 +238,10 @@ class SpeakingPatch(BaseModel):
     notes: str | None = Field(default=None, max_length=5000)
     tutor_reply: str | None = Field(default=None, max_length=60000)
     tutor_overall: float | None = None
+    scores: dict[Literal["fluency", "lexical", "grammar", "pronunciation"], float] | None = None
 
     _overall = field_validator("tutor_overall")(classmethod(lambda cls, v: _band(v)))
+    _criteria = field_validator("scores")(classmethod(lambda cls, v: _scores(v)))
 
     @field_validator("self_rating")
     @classmethod
@@ -212,6 +262,8 @@ class SpeakingOut(BaseModel):
     notes: str
     tutor_reply: str
     tutor_overall: float | None
+    scores: dict[str, float]
+    level_id: int | None
     plan_task_id: int | None
     created_at: datetime
     updated_at: datetime
@@ -220,6 +272,7 @@ class SpeakingOut(BaseModel):
 def _speaking_out(row: SpeakingAttempt) -> SpeakingOut:
     data = {c: getattr(row, c) for c in SpeakingOut.model_fields if hasattr(row, c)}
     data["self_rating"] = json.loads(row.self_rating_json or "{}")
+    data["scores"] = json.loads(row.scores_json or "{}")
     return SpeakingOut(**data)
 
 
@@ -265,8 +318,12 @@ def patch_speaking(attempt_id: int, body: SpeakingPatch, ctx: Ctx) -> SpeakingOu
                 setattr(row, field, value)
         if body.self_rating is not None:
             row.self_rating_json = json.dumps(body.self_rating)
+        if body.scores is not None:
+            row.scores_json = json.dumps(body.scores)
         if "tutor_overall" in body.model_fields_set:
             row.tutor_overall = body.tutor_overall
+            label = f"Speaking Part {row.part}" if row.part else "speaking"
+            _sync_level(session, row, "speaking", label)
         row.updated_at = utcnow()
         session.flush()
         return _speaking_out(row)
@@ -278,5 +335,7 @@ def delete_speaking(attempt_id: int, ctx: Ctx) -> dict:
     with ctx.session_factory.begin() as session:
         row = _speaking(session, attempt_id)
         recording = row.recording
+        row.tutor_overall = None
+        _sync_level(session, row, "speaking", "")
         session.delete(row)
     return {"deleted": attempt_id, "recording": recording}

@@ -132,3 +132,16 @@ def test_novel_carries_on_from_its_last_page(client: TestClient) -> None:
     video = client.get("/api/v1/content/queue", params={"kind": "video", "limit": 1}).json()[0]
     assert client.post(f"/api/v1/content/{video['id']}/position",
                        json={"url": video["url"] + "/x"}).status_code == 422
+
+
+def test_series_count_and_video_notes(client: TestClient) -> None:
+    params = {"kind": "video", "groups": "core", "skills": "L"}
+    count = client.get("/api/v1/content/count", params=params).json()
+    assert count == {"total": 5, "done": 0}
+    first = client.get("/api/v1/content/queue", params={**params, "limit": 1}).json()[0]
+    assert first["note"]  # our own one line on what the video gives
+    client.post(f"/api/v1/content/{first['id']}/done")
+    assert client.get("/api/v1/content/count", params=params).json() == {"total": 5, "done": 1}
+    practice = client.get("/api/v1/content/queue",
+                          params={"kind": "video", "groups": "practice", "limit": 1}).json()[0]
+    assert practice["note"].startswith("حل عملي")

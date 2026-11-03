@@ -302,7 +302,7 @@ export class StudyPanel {
           }
         })
         .catch(() => undefined);
-    }, 2000);
+    }, 1000); // v0.0.13: every second, to close the video at its last second
   }
 
   async open(target: PanelTarget, keepSignIn: boolean): Promise<PanelState> {

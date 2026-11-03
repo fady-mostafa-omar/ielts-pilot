@@ -3094,3 +3094,108 @@ fieldset.field.plain {
 .self-center {
   align-self: center;
 }
+
+/* v0.0.13: videos take the window; the side keeps the lesson, its one line, and Next */
+.study.video-mode {
+  grid-template-columns: 260px minmax(0, 1fr);
+}
+
+.study.video-mode .study-side {
+  gap: 10px;
+  padding: 12px 14px;
+}
+
+.video-note {
+  margin: 0;
+  color: #334155;
+  line-height: 1.6;
+}
+
+.video-between {
+  gap: 10px;
+}
+
+.novel-clock {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  align-self: flex-start;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: #ecfdf5;
+  color: #047857;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.novel-clock.over {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+.warn-box {
+  margin: 0;
+  background: #fff7ed;
+  color: #9a3412;
+  border: 1px solid #fed7aa;
+  padding: 8px 10px;
+  border-radius: 8px;
+}
+
+.step-no {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #1d4ed8;
+  color: #fff;
+  font-size: 0.8rem;
+  font-weight: 700;
+  margin-inline-end: 6px;
+}
+
+.score-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+  gap: 10px;
+}
+
+.score-box {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: #f8fafc;
+  font-weight: 600;
+}
+
+.score-box.overall {
+  background: #eff6ff;
+  border-color: #bfdbfe;
+  color: #1e3a8a;
+}
+
+.score-box select {
+  font-size: 1rem;
+}
+
+.cards-fallback {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.cards-fallback-bar {
+  padding: 8px 12px;
+  gap: 8px;
+}
+
+details.lab-card > summary {
+  cursor: pointer;
+  font-weight: 600;
+}

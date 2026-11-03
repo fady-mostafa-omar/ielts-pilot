@@ -3,7 +3,7 @@
 // pause between tasks. Coloured by section, Arabic and English, spoken by the computer's
 // own English voice, reviewed with SM-2.
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { api, ApiError } from "../api";
 import { DALILK_PAGE_URL, readDalilk } from "../dalilk";
 import { useI18n } from "../i18n";
@@ -217,6 +217,8 @@ export function CardsSession(props: {
   deck: CardDeck;
   cards: ReturnType<typeof useCardDeck>;
   inFocus: boolean;
+  /** v0.0.13: when the cards cannot be read, Dalilk's page itself (owner, 2026-11-03) */
+  pageFallback?: (url: string) => ReactNode;
 }) {
   const { t } = useI18n();
   const { cards } = props;
@@ -267,6 +269,20 @@ export function CardsSession(props: {
       <div className="cards-main">
         <div className="spinner" aria-hidden="true" />
         <p className="lead">{t(props.deck === "word" ? "cards_reading_words" : "cards_reading_phrases")}</p>
+      </div>
+    );
+  }
+  if (cards.state === "error" && props.pageFallback) {
+    return (
+      <div className="cards-fallback">
+        <div className="row wrap cards-fallback-bar">
+          <span className="note small">{t("cards_fallback_note")}</span>
+          <span className="spacer" />
+          <button className="btn small" onClick={() => void cards.load(true)}>
+            {t("retry")}
+          </button>
+        </div>
+        <div className="fill">{props.pageFallback(DALILK_PAGE_URL[props.deck])}</div>
       </div>
     );
   }

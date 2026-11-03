@@ -191,8 +191,8 @@ def test_estimate_preview_without_profile(client: TestClient) -> None:
     )
     assert res.status_code == 200, res.text
     body = res.json()
-    assert body["total_hours"] == 225
-    assert body["feasible"] is False
+    assert body["total_hours"] == 112.5  # 1.125 bands × 100 h (fixed, D-043)
+    assert body["feasible"] is True  # 3 h a day to January is enough at 100 h per band
     assert body["final_mock_dates"][0] == "2026-12-29"
 
 
@@ -200,7 +200,7 @@ def test_settings_weekdays_update_profile(client: TestClient) -> None:
     _setup(client)
     settings = client.get("/api/v1/settings").json()
     assert len(settings["study_weekdays"]) == VALID_PROFILE["study_days_per_week"]
-    assert settings["hours_per_band"] == 200
+    assert settings["hours_per_band"] == 100
     client.put("/api/v1/settings", json={"study_weekdays": [6, 0, 1]})
     assert client.get("/api/v1/profile").json()["study_days_per_week"] == 3
     assert client.get("/api/v1/settings").json()["study_weekdays"] == [0, 1, 6]
@@ -211,7 +211,7 @@ def test_summary_and_day(client: TestClient) -> None:
     _setup(client, study_minutes_per_day=180, study_days_per_week=7)
     today = date.today()
     summary = client.get("/api/v1/plan/summary", params={"today": today.isoformat()}).json()
-    assert summary["total_hours"] == 325  # targets 7.5: mean skill gap 1.625 bands
+    assert summary["total_hours"] == 162.5  # targets 7.5: mean skill gap 1.625 bands × 100 h
     assert summary["today_kind"] in ("study", "mock")
     assert summary["streak_days"] == 0
 
@@ -489,7 +489,7 @@ def test_listening_development_week() -> None:
     assert blocks[1].content == {"kind": "podcast", "feed": "dalilk_ielts"}
     # development hour last (its podcast time joins the focus podcast task), with the
     # daily-phrases video in development weeks
-    assert codes(blocks)[2:] == ["V-CARDS", "R-EXT", "W-DEV", "S-PHRASE"]
+    assert codes(blocks)[2:] == ["V-CARDS", "V-PHRASES", "R-EXT", "W-DEV", "S-PHRASE"]
     assert blocks[-1].content["groups"] == ["phrases"]
     _, later = day_blocks(p4(), week(0, 2))  # Monday: no intro video
     assert codes(later)[0] == "L-EXT" and later[0].minutes > 60
@@ -556,7 +556,7 @@ def test_final_days_use_dalilk_mocks_and_the_official_test() -> None:
 def test_six_hours_share_every_part() -> None:
     six = p4(daily_minutes=360)
     _, tech = day_blocks(six, week(4))
-    assert tech[0].activity_code == "T-VID" and tech[0].minutes == 140  # 60 % of 230
+    assert tech[0].activity_code == "T-VID" and tech[0].minutes == 135  # 60 % of 225
     assert "P-TEST" in codes(tech)  # practice right after the techniques
     assert sum(b.minutes for b in tech) == 360
     _, tests = day_blocks(six, week(4, 2))
@@ -650,3 +650,26 @@ def test_word_cards_every_study_day_from_the_focus_time() -> None:
     # a one-hour day has no focus time: the cards come out of the novel
     kind, blocks = day_blocks(p4(daily_minutes=60), SAT + timedelta(days=1))
     assert "V-CARDS" in codes(blocks) and sum(b.minutes for b in blocks) == 60
+
+
+def test_daily_phrases_and_the_speaking_lab_step_by_step() -> None:
+    i = p4()
+    _, dev_l = day_blocks(i, week(0, 1))
+    assert "V-PHRASES" in codes(dev_l) and "S-PHRASE" in codes(dev_l)
+    phrases = [b for b in dev_l if b.activity_code == "V-PHRASES"][0]
+    assert phrases.minutes == planner.PHRASE_MINUTES
+    assert phrases.content == {"kind": "cards", "deck": "phrase"}
+    # reading development weeks: Part 1 in the lab every other day
+    lab_days = [codes(day_blocks(i, week(2, k))[1]) for k in range(6)]
+    assert any("S-P1" in c for c in lab_days) and any("S-PHRASE" in c for c in lab_days)
+    # exam weeks: Part 1 in the first round, Part 2 in the second
+    _, exam1 = day_blocks(i, week(4, 2))
+    assert "S-P1" in codes(exam1) and "S-FLU" not in codes(exam1)
+    _, exam2 = day_blocks(i, week(8, 2))
+    assert "S-P2" in codes(exam2)
+    p2 = [b for b in exam2 if b.activity_code == "S-P2"][0]
+    assert p2.content == {"kind": "speaking", "parts": [2]}
+    # the speaking week: all three parts in the lab
+    _, speak = day_blocks(i, week(7, 2))
+    prac = [b for b in speak if b.activity_code == "S-PRAC"][0]
+    assert prac.content == {"kind": "speaking", "parts": [1, 2, 3]}

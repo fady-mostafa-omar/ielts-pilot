@@ -210,8 +210,9 @@ export const api = {
       json("POST", { kind, items }),
     ),
   cardStats: (today: string) => request<CardStats>(`cards/stats?today=${today}`),
+  // v0.0.13: phrases come 5 a day (one situation), words up to 15 new a day
   cardsToday: (deck: CardDeck, today: string) =>
-    request<Card[]>(`cards/today?deck=${deck}&today=${today}`),
+    request<Card[]>(`cards/today?deck=${deck}&today=${today}&new_limit=${deck === "phrase" ? 5 : 15}`),
   cardReview: (id: number, grade: number, today: string) =>
     request<Card>(`cards/${id}/review`, json("POST", { grade, today })),
   cardAdd: (front: string, meaning: string) =>
@@ -239,6 +240,7 @@ export const api = {
       checklist: string[];
       tutor_reply: string;
       tutor_overall: number | null;
+      scores: Record<string, number>;
       submit: boolean;
     }>,
   ) => request<WritingAttempt>(`writing/${id}`, json("PATCH", patch)),
@@ -263,6 +265,7 @@ export const api = {
       notes: string;
       tutor_reply: string;
       tutor_overall: number | null;
+      scores: Record<string, number>;
     }>,
   ) => request<SpeakingAttempt>(`speaking/${id}`, json("PATCH", patch)),
   speakingDelete: (id: number) =>
@@ -270,6 +273,11 @@ export const api = {
       method: "DELETE",
     }),
   phraseShown: (id: number) => request<Card>(`cards/${id}/shown`, { method: "POST" }),
+  contentCount: (params: { kind: string; groups?: string; skills?: string }) => {
+    const q = new URLSearchParams();
+    for (const [k, v] of Object.entries(params)) if (v) q.set(k, v);
+    return request<{ total: number; done: number }>(`content/count?${q.toString()}`);
+  },
   contentPosition: (id: number, url: string) =>
     request<ContentItem>(`content/${id}/position`, json("POST", { url })),
   contentDone: (id: number) => request<ContentItem>(`content/${id}/done`, { method: "POST" }),

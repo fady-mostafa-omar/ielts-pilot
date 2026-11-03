@@ -33,6 +33,7 @@ class ContentOut(BaseModel):
     started_at: datetime | None
     completed_at: datetime | None
     position_url: str | None = None  # 0008: a novel's last page, to carry on from there
+    note: str = ""  # v0.0.13: what this video gives, in one line
 
 
 class PositionIn(BaseModel):
@@ -42,7 +43,10 @@ class PositionIn(BaseModel):
 
 
 def _out(item: ContentItem) -> ContentOut:
-    return ContentOut.model_validate(item, from_attributes=True)
+    out = ContentOut.model_validate(item, from_attributes=True)
+    if item.kind == "video":
+        out.note = content.video_note(item.key, item.grp, item.skill)
+    return out
 
 
 def _split(value: str | None) -> list[str] | None:
@@ -78,6 +82,24 @@ def get_queue(
             include_done=review,
         )
         return [_out(r) for r in rows]
+
+
+@router.get("/content/count")
+def count_items(
+    ctx: Ctx, kind: Kind, groups: str | None = None, skills: str | None = None
+) -> dict:
+    """How many items a series holds and how many are done ("video 5 of 47")."""
+    with ctx.session_factory() as session:
+        q = select(func.count()).select_from(ContentItem).where(
+            ContentItem.kind == kind, ContentItem.active.is_(True))
+        g, s = _split(groups), _split(skills)
+        if g:
+            q = q.where(ContentItem.grp.in_(g))
+        if s:
+            q = q.where(ContentItem.skill.in_(s))
+        total = session.scalar(q) or 0
+        done = session.scalar(q.where(ContentItem.completed_at.is_not(None))) or 0
+        return {"total": total, "done": done}
 
 
 @router.get("/content/{item_id}", response_model=ContentOut)

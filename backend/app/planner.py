@@ -21,8 +21,9 @@ import math
 from dataclasses import asdict, dataclass, field
 from datetime import date, timedelta
 
-GENERATOR = "planner-8"  # v0.0.12: writing and speaking labs with the AI tutor (D-042)
+GENERATOR = "planner-9"  # v0.0.13: daily phrases, speaking lab step by step (D-043)
 SKILLS = ("listening", "reading", "writing", "speaking")
+HOURS_PER_BAND = 100  # owner, 2026-11-03: fixed, not edited, not learned (D-043)
 DEV_SHARE = {"foundation": 0.75, "development": 0.6, "exam": 0.35}
 FINAL_MOCK_OFFSETS = (4, 3, 2)  # days before the exam
 REVIEW_OFFSET = 1
@@ -348,6 +349,13 @@ TEXT = {
         "devR.reason": "أسبوع تطوير القراءة (خطة دليلك): ساعات التركيز كلها روايات على مستواك.",
         "round.reason": "أسبوع {skill} (الدورة {round} من خطة دليلك): أول يومين تكنيكات، وبعدها تدريب.",
         "overflow.reason": "باقي وقتك النهارده بعد التدريب: استماع وقراءة (العمود الفقري في خطة دليلك).",
+        "PHRASES.title": "عبارات اليوم",
+        "PHRASES.do": "5 عبارات من الـ 150 عبارة بتاعة دليلك (موقف واحد): اقلب الكارت، اسمع النطق، وكرّر العبارة بصوت عالي.",
+        "PHRASES.reason": "عبارات جاهزة للإيميلات والاجتماعات، 5 كل يوم لحد ما تخلّص الـ 150. 5 دقايق من وقت التركيز.",
+        "S-P1.title": "محادثة: Part 1 في المعمل",
+        "S-P1.do": "اطلب أسئلة Part 1 من المدرّس، سجّل إجاباتك، اسمع نفسك، وابعت كلامك للمدرّس يصحّحه.",
+        "S-P2.title": "محادثة: Part 2 في المعمل",
+        "S-P2.do": "كارت Part 2 من المدرّس: دقيقة تحضير ودقيقتين كلام، وبعدين ابعت كلامك للمدرّس يصحّحه.",
         "CARDS.title": "كلمات اليوم",
         "CARDS.do": "كروت الكلمات: المراجعات الأول، وبعدين كلمات جديدة من أهم 350 كلمة. اقلب الكارت، اسمع النطق، واختار قد إيه كنت فاكرها.",
         "CARDS.reason": "كل كلمة بترجعلك قبل ما تنساها بالظبط (تكرار متباعد). 10 دقايق من وقت التركيز، والتطوير زي ما هو.",
@@ -429,6 +437,13 @@ TEXT = {
         "devR.reason": "Reading development week (Dalilk's plan): the focus hours are novels at your level.",
         "round.reason": "{skill} week (round {round} of Dalilk's plan): two days of techniques, then practice.",
         "overflow.reason": "The rest of today's time after practice: listening and reading (the backbone of Dalilk's plan).",
+        "PHRASES.title": "Today's phrases",
+        "PHRASES.do": "5 of Dalilk's 150 phrases (one situation): flip the card, hear it, and say the phrase out loud.",
+        "PHRASES.reason": "Ready phrases for emails and meetings, 5 a day until all 150 are done. 5 minutes from the focus time.",
+        "S-P1.title": "Speaking: Part 1 in the lab",
+        "S-P1.do": "Ask the tutor for Part 1 questions, record your answers, listen to yourself, and send what you said for marking.",
+        "S-P2.title": "Speaking: Part 2 in the lab",
+        "S-P2.do": "A Part 2 card from the tutor: one minute to prepare, two to speak, then send what you said for marking.",
         "CARDS.title": "Today's words",
         "CARDS.do": "Word cards: reviews first, then new words from the 350. Flip the card, hear it, and say how well you knew it.",
         "CARDS.reason": "Each word comes back just before you would forget it (spaced repetition). 10 minutes from the focus time; development stays as it is.",
@@ -489,6 +504,7 @@ TEXT = {
 LISTEN_EASY, LISTEN_IELTS = "DLK-11", "DLK-20"
 STORIES = "DLK-07"
 WORDS = "DLK-04"
+PHRASES = "DLK-12"
 SPELLING = "DLK-21"
 SPEAK_EASY, SPEAK_IELTS = "DLK-13", "DLK-19"
 TECHNIQUES = "DLK-17"
@@ -500,6 +516,7 @@ STAGE_MINUTES = 15  # one of the podcast's four stages (owner, 2026-11-03)
 PODCAST_MINUTES = 4 * STAGE_MINUTES
 NOVEL_MINUTES = 30  # a Dalilk novel, on average (owner, 2026-11-03)
 CARDS_MINUTES = 10  # word cards every study day, from the focus time (D-041)
+PHRASE_MINUTES = 5  # Dalilk's phrases: one situation (5 phrases) a day (owner, D-043)
 WRITE_DEV = SPEAK_DEV = 5
 PHRASE_VIDEO_MINUTES = 20  # Dalilk's daily-phrases videos average ~19 min
 TEST_MINUTES = {"listening": 40, "reading": 75, "writing": 70, "speaking": 20}
@@ -812,7 +829,8 @@ def _writing(inputs: PlanInputs, t: dict, task: int, minutes: int, reason: str) 
 def _speaking(inputs: PlanInputs, t: dict, minutes: int, reason: str) -> list[Block]:
     practice = min(MAX_SPEAKING, _round5(minutes / 2) if minutes >= 40 else minutes)
     blocks = [Block("exam", "speaking", "S-PRAC", practice, SPEAK_IELTS,
-                    t["S-PRAC.title"], t["S-PRAC.do"], reason, None)]
+                    t["S-PRAC.title"], t["S-PRAC.do"], reason,
+                    {"kind": "speaking", "parts": [1, 2, 3]})]
     rest = minutes - practice
     video = min(_round5(rest / 2) if rest >= 40 else rest, MAX_PRACTICE_VIDEO)
     if video >= 10:
@@ -937,6 +955,12 @@ def day_blocks(inputs: PlanInputs, d: date) -> tuple[str, list[Block]]:
     cards = [Block("support", "vocabulary", "V-CARDS", CARDS_MINUTES, WORDS, t["CARDS.title"],
                    t["CARDS.do"], t["CARDS.reason"], {"kind": "cards", "deck": "word"})
              ] if room else []
+    # Dalilk's 150 phrases: a task of their own (owner, 2026-11-03), also from the focus time
+    if focus >= PHRASE_MINUTES:
+        focus -= PHRASE_MINUTES
+        cards.append(Block("support", "vocabulary", "V-PHRASES", PHRASE_MINUTES, PHRASES,
+                           t["PHRASES.title"], t["PHRASES.do"], t["PHRASES.reason"],
+                           {"kind": "cards", "deck": "phrase"}))
     blocks: list[Block] = []
     for b in _focus_blocks(inputs, t, d, focus) + cards + tail:
         same = next((x for x in blocks if x.activity_code == b.activity_code
@@ -980,7 +1004,22 @@ def _dev_tail(inputs: PlanInputs, t: dict, d: date, dev: dict[str, int], in_dev_
                           t["W-DEV.title"], t["W-DEV.do"], dev_reason,
                           {"kind": "writing", "task": 0, "count": 1}))
     if dev["speaking"]:
-        if in_dev_week and focus >= PHRASE_VIDEO_MINUTES:
+        # the speaking lab step by step (owner, 2026-11-03): phrase videos in the first
+        # development weeks, Part 1 in the lab from the reading weeks (every other day) and
+        # in the exam weeks, Part 2 in the second round
+        code, rnd, k, _ = week_info(inputs, d)
+        lab = None
+        if day_kind(inputs, d) == "final_mock":
+            lab = None
+        elif code == "devR" and k % 2 == 1:
+            lab = 1
+        elif not in_dev_week:
+            lab = 2 if rnd >= 2 else 1
+        if lab is not None:
+            tail.append(Block("output", "speaking", f"S-P{lab}", dev["speaking"], SPEAK_IELTS,
+                              t[f"S-P{lab}.title"], t[f"S-P{lab}.do"], dev_reason,
+                              {"kind": "speaking", "parts": [lab]}))
+        elif in_dev_week and focus >= PHRASE_VIDEO_MINUTES:
             focus -= PHRASE_VIDEO_MINUTES - dev["speaking"]
             tail.append(Block("output", "speaking", "S-PHRASE", PHRASE_VIDEO_MINUTES, None,
                               t["S-PHRASE.title"], t["S-PHRASE.do"], dev_reason,

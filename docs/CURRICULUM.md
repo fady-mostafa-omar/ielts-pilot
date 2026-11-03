@@ -79,6 +79,8 @@ Supersedes the daily mix of §4a; the estimate (D-023), the final days (D-024 wi
 
 **Writing and speaking labs** (v0.0.12, D-042, `planner-8`): W-T1 / W-T2 tasks open the writing lab (the task's number of answers, 20 / 40 minutes each, then the tutor's feedback and the mistakes to the notebook); S-PRAC opens the speaking lab after the one-minute recording, with Dalilk's expected questions one tab away; W-DEV suggests words recently recalled from the cards.
 
+**v0.0.13** (D-043, `planner-9`): "Today's phrases" (`V-PHRASES`, 5 min, 5 of Dalilk's phrases a day) from the focus time. The speaking lab step by step: first development weeks — phrase videos (`S-PHRASE`); reading development weeks — Part 1 in the lab every other day (`S-P1`); exam weeks — `S-P1` in the first round, `S-P2` in the second; the speaking week — `S-PRAC`, all three parts. Hours per band fixed at 100.
+
 **Weeks** are calendar weeks from Saturday, counted from the plan start. Study weeks *W* = weeks up to the last study day (exam − 5); with no exam date, *W* = 12 and weeks after 12 repeat the consolidation round.
 
 | *W* | Sequence |

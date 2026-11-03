@@ -313,6 +313,8 @@ export function ListeningSide(props: {
   const offset = today ? today.start - 1 : 0;
   const podcasts = today ? Math.max(1, Math.ceil((offset + today.total) / 4)) : 0;
   const podcastNo = today ? Math.min(podcasts, Math.floor((offset + today.done) / 4) + 1) : 0;
+  // v0.0.13 (owner): once the task's stages are done only "Next" is left
+  const todayDone = !!today && today.done >= today.total;
 
   useEffect(
     () => setRating((ep?.comprehension as Rating | null | undefined) ?? null),
@@ -375,7 +377,7 @@ export function ListeningSide(props: {
       <p className="task-brief">{t(`pl_step${props.step}_do`)}</p>
       {props.step === 3 && <CompactRecorder limit={180} label={t("pl_shadow_rec")} />}
       {ep && !ep.transcript_url && <p className="note small">{t("pl_no_transcript")}</p>}
-      {ep && props.step < 4 && (
+      {ep && props.step < 4 && !todayDone && (
         <button
           className="btn primary self-start"
           disabled={busy}
@@ -391,7 +393,7 @@ export function ListeningSide(props: {
           <Icon name="check" size={16} /> {t("pl_stage_done", { s: props.step })}
         </button>
       )}
-      {ep && props.step === 4 && (
+      {ep && props.step === 4 && !todayDone && (
         <div className="stack-xs">
           <span className="field-label">{t("pl_rate_title")}</span>
           <div className="stars" role="radiogroup" aria-label={t("pl_rate_title")}>

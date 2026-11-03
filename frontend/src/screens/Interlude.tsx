@@ -6,7 +6,6 @@ import { useEffect, useMemo, useState } from "react";
 import { useI18n } from "../i18n";
 import { Icon } from "../icons";
 import { formatClock } from "../plan";
-import { PhraseOfThePause } from "./Cards";
 
 const CHEERS: { ar: string; en: string }[] = [
   { ar: "كل حلقة بتسمعها بتقرّبك خطوة من هدفك.", en: "Every episode you hear is one step closer to your goal." },
@@ -204,8 +203,7 @@ export function Interlude(props: {
         <p className="il-cheer" dir="auto">
           {lang === "ar" ? pick.cheer.ar : pick.cheer.en}
         </p>
-        {/* v0.0.11: one of Dalilk's 150 phrases in each pause, in order (D-041) */}
-        <PhraseOfThePause />
+        {/* v0.0.13: the pause holds tips only; the phrases are a task of their own (owner) */}
         <p className="muted">
           {t("il_progress", { done: props.done, total: props.total })}
           {props.nextTitle && (

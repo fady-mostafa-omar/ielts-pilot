@@ -9,7 +9,9 @@ from app.models import SKILLS
 
 Band = Annotated[float, Field(ge=0, le=9, multiple_of=0.5)]
 Skill = Literal["listening", "reading", "writing", "speaking"]
-SourceType = Literal["official_practice", "external_marker", "placement_quiz", "self_estimate"]
+SourceType = Literal[
+    "official_practice", "external_marker", "placement_quiz", "self_estimate", "ai_tutor"
+]
 ResourceSkill = Literal[
     "listening", "reading", "writing", "speaking", "grammar", "vocabulary", "techniques", "general"
 ]
@@ -404,7 +406,7 @@ class EstimateIn(BaseModel):
     exam_date: date | None = None
     study_weekdays: list[int] = Field(min_length=1, max_length=7)
     daily_minutes: int = Field(ge=MIN_DAY_MINUTES, le=MAX_DAY_MINUTES)
-    hours_per_band: int = Field(default=200, ge=50, le=600)
+    hours_per_band: int = Field(default=100, ge=50, le=600)  # ignored: fixed at 100 (D-043)
 
 
 class PlanTaskOut(BaseModel):

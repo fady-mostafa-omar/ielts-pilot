@@ -36,6 +36,26 @@ def _read(path: Path) -> list[dict[str, str]]:
         return list(csv.DictReader(fh))
 
 
+_NOTES: dict[str, str] | None = None
+SKILL_AR = {"L": "الاستماع", "R": "القراءة", "W1": "Task 1", "W2": "Task 2", "S": "المحادثة"}
+
+
+def video_note(key: str, group: str, skill: str) -> str:
+    """One line on what a video gives (owner, 2026-11-03): our own wording from its title
+    (content/catalog/items/video_notes.csv), or a line for its kind."""
+    global _NOTES
+    if _NOTES is None:
+        _NOTES = {r["video_id"]: r["note_ar"] for r in _read(items_dir() / "video_notes.csv")}
+    if key in _NOTES:
+        return _NOTES[key]
+    if group == "practice":
+        part = SKILL_AR.get(skill, "الامتحان")
+        return f"حل عملي على {part}: حل مع الفيديو، ووقّف وحل لوحدك قبل الإجابة."
+    if group == "phrases":
+        return "عبارات يومية جاهزة للكلام: ردّدها بصوت عالي ورا الفيديو."
+    return ""
+
+
 def catalogue(directory: Path | None = None) -> list[dict]:
     directory = directory or items_dir()
     rows: list[dict] = []

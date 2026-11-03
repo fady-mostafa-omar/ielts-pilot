@@ -113,6 +113,9 @@ export function useContentQueue(content: QueueContent | null) {
   const [error, setError] = useState<string | null>(null);
   const [currentId, setCurrentId] = useState<number | null>(null);
   const [finishedNovel, setFinishedNovel] = useState<ContentItem | null>(null);
+  // v0.0.13: the videos finished in this task count by their length (owner, 2026-11-03)
+  const [finishedSeconds, setFinishedSeconds] = useState(0);
+  const [series, setSeries] = useState<{ total: number; done: number } | null>(null);
   const key = content ? JSON.stringify(content) : "";
 
   const load = useCallback(async () => {
@@ -123,6 +126,13 @@ export function useContentQueue(content: QueueContent | null) {
       const list = await api.contentQueue(params(content));
       setItems(list);
       setCurrentId(list[0]?.id ?? null);
+      if (content.kind === "videos" && content.endless) {
+        setSeries(
+          await api
+            .contentCount({ kind: "video", groups: content.groups.join(","), skills: content.skills.join(",") })
+            .catch(() => null),
+        );
+      }
     } catch (e) {
       setError(e instanceof ApiError ? e.message : String(e));
     }
@@ -145,14 +155,17 @@ export function useContentQueue(content: QueueContent | null) {
   const finish = useCallback(
     async (item: ContentItem) => {
       const done = await api.contentDone(item.id);
+      if (item.kind === "video" && !item.completed_at) {
+        setFinishedSeconds((s) => s + (item.duration_seconds ?? 0));
+      }
       const list = (items ?? []).map((x) => (x.id === done.id ? done : x));
       setItems(list);
       const at = list.findIndex((x) => x.id === item.id);
       const next = list.slice(at + 1).find((x) => !x.completed_at || content?.kind === "videos");
       if (next) {
         setCurrentId(next.id);
-      } else if (item.kind === "novel") {
-        // a novel is its own unit: ask before opening the next one
+      } else if (item.kind === "novel" && content?.endless) {
+        // the Library's novels: ask before opening the next one
         setCurrentId(null);
         setFinishedNovel(done);
       } else if (content?.endless) {
@@ -164,18 +177,32 @@ export function useContentQueue(content: QueueContent | null) {
     [items, content, load],
   );
 
+  /** A novel left for later: on to the next one (it comes back next time). */
+  const skip = useCallback(
+    (item: ContentItem) => {
+      const list = items ?? [];
+      const at = list.findIndex((x) => x.id === item.id);
+      const next = list.slice(at + 1).find((x) => !x.completed_at);
+      setCurrentId(next ? next.id : null);
+    },
+    [items],
+  );
+
   return {
     items,
     current,
     index,
     error,
     finish,
+    skip,
     finishedNovel,
+    finishedSeconds,
+    series,
     nextNovel: load,
   };
 }
 
-/** Moves to the next video when the one shown in the panel ends. */
+/** Marks a video watched at its last second, before YouTube's own end screen comes up. */
 export function useVideoEnded(current: ContentItem | null, onEnded: () => void) {
   const fired = useRef<number | null>(null);
   const [position, setPosition] = useState<{ current: number; duration: number } | null>(null);
@@ -186,7 +213,8 @@ export function useVideoEnded(current: ContentItem | null, onEnded: () => void) 
     return bridge.panel.onMedia((m) => {
       if (m.video !== current.key) return;
       setPosition({ current: m.current, duration: m.duration });
-      if (m.ended && fired.current !== current.id) {
+      const atEnd = m.ended || (m.duration > 5 && m.current >= m.duration - 1.2);
+      if (atEnd && fired.current !== current.id) {
         fired.current = current.id;
         onEnded();
       }
@@ -201,26 +229,51 @@ const LEVEL_KEY = {
   upper: "q_level_upper",
 } as const;
 
+/** Time spent on the novel shown now (v0.0.13: half an hour each, owner 2026-11-03). */
+function useNovelClock(item: ContentItem | null) {
+  const [startedAt, setStartedAt] = useState(() => Date.now());
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    setStartedAt(Date.now());
+    setNow(Date.now());
+  }, [item?.id]);
+  useEffect(() => {
+    if (!item || item.kind !== "novel") return;
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, [item]);
+  return Math.max(0, Math.floor((now - startedAt) / 1000));
+}
+
 export function QueueSide(props: {
   content: QueueContent;
   queue: ReturnType<typeof useContentQueue>;
   position: { current: number; duration: number } | null;
-  onNextTask?: () => void;
-  notice?: string | null; // v0.0.10: "lesson done — the next one starts now"
+  onNextTask?: () => void; // in a plan task: "Next" goes on with the path
 }) {
   const { t } = useI18n();
   const { content, queue } = props;
   const [busy, setBusy] = useState(false);
+  const [bonus, setBonus] = useState<number | null>(null);
   const kind = content.kind;
   const item = queue.current;
   const total = queue.items?.length ?? 0;
+  const novelSeconds = useNovelClock(item);
 
   if (queue.error) return <p className="error-box">{queue.error}</p>;
   if (!queue.items) return <div className="spinner" aria-hidden="true" />;
 
+  const bonusLine =
+    bonus !== null ? (
+      <p className="ok-box small" role="status">
+        {t("q_novel_early", { n: bonus })}
+      </p>
+    ) : null;
+
   if (queue.finishedNovel) {
     return (
       <div className="queue-now stack">
+        {bonusLine}
         <p className="ok-box">
           {t("q_novel_finished")} <bdi dir="ltr">{queue.finishedNovel.title}</bdi> 🎉
         </p>
@@ -236,12 +289,30 @@ export function QueueSide(props: {
     );
   }
   if (queue.items.length === 0) return <p className="note small">{t(`q_empty_${kind}`)}</p>;
-  if (!item) return <p className="ok-box">{t("q_all_done")}</p>;
+  if (!item) {
+    return (
+      <div className="stack-xs">
+        {bonusLine}
+        <p className="ok-box">{t("q_all_done")}</p>
+      </div>
+    );
+  }
+
+  const last = !queue.items.slice(queue.index + 1).some((x) => !x.completed_at);
+  const overTime = kind === "novel" && novelSeconds > NOVEL_MINUTES * 60;
 
   const finish = async () => {
     setBusy(true);
     try {
+      if (item.kind === "novel") {
+        const early = NOVEL_MINUTES - Math.ceil(novelSeconds / 60);
+        setBonus(early >= 1 ? early : null);
+      }
       await queue.finish(item);
+      // the task's last novel: straight on with the path (owner, 2026-11-03)
+      if (item.kind === "novel" && last && props.onNextTask && !content.endless) {
+        props.onNextTask();
+      }
     } finally {
       setBusy(false);
     }
@@ -254,16 +325,14 @@ export function QueueSide(props: {
         ? t("q_novel_of", { n: queue.index + 1, m: total, level: t(`q_lvl_${novelLevel}`) })
         : t(LEVEL_KEY[novelLevel])
       : content.endless
-        ? t(kind === "videos" ? "q_next_lesson" : "q_next_test")
+        ? kind === "videos" && queue.series
+          ? t("q_video_of", { n: Math.min(queue.series.total, queue.series.done + 1), m: queue.series.total })
+          : t(kind === "videos" ? "q_next_lesson" : "q_next_test")
         : t(kind === "videos" ? "q_lesson_of" : "q_test_of", { n: queue.index + 1, m: total });
 
   return (
     <div className="queue-now stack">
-      {props.notice && (
-        <p className="ok-box small" role="status">
-          {props.notice}
-        </p>
-      )}
+      {bonusLine}
       <span className="queue-counter">
         <Icon name={kind === "videos" ? "play" : kind === "novel" ? "book" : "target"} size={14} />
         {counter}
@@ -271,6 +340,11 @@ export function QueueSide(props: {
       <strong className="queue-current" dir="auto">
         {item.title}
       </strong>
+      {item.kind === "video" && item.note && (
+        <p className="video-note small" dir="auto">
+          {item.note}
+        </p>
+      )}
       {item.kind === "video" && item.duration_seconds ? (
         <span className="muted small">
           <bdi dir="ltr">
@@ -292,10 +366,33 @@ export function QueueSide(props: {
       {content.kind === "videos" && content.review && (
         <p className="note small">{t("q_review")}</p>
       )}
-      <p className="muted small">{t(`q_note_${kind}`)}</p>
-      <button className="btn primary self-start" disabled={busy} onClick={() => void finish()}>
-        <Icon name="check" size={16} /> {t(`q_done_${kind}`)}
-      </button>
+      {kind === "novel" && (
+        <div className={`novel-clock${overTime ? " over" : ""}`}>
+          <Icon name="clock" size={14} />
+          <bdi dir="ltr">
+            {formatClock(novelSeconds)} / {formatClock(NOVEL_MINUTES * 60)}
+          </bdi>
+        </div>
+      )}
+      {overTime && <p className="warn-box small">{t("q_novel_late")}</p>}
+      {kind === "tests" && <p className="muted small">{t("q_note_tests")}</p>}
+      {/* videos are marked at their last second: no button (owner, 2026-11-03) */}
+      {kind !== "videos" && (
+        <button className="btn primary self-start" disabled={busy} onClick={() => void finish()}>
+          <Icon name="check" size={16} />{" "}
+          {kind === "novel" && last && props.onNextTask && !content.endless
+            ? t("q_done_novel_next")
+            : t(`q_done_${kind}`)}
+        </button>
+      )}
+      {overTime && props.onNextTask && !content.endless && (
+        <button
+          className="btn subtle small self-start"
+          onClick={() => (last ? props.onNextTask?.() : queue.skip(item))}
+        >
+          {t("q_novel_skip")}
+        </button>
+      )}
     </div>
   );
 }

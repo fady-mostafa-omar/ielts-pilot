@@ -10,13 +10,15 @@ import { Icon } from "../icons";
 import { formatClock, todayIso } from "../plan";
 import {
   copyAndOpen,
+  copyOnly,
   ERROR_CODES,
   readTutorReply,
-  speakingFeedbackPrompt,
-  speakingQuestionPrompt,
+  readTutorScores,
+  speakingAnswerMessage,
+  speakingStarterPrompt,
   TUTOR_SITES,
-  writingFeedbackPrompt,
-  writingQuestionPrompt,
+  writingAnswerMessage,
+  writingStarterPrompt,
   type Learner,
 } from "../tutor";
 import type {
@@ -120,7 +122,7 @@ function MistakeForm(props: { onAdd: (m: MistakeInput) => void }) {
 export function TutorPanel(props: {
   site: TutorSite;
   skill: "writing" | "speaking";
-  prompt: () => string;
+  prompt?: () => string; // v0.0.13: optional; the starter prompt now opens the chat
   reply: string;
   onReply: (text: string, overall: number | null) => void;
   disabledReason?: string | null;
@@ -161,21 +163,24 @@ export function TutorPanel(props: {
   return (
     <section className="lab-card stack">
       <h3>
-        <Icon name="compass" size={16} /> {t("tutor_title", { site: name })}
+        <Icon name="flag" size={16} /> {t("lab_mistakes_title")}
       </h3>
+      <p className="muted small">{t("lab_mistakes_hint", { site: name })}</p>
       <ol className="tutor-steps">
-        <li>
-          <button
-            className="btn primary"
-            disabled={!!props.disabledReason}
-            onClick={async () => setCopied(await copyAndOpen(props.prompt(), props.site))}
-          >
-            <Icon name="external" size={14} /> {t("tutor_copy_open", { site: name })}
-          </button>
-          {props.disabledReason && <p className="muted small">{props.disabledReason}</p>}
-          {copied === true && <p className="ok small">✓ {t("tutor_copied", { site: name })}</p>}
-          {copied === false && <p className="error-box small">{t("tutor_copy_failed")}</p>}
-        </li>
+        {props.prompt && (
+          <li>
+            <button
+              className="btn primary"
+              disabled={!!props.disabledReason}
+              onClick={async () => setCopied(await copyAndOpen(props.prompt!(), props.site))}
+            >
+              <Icon name="external" size={14} /> {t("tutor_copy_open", { site: name })}
+            </button>
+            {props.disabledReason && <p className="muted small">{props.disabledReason}</p>}
+            {copied === true && <p className="ok small">✓ {t("tutor_copied", { site: name })}</p>}
+            {copied === false && <p className="error-box small">{t("tutor_copy_failed")}</p>}
+          </li>
+        )}
         <li>
           <span className="field-label">{t("tutor_paste_reply", { site: name })}</span>
           <textarea
@@ -245,6 +250,132 @@ export function TutorPanel(props: {
   );
 }
 
+/* ---------- v0.0.13: the tutor's chat and the marks typed in by the owner ---------- */
+
+/** Step 1: one short prompt opens the chat; the tutor sends a question only and waits. */
+function StarterCard(props: { site: TutorSite; prompt: () => string | null; hint: string }) {
+  const { t } = useI18n();
+  const [copied, setCopied] = useState<boolean | null>(null);
+  const name = TUTOR_SITES[props.site].name;
+  return (
+    <section className="lab-card stack-xs">
+      <span className="field-label">
+        <span className="step-no">1</span> {t("lab_step_start", { site: name })}
+      </span>
+      <p className="muted small">{props.hint}</p>
+      <button
+        className="btn primary self-start"
+        onClick={async () => {
+          const text = props.prompt();
+          if (text) setCopied(await copyAndOpen(text, props.site));
+        }}
+      >
+        <Icon name="external" size={14} /> {t("lab_copy_starter", { site: name })}
+      </button>
+      {copied === true && <p className="ok small">✓ {t("lab_starter_copied", { site: name })}</p>}
+      {copied === false && <p className="error-box small">{t("tutor_copy_failed")}</p>}
+    </section>
+  );
+}
+
+const BANDS = Array.from({ length: 19 }, (_, i) => i / 2);
+
+export function overallOf(values: number[]): number | null {
+  if (values.length === 0) return null;
+  const mean = values.reduce((a, b) => a + b, 0) / values.length;
+  return Math.round(mean * 2) / 2; // .25 up to .5, .75 up to the next band
+}
+
+/** The tutor's marks, typed in by the owner; saving them updates his level (D-043). */
+function ScoreBoxes(props: {
+  criteria: { key: string; label: string }[];
+  scores: Record<string, number>;
+  overall: number | null;
+  saved: boolean;
+  onSave: (scores: Record<string, number>, overall: number) => Promise<void>;
+  note: string;
+}) {
+  const { t } = useI18n();
+  const [scores, setScores] = useState<Record<string, number>>(props.scores);
+  const [overall, setOverall] = useState<number | null>(props.overall);
+  const [busy, setBusy] = useState(false);
+  const [done, setDone] = useState(props.saved);
+  // the parent builds a new object on each render: follow its content, not its identity
+  const incoming = JSON.stringify(props.scores);
+  useEffect(() => setScores(JSON.parse(incoming) as Record<string, number>), [incoming]);
+  useEffect(() => setOverall(props.overall), [props.overall]);
+  const suggested = overallOf(props.criteria.map((c) => scores[c.key]).filter((v) => v !== undefined));
+  const value = overall ?? suggested;
+  return (
+    <section className="lab-card stack-xs">
+      <span className="field-label">
+        <span className="step-no">4</span> {t("lab_scores_title")}
+      </span>
+      <p className="muted small">{props.note}</p>
+      <div className="score-grid">
+        {props.criteria.map((c) => (
+          <label key={c.key} className="score-box">
+            <span>{c.label}</span>
+            <select
+              value={scores[c.key] ?? ""}
+              onChange={(e) => {
+                setDone(false);
+                const next = { ...scores };
+                if (e.target.value === "") delete next[c.key];
+                else next[c.key] = Number(e.target.value);
+                setScores(next);
+              }}
+            >
+              <option value="">—</option>
+              {BANDS.map((b) => (
+                <option key={b} value={b}>
+                  {b.toFixed(1)}
+                </option>
+              ))}
+            </select>
+          </label>
+        ))}
+        <label className="score-box overall">
+          <span>{t("lab_score_overall")}</span>
+          <select
+            value={value ?? ""}
+            onChange={(e) => {
+              setDone(false);
+              setOverall(e.target.value === "" ? null : Number(e.target.value));
+            }}
+          >
+            <option value="">—</option>
+            {BANDS.map((b) => (
+              <option key={b} value={b}>
+                {b.toFixed(1)}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
+      <button
+        className="btn primary self-start"
+        disabled={busy || value === null}
+        onClick={async () => {
+          if (value === null) return;
+          setBusy(true);
+          try {
+            await props.onSave(scores, value);
+            setDone(true);
+          } finally {
+            setBusy(false);
+          }
+        }}
+      >
+        <Icon name="check" size={14} /> {t("lab_save_scores")}
+      </button>
+      {done && value !== null && (
+        <p className="ok small">✓ {t("lab_scores_saved", { band: value.toFixed(1) })}</p>
+      )}
+    </section>
+  );
+}
+
 /* ---------- writing lab ---------- */
 
 const CHECKLIST: Record<number, { group: string; items: string[] }[]> = {
@@ -280,12 +411,13 @@ export function WritingLab(props: {
   const [submittedCount, setSubmittedCount] = useState(0);
   const [reply, setReply] = useState("");
   const [checks, setChecks] = useState<string[]>([]);
-  const [askCopied, setAskCopied] = useState<boolean | null>(null);
+  const [answerCopied, setAnswerCopied] = useState<boolean | null>(null);
   const creating = useRef<Promise<WritingAttempt> | null>(null);
   const submitted = attempt?.status === "submitted";
   const limit = LIMITS[task] ?? 0;
   const words = countWords(text);
   const min = MIN_WORDS[task] ?? 0;
+  const name = TUTOR_SITES[site].name;
 
   const show = useCallback((a: WritingAttempt | null) => {
     setAttempt(a);
@@ -295,6 +427,7 @@ export function WritingLab(props: {
     setReply(a?.tutor_reply ?? "");
     setChecks(a?.checklist ?? []);
     setRunning(false);
+    setAnswerCopied(null);
     if (a) setTask(a.task);
   }, []);
 
@@ -356,14 +489,12 @@ export function WritingLab(props: {
     show(null);
   };
 
-  const saveReview = (patch: { checklist?: string[]; reply?: string; overall?: number | null }) => {
+  const saveReview = (patch: { checklist?: string[]; reply?: string }) => {
     if (!attempt) return;
     void api
       .writingPatch(attempt.id, {
         ...(patch.checklist ? { checklist: patch.checklist } : {}),
-        ...(patch.reply !== undefined
-          ? { tutor_reply: patch.reply, tutor_overall: patch.overall ?? null }
-          : {}),
+        ...(patch.reply !== undefined ? { tutor_reply: patch.reply } : {}),
       })
       .then((a) => {
         setAttempt(a);
@@ -373,6 +504,8 @@ export function WritingLab(props: {
 
   const left = limit ? limit - seconds : 0;
   const number = Math.min(props.count, submittedCount + (submitted ? 0 : 1));
+  const first = task === 1 ? "TA" : "TR";
+  const pastedScores = readTutorScores(reply);
 
   return (
     <div className="lab">
@@ -412,38 +545,34 @@ export function WritingLab(props: {
         )}
       </header>
 
+      {!submitted && task !== 0 && (
+        <StarterCard
+          site={site}
+          hint={t("lab_starter_hint_writing", { site: name })}
+          prompt={() => (learner ? writingStarterPrompt(task as 1 | 2, learner) : null)}
+        />
+      )}
+
       <section className="lab-card stack-xs">
-        <div className="row wrap">
-          <span className="field-label">{t("lab_question")}</span>
-          <span className="spacer" />
-          {!submitted && task !== 0 && (
-            <button
-              className="btn subtle small"
-              disabled={!learner}
-              onClick={async () =>
-                learner &&
-                setAskCopied(await copyAndOpen(writingQuestionPrompt(task as 1 | 2, learner), site))
-              }
-            >
-              <Icon name="compass" size={12} /> {t("lab_ask_question", { site: TUTOR_SITES[site].name })}
-            </button>
-          )}
-        </div>
-        {askCopied && <p className="ok small">✓ {t("lab_question_copied", { site: TUTOR_SITES[site].name })}</p>}
+        <span className="field-label">
+          {task !== 0 && <span className="step-no">2</span>} {t("lab_question")}
+        </span>
         <textarea
           className="lab-question"
           dir="ltr"
           lang="en"
           value={prompt}
           readOnly={submitted}
-          placeholder={t("lab_question_ph")}
+          placeholder={t("lab_question_paste_ph", { site: name })}
           onChange={(e) => setPrompt(e.target.value)}
         />
       </section>
 
       <section className="lab-card stack-xs">
         <div className="row wrap">
-          <span className="field-label">{t("lab_answer")}</span>
+          <span className="field-label">
+            {task !== 0 && <span className="step-no">3</span>} {t("lab_answer")}
+          </span>
           <span className="spacer" />
           {min > 0 && (
             <span className={`pill ${words >= min ? "pill-ok" : ""}`} dir="ltr">
@@ -473,15 +602,55 @@ export function WritingLab(props: {
           </button>
         )}
         {submitted && (
-          <p className="ok small">
-            ✓ {t("lab_submitted", { w: attempt?.words ?? words, m: Math.round(seconds / 60) })}
-          </p>
+          <>
+            <p className="ok small">
+              ✓ {t("lab_submitted", { w: attempt?.words ?? words, m: Math.round(seconds / 60) })}
+            </p>
+            {task !== 0 && (
+              <>
+                <button
+                  className="btn primary self-start"
+                  onClick={async () =>
+                    setAnswerCopied(
+                      await copyOnly(writingAnswerMessage(text, words, Math.round(seconds / 60))),
+                    )
+                  }
+                >
+                  <Icon name="cards" size={14} /> {t("lab_copy_answer")}
+                </button>
+                {answerCopied === true && (
+                  <p className="ok small">✓ {t("lab_answer_copied", { site: name })}</p>
+                )}
+                {answerCopied === false && <p className="error-box small">{t("tutor_copy_failed")}</p>}
+              </>
+            )}
+          </>
         )}
       </section>
 
+      {submitted && task !== 0 && attempt && (
+        <ScoreBoxes
+          criteria={[
+            { key: "task", label: first },
+            { key: "coherence", label: "CC" },
+            { key: "lexical", label: "LR" },
+            { key: "grammar", label: "GRA" },
+          ]}
+          scores={Object.keys(attempt.scores ?? {}).length ? attempt.scores : pastedScores}
+          overall={attempt.tutor_overall}
+          saved={attempt.tutor_overall !== null}
+          note={t("lab_scores_note", { site: name })}
+          onSave={async (scores, overall) => {
+            const a = await api.writingPatch(attempt.id, { scores, tutor_overall: overall });
+            setAttempt(a);
+            props.onChanged?.();
+          }}
+        />
+      )}
+
       {submitted && task !== 0 && (
-        <section className="lab-card stack-xs">
-          <h3>{t("chk_title")}</h3>
+        <details className="lab-card">
+          <summary>{t("chk_title")}</summary>
           <p className="muted small">{t("chk_note")}</p>
           {(CHECKLIST[task] ?? []).map((g) => (
             <div key={g.group} className="chk-group">
@@ -504,25 +673,22 @@ export function WritingLab(props: {
               ))}
             </div>
           ))}
-        </section>
+        </details>
       )}
 
       {submitted && (
-        <TutorPanel
-          site={site}
-          skill="writing"
-          reply={reply}
-          prompt={() =>
-            learner
-              ? writingFeedbackPrompt(task, prompt, text, words, Math.round(seconds / 60), learner)
-              : ""
-          }
-          disabledReason={learner ? null : t("lab_loading")}
-          onReply={(value, overall) => {
-            setReply(value);
-            saveReview({ reply: value, overall });
-          }}
-        />
+        <details className="lab-card">
+          <summary>{t("lab_mistakes_optional")}</summary>
+          <TutorPanel
+            site={site}
+            skill="writing"
+            reply={reply}
+            onReply={(value) => {
+              setReply(value);
+              saveReview({ reply: value });
+            }}
+          />
+        </details>
       )}
 
       {submitted && (
@@ -573,10 +739,15 @@ const CRITERIA: SpeakingCriterion[] = ["fluency", "lexical", "grammar", "pronunc
 const PREP_SECONDS = 60;
 const SPEAK_LIMIT = 120;
 
-export function SpeakingLab(props: { planTaskId: number | null; onChanged?: () => void }) {
+export function SpeakingLab(props: {
+  planTaskId: number | null;
+  parts?: (1 | 2 | 3)[]; // v0.0.13: the parts this plan task practises
+  onChanged?: () => void;
+}) {
   const { t } = useI18n();
   const { learner, site } = useLearner("speaking");
-  const [part, setPart] = useState<1 | 2 | 3>(2);
+  const parts = props.parts && props.parts.length ? props.parts : ([1, 2, 3] as const);
+  const [part, setPart] = useState<1 | 2 | 3>(parts.includes(2) && parts.length === 1 ? 2 : parts[0]);
   const [prompt, setPrompt] = useState("");
   const [prep, setPrep] = useState<number | null>(null);
   const [transcript, setTranscript] = useState("");
@@ -585,9 +756,10 @@ export function SpeakingLab(props: { planTaskId: number | null; onChanged?: () =
   const [notes, setNotes] = useState("");
   const [attempt, setAttempt] = useState<SpeakingAttempt | null>(null);
   const [reply, setReply] = useState("");
-  const [askCopied, setAskCopied] = useState<boolean | null>(null);
+  const [copied, setCopied] = useState<boolean | null>(null);
   const rec = useRecorder(SPEAK_LIMIT, "speaking");
   const recStart = rec.start;
+  const name = TUTOR_SITES[site].name;
 
   // Part 2: one minute to prepare, then the recording starts by itself
   useEffect(() => {
@@ -614,9 +786,11 @@ export function SpeakingLab(props: { planTaskId: number | null; onChanged?: () =
     setRating({});
     setNotes("");
     setReply("");
+    setCopied(null);
   };
 
-  const save = async () => {
+  const save = async (): Promise<SpeakingAttempt> => {
+    if (attempt) return attempt;
     const a = await api.speakingNew({
       part,
       prompt,
@@ -629,6 +803,7 @@ export function SpeakingLab(props: { planTaskId: number | null; onChanged?: () =
     });
     setAttempt(a);
     props.onChanged?.();
+    return a;
   };
 
   const patch = (p: Parameters<typeof api.speakingPatch>[1]) => {
@@ -646,7 +821,7 @@ export function SpeakingLab(props: { planTaskId: number | null; onChanged?: () =
     <div className="lab">
       <header className="lab-head">
         <div className="seg" role="radiogroup" aria-label={t("lab_part")}>
-          {([1, 2, 3] as const).map((n) => (
+          {parts.map((n) => (
             <button
               key={n}
               role="radio"
@@ -665,32 +840,30 @@ export function SpeakingLab(props: { planTaskId: number | null; onChanged?: () =
         </span>
       </header>
 
+      <StarterCard
+        site={site}
+        hint={t("lab_starter_hint_speaking", { site: name, part })}
+        prompt={() => (learner ? speakingStarterPrompt(part, learner) : null)}
+      />
+
       <section className="lab-card stack-xs">
-        <div className="row wrap">
-          <span className="field-label">{t("lab_question")}</span>
-          <span className="spacer" />
-          <button
-            className="btn subtle small"
-            disabled={!learner}
-            onClick={async () =>
-              learner && setAskCopied(await copyAndOpen(speakingQuestionPrompt(part, learner), site))
-            }
-          >
-            <Icon name="compass" size={12} /> {t("lab_ask_question", { site: TUTOR_SITES[site].name })}
-          </button>
-        </div>
-        {askCopied && <p className="ok small">✓ {t("lab_question_copied", { site: TUTOR_SITES[site].name })}</p>}
+        <span className="field-label">
+          <span className="step-no">2</span> {t("lab_question")}
+        </span>
         <textarea
           className="lab-question"
           dir="ltr"
           lang="en"
           value={prompt}
-          placeholder={t("lab_speaking_question_ph")}
+          placeholder={t("lab_question_paste_ph", { site: name })}
           onChange={(e) => setPrompt(e.target.value)}
         />
       </section>
 
       <section className="lab-card stack-xs lab-rec">
+        <span className="field-label self-start">
+          <span className="step-no">3</span> {t("lab_step_record")}
+        </span>
         {prep !== null && (
           <>
             <p className="rec-clock prep" dir="ltr">
@@ -740,64 +913,88 @@ export function SpeakingLab(props: { planTaskId: number | null; onChanged?: () =
               if (attempt) patch({ transcript: e.target.value });
             }}
           />
-          <span className="field-label">{t("lab_self_rating")}</span>
-          {CRITERIA.map((c) => (
-            <div key={c} className="rating-row">
-              <span>{t(`lab_crit_${c}`)}</span>
-              <div className="stars">
-                {[1, 2, 3, 4, 5].map((n) => (
-                  <button
-                    key={n}
-                    className={(rating[c] ?? 0) >= n ? "on" : ""}
-                    onClick={() => {
-                      const next = { ...ratingRef.current, [c]: n };
-                      ratingRef.current = next;
-                      setRating(next);
-                      if (attempt) patch({ self_rating: next as Record<string, number> });
-                    }}
-                  >
-                    {n}
-                  </button>
-                ))}
-              </div>
-            </div>
-          ))}
-          <input
-            dir="auto"
-            placeholder={t("lab_notes_ph")}
-            value={notes}
-            maxLength={5000}
-            onChange={(e) => {
-              setNotes(e.target.value);
-              if (attempt) patch({ notes: e.target.value });
+          <button
+            className="btn primary self-start"
+            disabled={!transcript.trim()}
+            onClick={async () => {
+              await save();
+              setCopied(await copyOnly(speakingAnswerMessage(transcript, rec.seconds)));
             }}
-          />
-          {!attempt ? (
-            <button className="btn primary self-start" onClick={() => void save()}>
-              <Icon name="check" size={14} /> {t("lab_save_attempt")}
-            </button>
-          ) : (
-            <p className="ok small">✓ {t("lab_attempt_saved")}</p>
-          )}
+          >
+            <Icon name="cards" size={14} /> {t("lab_copy_transcript")}
+          </button>
+          {copied === true && <p className="ok small">✓ {t("lab_answer_copied", { site: name })}</p>}
+          {copied === false && <p className="error-box small">{t("tutor_copy_failed")}</p>}
+          <details>
+            <summary className="small">{t("lab_self_rating")}</summary>
+            {CRITERIA.map((c) => (
+              <div key={c} className="rating-row">
+                <span>{t(`lab_crit_${c}`)}</span>
+                <div className="stars">
+                  {[1, 2, 3, 4, 5].map((n) => (
+                    <button
+                      key={n}
+                      className={(rating[c] ?? 0) >= n ? "on" : ""}
+                      onClick={() => {
+                        const next = { ...ratingRef.current, [c]: n };
+                        ratingRef.current = next;
+                        setRating(next);
+                        if (attempt) patch({ self_rating: next as Record<string, number> });
+                      }}
+                    >
+                      {n}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ))}
+            <input
+              dir="auto"
+              placeholder={t("lab_notes_ph")}
+              value={notes}
+              maxLength={5000}
+              onChange={(e) => {
+                setNotes(e.target.value);
+                if (attempt) patch({ notes: e.target.value });
+              }}
+            />
+          </details>
         </section>
       )}
 
-      {attempt && (
-        <TutorPanel
-          site={site}
-          skill="speaking"
-          reply={reply}
-          prompt={() =>
-            learner ? speakingFeedbackPrompt(part, prompt, transcript, rec.seconds, learner) : ""
-          }
-          disabledReason={
-            !learner ? t("lab_loading") : transcript.trim() ? null : t("lab_need_transcript")
-          }
-          onReply={(value, overall) => {
-            setReply(value);
-            patch({ tutor_reply: value, tutor_overall: overall });
+      {done && (
+        <ScoreBoxes
+          criteria={[
+            { key: "fluency", label: "FC" },
+            { key: "lexical", label: "LR" },
+            { key: "grammar", label: "GRA" },
+          ]}
+          scores={attempt && Object.keys(attempt.scores ?? {}).length ? attempt.scores : readTutorScores(reply)}
+          overall={attempt?.tutor_overall ?? null}
+          saved={!!attempt && attempt.tutor_overall !== null}
+          note={t("lab_scores_note_speaking", { site: name })}
+          onSave={async (scores, overall) => {
+            const a = await save();
+            const updated = await api.speakingPatch(a.id, { scores, tutor_overall: overall });
+            setAttempt(updated);
+            props.onChanged?.();
           }}
         />
+      )}
+
+      {done && (
+        <details className="lab-card">
+          <summary>{t("lab_mistakes_optional")}</summary>
+          <TutorPanel
+            site={site}
+            skill="speaking"
+            reply={reply}
+            onReply={(value) => {
+              setReply(value);
+              if (attempt) patch({ tutor_reply: value });
+            }}
+          />
+        </details>
       )}
 
       {done && (

@@ -28,6 +28,7 @@ import { formatClock } from "../plan";
 import {
   ListeningSide,
   PlayerBar,
+  STAGE_MINUTES,
   STEP_SHOWS_TRANSCRIPT,
   usePodcast,
   type ListenStep,
@@ -57,6 +58,7 @@ export interface StudyTarget {
   lab?: "writing" | "speaking"; // v0.0.12: the writing / speaking lab (D-042)
   labTask?: 0 | 1 | 2 | null; // writing: Task 1 / Task 2; null lets the owner pick
   labCount?: number; // answers planned in the task
+  labParts?: (1 | 2 | 3)[]; // v0.0.13: speaking parts the task practises
   queue?: QueueContent; // planner-4: videos / novel / practice tests opened directly
 }
 
@@ -460,22 +462,30 @@ export function StudyScreen(props: {
   const queue = useContentQueue(queueContent);
   const finishCurrent = queue.finish;
   const currentItem = queue.current;
-  // v0.0.10: a short "lesson done" line when a video ends, then the next one plays
-  const [videoDone, setVideoDone] = useState(false);
+  // v0.0.13 (owner, 2026-11-03): at a video's last second the player closes and a
+  // "lesson done" screen shows; the next lesson starts a few seconds later
+  const [between, setBetween] = useState<{ title: string; left: number } | null>(null);
   useEffect(() => {
-    if (!videoDone) return;
-    const timer = setTimeout(() => setVideoDone(false), 5000);
+    if (!between) return;
+    if (between.left <= 0) {
+      setBetween(null);
+      return;
+    }
+    const timer = setTimeout(() => setBetween((b) => (b ? { ...b, left: b.left - 1 } : b)), 1000);
     return () => clearTimeout(timer);
-  }, [videoDone]);
+  }, [between]);
   const onVideoEnded = useCallback(() => {
     if (!currentItem) return;
-    setVideoDone(true);
+    setBetween({ title: currentItem.title, left: 5 });
     void finishCurrent(currentItem);
   }, [currentItem, finishCurrent]);
   const onNovelPage = useNovelPage(currentItem?.kind === "novel" ? currentItem : null);
   // v0.0.10: every speaking task starts with a one-minute recording (owner, 2026-11-03)
+  // (v0.0.13: the short Part 1 / Part 2 lab tasks record in the lab itself)
   const [recorded, setRecorded] = useState(
-    !(focus && (study.activityCode ?? "").startsWith("S-")),
+    !(focus && (study.activityCode ?? "").startsWith("S-")) ||
+      study.activityCode === "S-P1" ||
+      study.activityCode === "S-P2",
   );
   const videoPosition = useVideoEnded(currentItem, onVideoEnded);
   // videos are watched full screen, without distractions (owner's request)
@@ -526,9 +536,6 @@ export function StudyScreen(props: {
   const [minutes, setMinutes] = useState(0);
   const [busy, setBusy] = useState(false);
   const [skipping, setSkipping] = useState(false);
-  // v0.0.7: the timer counted less than the task's time -> ask how long he really studied
-  const [credit, setCredit] = useState<{ recorded: number; seconds: number } | null>(null);
-  const [creditMinutes, setCreditMinutes] = useState(0);
   const [skipReason, setSkipReason] = useState("");
 
   useEffect(() => {
@@ -587,28 +594,21 @@ export function StudyScreen(props: {
       const stopped = await timer.finish(resource ? "" : notes);
       if (usePad) saveDraft(padId, "");
       const seconds = stopped?.active_seconds ?? 0;
-      const recorded = Math.floor(focus.task.done_minutes + seconds / 60);
-      if (recorded < focus.task.planned_minutes - 1) {
-        setCredit({ recorded, seconds });
-        setCreditMinutes(focus.task.planned_minutes);
-        return;
+      // v0.0.13 (owner, 2026-11-03): no "how long did you study?" — the time counts by
+      // itself: videos by their length, podcast stages 15 minutes each, the rest by the timer
+      const auto =
+        queueContent?.kind === "videos"
+          ? queue.finishedSeconds
+          : study.podcast
+            ? stagesDone * STAGE_MINUTES * 60
+            : 0;
+      const extra = Math.floor((auto - seconds) / 60 - focus.task.done_minutes);
+      if (extra >= 1) {
+        await api
+          .logManual(study.skill, new Date(Date.now() - extra * 60_000), extra, "", focus.task.id)
+          .catch(() => undefined);
       }
       await focus.onNext(seconds);
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function confirmCredit(minutes: number) {
-    if (!focus || !credit) return;
-    setBusy(true);
-    try {
-      const extra = Math.round(minutes) - credit.recorded;
-      if (extra >= 1) {
-        const start = new Date(Date.now() - extra * 60_000);
-        await api.logManual(study.skill, start, extra, "", focus.task.id);
-      }
-      await focus.onNext(credit.seconds);
     } finally {
       setBusy(false);
     }
@@ -656,6 +656,10 @@ export function StudyScreen(props: {
           ? t("study_running")
           : t("study_idle");
   const planned = focus ? focus.task.planned_minutes * 60 : 0;
+  // v0.0.13 (owner): videos, podcasts and novels speak for themselves — no instructions box,
+  // no planned-minutes bar; videos have no timer at all (their length counts)
+  const videoTask = queueContent?.kind === "videos";
+  const contentTask = videoTask || !!study.podcast || queueContent?.kind === "novel";
   const plannedPct = planned ? Math.min(100, (timer.display / planned) * 100) : 0;
 
   const main = onBreak ? (
@@ -682,7 +686,7 @@ export function StudyScreen(props: {
   );
 
   return (
-    <div className={`study${focus ? " focus" : ""}`}>
+    <div className={`study${focus ? " focus" : ""}${videoTask ? " video-mode" : ""}`}>
       <aside className="study-side">
         {focus ? (
           <div className="focus-head">
@@ -727,7 +731,7 @@ export function StudyScreen(props: {
           </div>
         </div>
 
-        {focus && (
+        {focus && !contentTask && (
           <div className="task-brief">
             <p>{focus.task.instructions}</p>
             {focus.task.reason && (
@@ -775,22 +779,24 @@ export function StudyScreen(props: {
             queue={queue}
             position={videoPosition}
             onNextTask={focus ? () => void next() : undefined}
-            notice={videoDone ? t("q_video_done") : null}
           />
         )}
 
         {study.timer && !finishing && (
           <>
-            <div
-              className={`timer-box${timer.paused || onBreak || !timer.activeNow ? " is-paused" : ""}`}
-            >
-              <Icon name="clock" size={22} color={skillStyle.color} />
-              <span className="timer-clock" dir="ltr">
-                {formatClock(timer.display)}
-              </span>
-              <span className="timer-status">{status}</span>
-            </div>
-            {focus && (
+            {/* the novel has its own half-hour clock; videos count by their length */}
+            {!videoTask && queueContent?.kind !== "novel" && (
+              <div
+                className={`timer-box${timer.paused || onBreak || !timer.activeNow ? " is-paused" : ""}`}
+              >
+                <Icon name="clock" size={22} color={skillStyle.color} />
+                <span className="timer-clock" dir="ltr">
+                  {formatClock(timer.display)}
+                </span>
+                <span className="timer-status">{status}</span>
+              </div>
+            )}
+            {focus && !contentTask && (
               <div className="stack-xs">
                 <div className="meter" aria-hidden="true">
                   <span style={{ width: `${plannedPct}%` }} />
@@ -802,25 +808,17 @@ export function StudyScreen(props: {
                 </span>
               </div>
             )}
-            {focus && credit && (
-              <CreditBox
-                recorded={credit.recorded}
-                planned={focus.task.planned_minutes}
-                minutes={creditMinutes}
-                busy={busy}
-                onMinutes={setCreditMinutes}
-                onSave={() => void confirmCredit(creditMinutes)}
-              />
-            )}
-            <div className={`row${credit ? " hidden" : ""}`}>
-              <button
-                className="btn"
-                disabled={!timer.session || onBreak}
-                onClick={() => timer.setPaused(!timer.paused)}
-              >
-                <Icon name={timer.paused ? "play" : "pause"} size={14} />
-                {timer.paused ? t("study_resume") : t("study_pause")}
-              </button>
+            <div className="row">
+              {!videoTask && (
+                <button
+                  className="btn"
+                  disabled={!timer.session || onBreak}
+                  onClick={() => timer.setPaused(!timer.paused)}
+                >
+                  <Icon name={timer.paused ? "play" : "pause"} size={14} />
+                  {timer.paused ? t("study_resume") : t("study_pause")}
+                </button>
+              )}
               <span className="spacer" />
               {focus ? (
                 <button
@@ -841,7 +839,7 @@ export function StudyScreen(props: {
                 </button>
               )}
             </div>
-            {focus && !skipping && !credit && (
+            {focus && !skipping && (
               <button className="btn subtle small self-start" onClick={() => setSkipping(true)}>
                 {t("focus_skip")}
               </button>
@@ -970,7 +968,13 @@ export function StudyScreen(props: {
                       )
                     : null
                 }
-                lab={<SpeakingLab planTaskId={focus?.task.id ?? null} onChanged={labChanged} />}
+                lab={
+                  <SpeakingLab
+                    planTaskId={focus?.task.id ?? null}
+                    parts={study.labParts}
+                    onChanged={labChanged}
+                  />
+                }
               />
             </div>
             {main}
@@ -978,7 +982,18 @@ export function StudyScreen(props: {
         ) : study.cards ? (
           <>
             <div className={onBreak ? "hidden-under" : "fill cards-area"}>
-              <CardsSession deck={study.cards} cards={cards} inFocus={!!focus} />
+              <CardsSession
+                deck={study.cards}
+                cards={cards}
+                inFocus={!!focus}
+                pageFallback={(url) => (
+                  <PanelArea
+                    target={{ url }}
+                    keepSignIn={props.keepSignIn}
+                    visible={!onBreak}
+                  />
+                )}
+              />
             </div>
             {main}
           </>
@@ -1038,7 +1053,27 @@ export function StudyScreen(props: {
           </>
         ) : queueContent ? (
           <>
-            {queue.current ? (
+            {between && !onBreak ? (
+              <div className="listen-placeholder video-between">
+                <div className="listen-badge">
+                  <Icon name="check" size={44} color="#15803D" />
+                </div>
+                <p className="lead">{t("q_between_done")}</p>
+                <p className="muted" dir="auto">
+                  {between.title}
+                </p>
+                {queue.current ? (
+                  <>
+                    <p className="muted small">{t("q_between_next", { s: between.left })}</p>
+                    <button className="btn primary" onClick={() => setBetween(null)}>
+                      <Icon name="play" size={14} /> {t("q_between_now")}
+                    </button>
+                  </>
+                ) : (
+                  <p className="muted">{t("q_all_done")}</p>
+                )}
+              </div>
+            ) : queue.current ? (
               <div className={onBreak ? "hidden-under" : "fill"}>
                 <PanelArea
                   key={queue.current.id}
@@ -1086,49 +1121,3 @@ export function StudyScreen(props: {
   );
 }
 
-/** v0.0.7: "How long did you study this task?" when the timer counted less than its time. */
-function CreditBox(props: {
-  recorded: number;
-  planned: number;
-  minutes: number;
-  busy: boolean;
-  onMinutes: (m: number) => void;
-  onSave: () => void;
-}) {
-  const { t, lang } = useI18n();
-  const max = props.planned + 120;
-  const valid =
-    Number.isFinite(props.minutes) && props.minutes >= props.recorded && props.minutes <= max;
-  return (
-    <div className="credit-box stack" role="dialog" aria-label={t("credit_title")}>
-      <strong>{t("credit_title")}</strong>
-      <p className="muted small">
-        {t("credit_body", { recorded: props.recorded, planned: props.planned })}
-      </p>
-      <div className="row wrap">
-        <label className="field credit-field">
-          <span className="field-label">{t("credit_minutes")}</span>
-          <input
-            type="number"
-            dir="ltr"
-            min={props.recorded}
-            max={max}
-            value={props.minutes}
-            onChange={(e) => props.onMinutes(Number(e.target.value))}
-          />
-        </label>
-        <button className="btn subtle small" onClick={() => props.onMinutes(props.recorded)}>
-          {t("credit_use_timer", { m: props.recorded })}
-        </button>
-      </div>
-      <p className="muted small">{t("credit_note")}</p>
-      <button
-        className="btn primary big-btn self-start"
-        disabled={props.busy || !valid}
-        onClick={props.onSave}
-      >
-        {t("credit_save")} <Icon name={lang === "ar" ? "arrowLeft" : "arrowRight"} size={16} />
-      </button>
-    </div>
-  );
-}

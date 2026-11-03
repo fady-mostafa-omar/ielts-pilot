@@ -23,16 +23,28 @@ def test_writing_draft_submit_and_opinion(client: TestClient) -> None:
     assert client.patch(f"/api/v1/writing/{a['id']}",
                         json={"tutor_overall": 6.3}).status_code == 422
     r = client.patch(f"/api/v1/writing/{a['id']}",
-                     json={"tutor_overall": 6.5, "tutor_reply": "OVERALL: 6.5"})
-    assert r.json()["tutor_overall"] == 6.5
+                     json={"tutor_overall": 6.5, "tutor_reply": "OVERALL: 6.5",
+                           "scores": {"task": 6.5, "coherence": 6.0, "lexical": 6.5,
+                                      "grammar": 6.0}})
+    assert r.json()["tutor_overall"] == 6.5 and r.json()["scores"]["coherence"] == 6.0
+    # owner, 2026-11-03 (D-043): the tutor's mark counts in the level, marked as the tutor's
+    level = client.get("/api/v1/skill-levels").json()["current"]["writing"]
+    assert level["band"] == 6.5 and level["source_type"] == "ai_tutor"
+    assert level["source_note"] == "ChatGPT · Writing Task 2"
+    r = client.patch(f"/api/v1/writing/{a['id']}", json={"tutor_overall": 7.0})
+    assert client.get("/api/v1/skill-levels").json()["current"]["writing"]["band"] == 7.0
+    assert client.patch(f"/api/v1/writing/{a['id']}",
+                        json={"scores": {"task": 6.2}}).status_code == 422
     r = client.patch(f"/api/v1/writing/{a['id']}", json={"tutor_overall": None})
-    assert r.json()["tutor_overall"] is None
+    assert r.json()["tutor_overall"] is None and r.json()["level_id"] is None
     listing = client.get("/api/v1/writing", params={"task": 2}).json()
     assert [x["id"] for x in listing] == [a["id"]]
-    # the levels are untouched by the tutor (D-026, D-008)
+    # removing the mark removed its level entry
     assert client.get("/api/v1/skill-levels").json()["current"]["writing"] is None
+    client.patch(f"/api/v1/writing/{a['id']}", json={"tutor_overall": 6.0})
     assert client.delete(f"/api/v1/writing/{a['id']}").status_code == 204
     assert client.get("/api/v1/writing").json() == []
+    assert client.get("/api/v1/skill-levels").json()["current"]["writing"] is None
     assert client.post("/api/v1/writing",
                        json={"task": 1, "plan_task_id": 999}).status_code == 422
 
@@ -92,3 +104,14 @@ def test_tutor_setting(client: TestClient) -> None:
     r = client.put("/api/v1/settings", json={"tutor": "claude"})
     assert r.status_code == 200 and r.json()["tutor"] == "claude"
     assert client.put("/api/v1/settings", json={"tutor": "bing"}).status_code == 422
+
+
+def test_speaking_mark_counts_in_the_level(client: TestClient) -> None:
+    a = client.post("/api/v1/speaking", json={"part": 1, "transcript": "I am a student."}).json()
+    r = client.patch(f"/api/v1/speaking/{a['id']}", json={
+        "tutor_overall": 5.5, "scores": {"fluency": 5.5, "lexical": 5.5, "grammar": 5.0}})
+    assert r.json()["scores"]["grammar"] == 5.0
+    level = client.get("/api/v1/skill-levels").json()["current"]["speaking"]
+    assert level["band"] == 5.5 and level["source_note"] == "ChatGPT · Speaking Part 1"
+    client.delete(f"/api/v1/speaking/{a['id']}")
+    assert client.get("/api/v1/skill-levels").json()["current"]["speaking"] is None

@@ -7,7 +7,8 @@ export type SourceType =
   | "official_practice"
   | "external_marker"
   | "placement_quiz"
-  | "self_estimate";
+  | "self_estimate"
+  | "ai_tutor"; // v0.0.13: marks from the AI tutor, typed in by the owner (D-043)
 
 export const RESOURCE_SKILLS = [
   "listening",
@@ -137,7 +138,9 @@ export interface WritingAttempt {
   status: "draft" | "submitted";
   checklist: string[];
   tutor_reply: string;
-  tutor_overall: number | null; // the AI tutor's opinion, never a level
+  tutor_overall: number | null; // the AI tutor's overall mark (counts in the level, D-043)
+  scores: Record<string, number>; // v0.0.13: the tutor's marks per criterion
+  level_id: number | null;
   plan_task_id: number | null;
   submitted_at: string | null;
   created_at: string;
@@ -155,6 +158,8 @@ export interface SpeakingAttempt {
   notes: string;
   tutor_reply: string;
   tutor_overall: number | null;
+  scores: Record<string, number>;
+  level_id: number | null;
   plan_task_id: number | null;
   created_at: string;
   updated_at: string;
@@ -522,7 +527,8 @@ export type TaskContent =
     }
   | { kind: "tests"; skills: string[]; providers: string[]; count: number }
   | { kind: "writing"; task: 0 | 1 | 2; count: number }
-  | { kind: "cards"; deck: CardDeck };
+  | { kind: "cards"; deck: CardDeck }
+  | { kind: "speaking"; parts: (1 | 2 | 3)[] };
 
 export interface ContentItem {
   id: number;
@@ -539,6 +545,7 @@ export interface ContentItem {
   started_at: string | null;
   completed_at: string | null;
   position_url: string | null; // a novel's last page (0008)
+  note?: string; // v0.0.13: what a video gives, in one line
 }
 
 export interface ContentTotals {

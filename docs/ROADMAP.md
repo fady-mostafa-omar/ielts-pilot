@@ -187,9 +187,23 @@ The owner's screenshot showed Daily English Listening (DLK-11) opening the old p
 - [x] Shadowing recorder in the podcast's stage 3; recent words suggested in the daily writing
 - [ ] Phrase bank by IELTS topic — needs a content source (later)
 - [x] Windows CI build green; v0.0.12 published (2026-11-03)
-- [ ] Owner checks on the laptop: prompt copied and the site opened, reply read back, recording with his microphone
+- [x] Owner checked; asked for the changes below (→ 0.0.13)
 
-## Sprint 4 — Exam preparation and progress · v0.0.13 → v0.1
+## v0.0.13 — Owner's list after 0.0.12 (D-043)
+- [x] 100 hours per band, fixed; new welcome line
+- [x] The AI tutor's marks, typed into score boxes, count in the level ("from the AI tutor"; migration 0011)
+- [x] Writing / speaking labs: a short opening message for the tutor's chat (topic only, then the answer in the same chat), copy the answer, score boxes, save; pasting the reply for mistakes is optional
+- [x] Speaking lab step by step in the plan: Part 1 from the reading development weeks and in the exam weeks, Part 2 in the second round, all parts in the speaking week (planner-9)
+- [x] "Today's phrases": a 5-minute task, 5 phrases a day; the pause between tasks holds tips only
+- [x] Videos: the side narrows, no timer, no "finished" button; marked at the last second, the player closes and a "lesson done" screen shows; one line on what each video gives; the Library series numbered "video n of m"
+- [x] No "how long did you study?" box: videos count by their length, podcast stages 15 minutes each, the rest by the timer
+- [x] Listening and novel tasks without the instructions box; the stage button goes once the task's stages are done; each novel has a half-hour clock (red after, with a skip), a fixed number of novels, "Finished the novel — Next" on the last
+- [x] Words and phrases: when Dalilk's page cannot be read as cards, the page itself opens in the app
+- [ ] App name and logo — the owner picks one of four (names_and_logos.png)
+- [ ] Free tests map approved (docs/research/tests_map.md) → tests by name at their moment in the plan, score boxes, progress page
+- [ ] Windows CI build green; v0.0.13 published
+
+## Sprint 4 — Exam preparation and progress · v0.0.14 → v0.1
 - Practice tests with result entry → levels and the overall chart, the plan adapts (technique videos and tests already in the plan since 0.0.8)
 - Introduction video first, before the name-and-band step (D-040): infographic with Fady Mostafa's introduction and the app's steps from setup to studying, made on the final screens
 - Progress page and weekly report; vocabulary and mistakes reviews

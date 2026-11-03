@@ -22,6 +22,8 @@ import {
 import { useI18n } from "../i18n";
 import { Icon } from "../icons";
 import { formatHM, todayIso } from "../plan";
+
+const HOURS_PER_BAND = 100; // owner, 2026-11-03: fixed
 import {
   SKILLS,
   type Estimate,
@@ -68,7 +70,7 @@ export function SetupScreen(props: {
   const [keepSignIn, setKeepSignIn] = useState(false);
   const [placements, setPlacements] = useState<Placement[]>([]);
   const [testOpen, setTestOpen] = useState<PlacementTest | null>(null);
-  const [hoursPerBand, setHoursPerBand] = useState(200);
+  const hoursPerBand = HOURS_PER_BAND; // owner, 2026-11-03: fixed, 100 hours per band
   const [examFormat, setExamFormat] = useState<ExamFormat | null>(null);
   const [saved, setSaved] = useState<Record<Skill, number | null>>({
     listening: null,
@@ -282,20 +284,6 @@ export function SetupScreen(props: {
                   })}
                 </p>
                 {!estimate.current_complete && <p className="note small">{t("est_partial")}</p>}
-                <label className="field">
-                  <span className="field-label">{t("est_per_band")}</span>
-                  <input
-                    type="number"
-                    min={50}
-                    max={600}
-                    step={10}
-                    value={hoursPerBand}
-                    onChange={(e) =>
-                      setHoursPerBand(Math.min(600, Math.max(50, Number(e.target.value) || 200)))
-                    }
-                  />
-                  <span className="field-hint">{t("est_per_band_hint")}</span>
-                </label>
               </>
             ) : (
               <p className="note">{t("est_no_level")}</p>

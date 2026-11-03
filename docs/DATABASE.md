@@ -258,7 +258,9 @@ Index `(kind, due)`. Read on the owner's computer from Dalilk's two pages (D-041
 | status | TEXT | `draft` / `submitted` (CHECK) |
 | checklist_json | TEXT | self-review items ticked |
 | tutor_reply | TEXT | the AI tutor's reply, pasted by the owner |
-| tutor_overall | REAL NULL | the reply's overall mark — an AI opinion only, never a level (D-026, D-008) |
+| tutor_overall | REAL NULL | the tutor's overall mark, typed in by the owner; since 0011 it is a level entry with the source `ai_tutor` (D-043) |
+| scores_json | TEXT | 0011: the tutor's marks per criterion (`task`, `coherence`, `lexical`, `grammar`) |
+| level_id | INTEGER NULL | 0011: the `skill_levels` row the mark made |
 | plan_task_id | INTEGER FK NULL | `ON DELETE SET NULL` |
 | submitted_at, created_at, updated_at | DATETIME | |
 
@@ -273,7 +275,8 @@ Index `(kind, due)`. Read on the owner's computer from Dalilk's two pages (D-041
 | transcript | TEXT | typed by the owner or with Windows voice typing (Win+H) |
 | self_rating_json | TEXT | 1–5 for fluency, lexical, grammar, pronunciation |
 | notes, tutor_reply | TEXT | |
-| tutor_overall | REAL NULL | AI opinion only |
+| tutor_overall | REAL NULL | the tutor's overall mark; a level entry since 0011 (D-043) |
+| scores_json, level_id | TEXT, INTEGER NULL | 0011: marks per criterion (`fluency`, `lexical`, `grammar`); the level entry |
 | plan_task_id | INTEGER FK NULL | `ON DELETE SET NULL` |
 | created_at, updated_at | DATETIME | |
 
@@ -384,6 +387,7 @@ Index `(next_review_at)`.
 | 0008 | 0.0.10 | `podcast_episodes.stage` (1–4, default 1); `content_items.position_url` |
 | 0009 | 0.0.11 | add `cards` (flashcards, SM-2) |
 | 0010 | 0.0.12 | `cards` rebuilt (kind `mistake`, columns `code`, `source`; rows and ids kept; downgrade drops mistakes); add `writing_attempts`, `speaking_attempts` |
+| 0011 | 0.0.13 | `skill_levels` rebuilt with the source `ai_tutor` (rows and ids kept; downgrade drops AI entries); `writing_attempts` / `speaking_attempts` get `scores_json` and `level_id` |
 
 - One Alembic revision per schema change; `alembic_version` holds the schema version.
 - The backend runs pending migrations at startup, immediately after an automatic `pre-migration` backup. A database whose revision this app does not know (made by a newer version) is never touched: the backend refuses to start, and the app offers to restore the newest backup this version can read (D-027).

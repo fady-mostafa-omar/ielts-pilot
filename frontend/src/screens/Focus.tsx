@@ -94,8 +94,14 @@ function targetFor(task: PlanTask, resource: Resource | null): StudyTarget {
     skill: task.skill,
     activityCode: task.activity_code,
     timer: true,
-    // v0.0.12: speaking practice in the speaking lab, Dalilk's questions one tab away
-    ...(task.activity_code === "S-PRAC" ? { lab: "speaking" as const } : {}),
+    // v0.0.12: speaking practice in the speaking lab, Dalilk's questions one tab away;
+    // v0.0.13: the plan says which parts (the lab grows step by step)
+    ...(content?.kind === "speaking" || task.activity_code === "S-PRAC"
+      ? {
+          lab: "speaking" as const,
+          labParts: content?.kind === "speaking" ? content.parts : undefined,
+        }
+      : {}),
   };
 }
 
