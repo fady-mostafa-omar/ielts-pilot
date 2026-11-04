@@ -221,6 +221,10 @@ The owner's screenshot showed Daily English Listening (DLK-11) opening the old p
 - [x] One release workflow: Windows installer, Linux `.deb` installed and started on Ubuntu 22.04 and 24.04, one release with both
 - [x] v0.0.15 published (2026-11-03): Windows and Linux CI green, the .deb installed and started on Ubuntu 22.04 and 24.04
 
+## v0.0.16 — Nothing seen comes back (D-047)
+- [x] A video watched for a minute (or half of a short one) counts as seen when the task moves on, is skipped or the screen closes; the time credit counts the part watched
+- [ ] v0.0.16 published
+
 ## Sprint 4 — Exam preparation and progress · v0.1
 - Introduction video first, before anything else, on the first start, with skip and "watch again" in Settings (D-040, owner 2026-11-03): Eng. Fady Mostafa made the app free to help people; the app explained from the first step until the target band, on the final screens
 - Content-policy review before the app is given to the public (the personal-use rules change, D-045)

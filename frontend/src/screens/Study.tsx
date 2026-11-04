@@ -81,6 +81,7 @@ export interface FocusOptions {
 const HEARTBEAT_MS = 30_000;
 const ACTIVITY_MS = 5_000;
 const IDLE_LIMIT_S = 300; // no keyboard/mouse for 5 min and no sound -> not counted
+const SEEN_SECONDS = 60; // v0.0.16: a video watched this long counts as seen
 const MIN_WORDS: Record<string, number> = { "W-T1": 150, "W-T2": 250, "W-REV": 120, "W-DEV": 40 };
 
 /* ---------- the panel area ---------- */
@@ -506,6 +507,35 @@ export function StudyScreen(props: {
       study.activityCode === "S-P2",
   );
   const videoPosition = useVideoEnded(currentItem, onVideoEnded);
+  // v0.0.16 (owner, 2026-11-04): a video once seen never comes back, so every day brings
+  // something new. One watched for a minute or more (or half of a short one) counts as seen
+  // when the task moves on or the screen closes, even if it was not watched to the end.
+  const watched = useRef<{ id: number; seconds: number; since: number } | null>(null);
+  const currentVideoId = currentItem?.kind === "video" ? currentItem.id : null;
+  useEffect(() => {
+    watched.current = currentVideoId !== null ? { id: currentVideoId, seconds: 0, since: Date.now() } : null;
+  }, [currentVideoId]);
+  useEffect(() => {
+    const w = watched.current;
+    if (w && videoPosition && w.id === currentVideoId) w.seconds = Math.max(w.seconds, videoPosition.current);
+  }, [videoPosition, currentVideoId]);
+  /** Marks the video on screen as seen when enough of it was watched; returns the seconds
+   *  watched (for the time credit), 0 when it was not counted. */
+  const markSeen = useCallback(async (): Promise<number> => {
+    const w = watched.current;
+    const item = currentItem;
+    if (!w || !item || item.kind !== "video" || item.id !== w.id || item.completed_at) return 0;
+    // the player's own position; if the page never reported one, the time it was on screen
+    const seconds = w.seconds > 0 ? w.seconds : (Date.now() - w.since) / 1000;
+    const length = item.duration_seconds ?? SEEN_SECONDS * 2;
+    if (seconds < Math.min(SEEN_SECONDS, length / 2)) return 0;
+    watched.current = null;
+    await api.contentDone(item.id).catch(() => undefined);
+    return Math.min(seconds, length);
+  }, [currentItem]);
+  const markSeenRef = useRef(markSeen);
+  markSeenRef.current = markSeen;
+  useEffect(() => () => void markSeenRef.current(), []);
   // videos are watched full screen, without distractions (owner's request)
   useEffect(() => {
     if (queueContent?.kind === "videos" && focus && !focus.fullScreen) focus.onToggleFullScreen();
@@ -612,11 +642,13 @@ export function StudyScreen(props: {
       const stopped = await timer.finish(resource ? "" : notes);
       if (usePad) saveDraft(padId, "");
       const seconds = stopped?.active_seconds ?? 0;
+      const partial = queueContent?.kind === "videos" ? await markSeen() : 0;
       // v0.0.13 (owner, 2026-11-03): no "how long did you study?" — the time counts by
-      // itself: videos by their length, podcast stages 15 minutes each, the rest by the timer
+      // itself: videos by their length (v0.0.16: a video left early by the part watched),
+      // podcast stages 15 minutes each, the rest by the timer
       const auto =
         queueContent?.kind === "videos"
-          ? queue.finishedSeconds
+          ? queue.finishedSeconds + partial
           : study.podcast
             ? stagesDone * STAGE_MINUTES * 60
             : 0;
@@ -638,6 +670,7 @@ export function StudyScreen(props: {
     try {
       await saveResourceFields();
       await timer.finish(resource ? "" : notes);
+      await markSeen();
       await focus.onSkip(skipReason);
     } finally {
       setBusy(false);
