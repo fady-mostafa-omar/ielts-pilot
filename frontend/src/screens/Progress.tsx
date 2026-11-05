@@ -1,6 +1,7 @@
 // v0.0.14 (owner, 2026-11-03, D-044): «تقدّمي» — every level entry of each skill (tests,
 // the AI tutor, estimates, each marked as what it is), the right answers by question type,
 // the recent tests and the lab answers the tutor marked.
+// v0.0.17 (owner, 2026-11-05): first, every kind of work as "done of total" with a bar.
 
 import { useCallback, useEffect, useState } from "react";
 import { api, ApiError } from "../api";
@@ -9,7 +10,14 @@ import { useI18n } from "../i18n";
 import { Icon, SkillBadge } from "../icons";
 import { dayKey } from "../plan";
 import { PROVIDER_LABEL, qtypeLabel } from "../tests";
-import { SKILLS, type Profile, type ProgressData, type Skill } from "../types";
+import {
+  SKILLS,
+  type Profile,
+  type ProgressCount,
+  type ProgressCountKey,
+  type ProgressData,
+  type Skill,
+} from "../types";
 import { savedLine } from "./Tests";
 
 const OFFICIAL = new Set(["official_practice", "external_marker"]);
@@ -78,6 +86,55 @@ function SkillCard(props: { skill: Skill; data: ProgressData; target: number }) 
           </ul>
         </details>
       )}
+    </section>
+  );
+}
+
+const COUNT_ICONS: Record<ProgressCountKey, Parameters<typeof Icon>[0]["name"]> = {
+  podcast: "headphones",
+  novels: "book",
+  technique_videos: "compass",
+  practice_videos: "target",
+  phrase_videos: "volume",
+  words: "cards",
+  phrases: "cards",
+  samples: "target",
+  full_tests: "flag",
+  writing_t1: "pen",
+  writing_t2: "pen",
+  speaking: "mic",
+  hours: "clock",
+};
+
+/** v0.0.17: "12 of 60" for each kind of work. The total is what was done plus what the
+ *  plan still holds up to the exam, or the whole series when it is a fixed set. */
+function Counts(props: { counts: ProgressCount[] }) {
+  const { t } = useI18n();
+  if (props.counts.length === 0) return null;
+  return (
+    <section className="card stack">
+      <h2 className="row">
+        <Icon name="trend" color="#1D4ED8" /> {t("count_title")}
+      </h2>
+      <p className="muted small">{t("count_note")}</p>
+      <div className="count-grid">
+        {props.counts.map((c) => {
+          const pct = c.total > 0 ? Math.min(100, Math.round((c.done / c.total) * 100)) : 0;
+          return (
+            <div key={c.key} className="count-row">
+              <span className="count-name">
+                <Icon name={COUNT_ICONS[c.key]} size={14} /> {t(`count_${c.key}`)}
+              </span>
+              <span className="count-figures small">
+                {t("count_of", { d: c.done, t: c.total })}
+              </span>
+              <div className="meter" aria-hidden="true">
+                <span style={{ width: `${pct}%` }} />
+              </div>
+            </div>
+          );
+        })}
+      </div>
     </section>
   );
 }
@@ -176,6 +233,8 @@ export function ProgressScreen(props: { profile: Profile; onLevelsChanged: () =>
           </span>
         </div>
       </header>
+
+      <Counts counts={data.counts ?? []} />
 
       <div className="progress-grid">
         {SKILLS.map((s) => (

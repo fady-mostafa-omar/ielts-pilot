@@ -32,7 +32,7 @@ export const ERROR_CODES = [
 
 export interface Learner {
   band: number | null; // the skill's current level, if known
-  target: number;
+  target: number; // v0.0.17: the skill's own target from the setup (target_writing / _speaking)
   explain: ExplanationLang;
   examFormat: string | null;
   words: string[]; // words he is learning (recent cards)
@@ -46,122 +46,261 @@ function language(explain: ExplanationLang): string {
   return "Explain in simple English and add a short note in Egyptian Arabic after each point.";
 }
 
-function aboutMe(l: Learner, skill: string): string {
-  const level = l.band !== null ? `about band ${l.band.toFixed(1)}` : "not measured yet";
-  return `About me: my ${skill} level is ${level}; my target is band ${l.target.toFixed(1)}.`;
+function whyLanguage(explain: ExplanationLang): string {
+  return explain === "en_heavy" ? "in simple English" : "in short, simple Egyptian Arabic";
 }
 
-const MISTAKES_FORMAT = `Then write a line that says only MISTAKES, followed by one line per mistake (the most important first, at most 12), exactly in this format:
-WRONG: <my exact words> || RIGHT: <the corrected words> || WHY: <a short reason> || CODE: <one of ${ERROR_CODES.join(", ")}>`;
+function aboutMe(l: Learner, skill: string): string {
+  const level = l.band !== null ? `about band ${l.band.toFixed(1)}` : "not measured yet";
+  return `About me: my ${skill} level is ${level}; my target in ${skill} is band ${l.target.toFixed(1)}.`;
+}
+
+const MISTAKE_LINE = `WRONG: <my exact words> || RIGHT: <the corrected words> || WHY: <a short reason> || CODE: <one of ${ERROR_CODES.join(", ")}>`;
 
 const OPINION_NOTE =
   "Your marks are practice feedback and an opinion only, not an official IELTS score.";
 
-/** v0.0.13 (owner, 2026-11-03): one short prompt opens the chat — the tutor sends a topic
- *  only and waits; the answer goes to the same chat and is marked like the exam. */
-export function writingStarterPrompt(task: 1 | 2, l: Learner): string {
-  const first = task === 1 ? "TA" : "TR";
+/** v0.0.17: the better answer keeps the learner's own ideas, part by part (owner, 2026-11-05). */
+function modelAnswerRules(l: Learner, spoken: boolean): string[] {
   return [
-    `Act as my IELTS Writing examiner. Send me ONE new IELTS Academic Writing Task ${task} question only — no tips, no model answer — and wait for my answer.`,
-    task === 1
-      ? "Describe the chart, table, map or process fully in text (give the numbers in a table), as I cannot see pictures here."
+    "### MODEL ANSWER",
+    `Rewrite MY answer at about band ${l.target.toFixed(1)}. Keep my own ideas, examples, opinion and order; do not add new ideas. Go part by part (one or two of my sentences at a time), in this format:`,
+    "[1]",
+    "MINE: <my exact words>",
+    `BETTER: <the same idea at about band ${l.target.toFixed(1)}>`,
+    `WHY: <what changed and why, in one line ${whyLanguage(l.explain)}>`,
+    "(then [2], [3]… until the whole answer is covered)",
+    spoken
+      ? "Then a line that says only FULL ANSWER, followed by the whole better answer as natural spoken English that I can read aloud."
+      : "Then a line that says only FULL ANSWER, followed by the whole better answer, in paragraphs as in the exam.",
+    l.words.length
+      ? `Where it fits naturally, use some of the words I am learning: ${l.words.join(", ")}.`
       : "",
-    `When I send my answer, mark it exactly as an IELTS examiner would: a band in half bands for ${first}, CC, LR and GRA, and the overall band for the task, each on its own line like "${first}: 6.0". ${OPINION_NOTE}`,
-    MISTAKES_FORMAT,
-    `Then give a better version of my answer at about band ${l.target.toFixed(1)}.`,
+  ];
+}
+
+/** v0.0.17 (owner, 2026-11-05): one message opens the chat and sets the steps for all of
+ *  it — a question, wait, mark it like the exam, then a model answer at my target band,
+ *  always under the same headings so the app can split the reply. No API: the learner
+ *  pastes this himself and pastes the reply back (D-026). */
+export function writingSessionPrompt(task: 1 | 2, l: Learner, testTitle: string | null): string {
+  const first = task === 1 ? "TA" : "TR";
+  const step1 = testTitle
+    ? [
+        `Step 1 — the question: I will send you the question myself, from "${testTitle}"${task === 1 ? ", with a screenshot of the chart, table, map or process" : ""}. Do not send a question; reply only "Ready" and wait.`,
+      ]
+    : [
+        `Step 1 — the question: send me ONE new IELTS Academic Writing Task ${task} question only (no tips, no model answer) and wait.`,
+        task === 1
+          ? "Describe the chart, table, map or process fully in text (give the numbers in a table), as I cannot see pictures here."
+          : "",
+      ];
+  return [
+    "You are my IELTS Writing examiner and coach for this whole chat. Work step by step and wait for me after each step.",
     `${aboutMe(l, "writing")} ${language(l.explain)}`,
+    "",
+    ...step1,
+    "",
+    "Step 2 — my answer: wait for it. I write it on my computer with the exam's time limit and paste it here.",
+    "",
+    `Step 3 — your reply: mark my answer exactly as an IELTS examiner would. ${OPINION_NOTE} Reply under these headings, written exactly like this and in this order:`,
+    "### SCORES",
+    `${first}: <band>`,
+    "CC: <band>",
+    "LR: <band>",
+    "GRA: <band>",
+    "OVERALL: <band>",
+    "(half bands only, one per line)",
+    "### MISTAKES",
+    `One line per mistake, the most important first, at most 12, exactly like this: ${MISTAKE_LINE}`,
+    ...modelAnswerRules(l, false),
+    "",
+    "Step 4 — then wait. When I ask for another question, start again from Step 1, with the same headings every time.",
   ]
-    .filter(Boolean)
+    .filter((line, i, all) => line !== "" || (all[i - 1] ?? "") !== "")
     .join("\n");
 }
 
-export function writingAnswerMessage(answer: string, words: number, minutes: number): string {
-  return `Here is my answer (${words} words, about ${minutes} minutes). Please mark it as agreed.\n\n${answer.trim()}`;
-}
-
-export function speakingStarterPrompt(part: 1 | 2 | 3, l: Learner): string {
+export function speakingSessionPrompt(part: 1 | 2 | 3, l: Learner, testTitle: string | null): string {
   const ask =
     part === 1
       ? "ask me 4 IELTS Speaking Part 1 questions on one everyday topic"
       : part === 2
         ? "give me one IELTS Speaking Part 2 cue card (the topic and the 3–4 points to talk about)"
         : "ask me 4 IELTS Speaking Part 3 discussion questions on one common topic";
+  const length =
+    part === 1
+      ? "about 20–30 seconds for each question"
+      : part === 2
+        ? "about 2 minutes"
+        : "about 40–60 seconds for each question";
   return [
-    `Act as my IELTS Speaking examiner: ${ask} — questions only, no model answers — and wait.`,
-    "I will record my answer and send you what I said as text (it may come from voice typing, so ignore recognition errors; you cannot hear my pronunciation).",
-    `Then mark it like an IELTS examiner: a band in half bands for FC, LR and GRA and an overall band, each on its own line like "FC: 6.0" (pronunciation not assessed). ${OPINION_NOTE}`,
-    MISTAKES_FORMAT,
-    `Then show a better answer at about band ${l.target.toFixed(1)} in natural spoken English.`,
+    "You are my IELTS Speaking examiner and coach for this whole chat. Work step by step and wait for me after each step.",
     `${aboutMe(l, "speaking")} ${language(l.explain)}`,
-  ].join("\n");
-}
-
-export function speakingAnswerMessage(transcript: string, seconds: number): string {
-  return `Here is what I said (about ${Math.round(seconds)} seconds). Please mark it as agreed.\n\n${transcript.trim()}`;
-}
-
-/** v0.0.14 (D-044): the question comes from a named test, so one message holds it all —
- *  the question, the answer and how to mark it — for a new chat. */
-export function writingTestPrompt(
-  task: 1 | 2,
-  testTitle: string,
-  question: string,
-  answer: string,
-  words: number,
-  minutes: number,
-  l: Learner,
-): string {
-  const first = task === 1 ? "TA" : "TR";
-  return [
-    `Act as my IELTS Writing examiner. Mark my IELTS Academic Writing Task ${task} answer exactly as an IELTS examiner would.`,
-    `The question is from "${testTitle}".`,
-    task === 1
-      ? "I am also sending a screenshot of the chart, table, map or process from the question. If you cannot see it, mark the answer from the question text and say so."
-      : "",
     "",
-    `The question:
-${question.trim() || "(I did not paste the question.)"}`,
+    testTitle
+      ? `Step 1 — the questions: I will send you the Part ${part} questions myself, from "${testTitle}". Do not send questions; reply only "Ready" and wait.`
+      : `Step 1 — the questions: ${ask} — questions only, no model answers — and wait.`,
     "",
-    `My answer (${words} words, written in about ${minutes} minutes):`,
-    "<<<",
-    answer.trim(),
-    ">>>",
+    "Step 2 — my answer: I record it on my computer and send it to you as an audio file. If I cannot attach the file, I will speak with your microphone or type what I said.",
     "",
-    `First give a band in half bands for ${first}, CC, LR and GRA and the overall band for the task, each on its own line like "${first}: 6.0" and "OVERALL: 6.0". ${OPINION_NOTE}`,
-    "Then the three changes that would raise my band the most.",
-    MISTAKES_FORMAT,
-    `Then give a better version of my answer that keeps my ideas, at about band ${l.target.toFixed(1)}.`,
-    `${aboutMe(l, "writing")} ${language(l.explain)}`,
+    `Step 3 — your reply: mark my answer exactly as an IELTS examiner would. ${OPINION_NOTE} Reply under these headings, written exactly like this and in this order:`,
+    "### MY ANSWER",
+    "Exactly what I said, word for word, without correcting it. If you could not hear the audio file, say so in one line and wait for me to speak or type my answer.",
+    "### SCORES",
+    "FC: <band>",
+    "LR: <band>",
+    "GRA: <band>",
+    'P: <band — only if you really heard my voice; otherwise write "not assessed">',
+    "OVERALL: <band>",
+    "(half bands only, one per line)",
+    "### MISTAKES",
+    `One line per mistake, the most important first, at most 12, exactly like this: ${MISTAKE_LINE}`,
+    ...modelAnswerRules(l, true),
+    `Make the full answer ${length} when spoken.`,
+    "Just before FULL ANSWER, one line telling me to press Read aloud, listen to the full answer, then say it myself.",
+    "",
+    "Step 4 — then wait. When I ask for another question, start again from Step 1, with the same headings every time.",
   ]
     .filter((line, i, all) => line !== "" || (all[i - 1] ?? "") !== "")
     .join("\n");
 }
 
-export function speakingTestPrompt(
-  part: 1 | 2 | 3,
-  testTitle: string,
-  question: string,
-  transcript: string,
-  seconds: number,
-  l: Learner,
+/** Step 2 in writing: the answer, with the question when it comes from a named test. */
+export function writingAnswerMessage(
+  answer: string,
+  words: number,
+  minutes: number,
+  named: { title: string; question: string; task: number } | null,
 ): string {
+  const head = named
+    ? [
+        `The question (from "${named.title}"):`,
+        named.question.trim() || "(I did not paste the question.)",
+        named.task === 1 ? "I attached a screenshot of the chart, table, map or process." : "",
+        "",
+      ]
+    : [];
   return [
-    `Act as my IELTS Speaking examiner. Mark my answer to IELTS Speaking Part ${part} exactly as an IELTS examiner would. The questions are from "${testTitle}".`,
-    "Below is what I said; it may come from voice typing, so ignore obvious recognition errors. You cannot hear me: do not judge my pronunciation.",
-    "",
-    `The questions:
-${question.trim() || "(I did not paste the questions.)"}`,
-    "",
-    `My answer (spoken for about ${Math.round(seconds)} seconds):`,
+    ...head,
+    `My answer (${words} words, written in about ${minutes} minute${minutes === 1 ? "" : "s"}):`,
     "<<<",
-    transcript.trim(),
+    answer.trim(),
     ">>>",
-    "",
-    `First give a band in half bands for FC, LR and GRA and an overall band, each on its own line like "FC: 6.0" and "OVERALL: 6.0" (pronunciation not assessed). ${OPINION_NOTE}`,
-    MISTAKES_FORMAT,
-    `Then show a better answer that keeps my ideas, at about band ${l.target.toFixed(1)}, in natural spoken English.`,
-    `${aboutMe(l, "speaking")} ${language(l.explain)}`,
+    "Please mark it as agreed, under the same headings.",
+  ]
+    .filter((line, i) => line !== "" || i === head.length - 1)
+    .join("\n");
+}
+
+/** Step 2 in speaking: the recording goes as a file the learner attaches himself. */
+export function speakingAnswerMessage(
+  seconds: number,
+  named: { title: string; question: string; part: number } | null,
+): string {
+  const head = named
+    ? [
+        `The Part ${named.part} questions (from "${named.title}"):`,
+        named.question.trim() || "(I did not paste the questions.)",
+        "",
+      ]
+    : [];
+  return [
+    ...head,
+    `My answer is in the audio file I attached (about ${Math.max(1, Math.round(seconds))} seconds).`,
+    "Please write it down under MY ANSWER and mark it as agreed, under the same headings.",
   ].join("\n");
+}
+
+/** "rtl" when the text has Arabic letters (a note like "people جمع لوحدها"), else "ltr". */
+export function textDir(text: string): "rtl" | "ltr" {
+  return /[\u0600-\u06FF]/.test(text) ? "rtl" : "ltr";
+}
+
+/* ---------- reading the reply back ---------- */
+
+export type ReplySection = "my_answer" | "scores" | "mistakes" | "model_answer";
+
+const HEADINGS: Record<string, ReplySection> = {
+  "MY ANSWER": "my_answer",
+  SCORES: "scores",
+  SCORE: "scores",
+  MISTAKES: "mistakes",
+  "MODEL ANSWER": "model_answer",
+};
+
+/** v0.0.17: the reply's parts under the agreed headings ("### SCORES", "**SCORES**",
+ *  "SCORES:"…). A heading met again starts its part again (the last one counts). */
+export function splitTutorReply(reply: string): Partial<Record<ReplySection, string>> {
+  const parts: Partial<Record<ReplySection, string[]>> = {};
+  let current: ReplySection | null = null;
+  for (const raw of reply.split(/\r?\n/)) {
+    const bare = raw
+      .replace(/[#*_`:]/g, "")
+      .replace(/\s+/g, " ")
+      .trim()
+      .replace(/^\d+[.)]\s*/, "")
+      .toUpperCase();
+    // "MODEL ANSWER (band 7.0)" or "SCORES — opinion only" count too
+    const m = /^(MY ANSWER|SCORES?|MISTAKES|MODEL ANSWER)(?:\s*[(\-—–].{0,40})?$/.exec(bare);
+    const heading = m ? HEADINGS[m[1]] : undefined;
+    if (heading) {
+      current = heading;
+      parts[heading] = [];
+      continue;
+    }
+    if (current) parts[current]!.push(raw);
+  }
+  const out: Partial<Record<ReplySection, string>> = {};
+  for (const [key, lines] of Object.entries(parts) as [ReplySection, string[]][]) {
+    const text = lines.join("\n").trim();
+    if (text) out[key] = text;
+  }
+  return out;
+}
+
+export interface ModelPart {
+  mine: string;
+  better: string;
+  why: string;
+}
+
+/** The model answer part by part (MINE / BETTER / WHY) and the full answer after it. */
+export function readModelAnswer(text: string): { parts: ModelPart[]; full: string } {
+  const parts: ModelPart[] = [];
+  const fullLines: string[] = [];
+  let field: keyof ModelPart | "full" | null = null;
+  for (const raw of text.split(/\r?\n/)) {
+    const line = raw.replace(/\*\*|__|`/g, "").trim();
+    if (field === "full") {
+      fullLines.push(raw.replace(/\*\*|__/g, "").trimEnd());
+      continue;
+    }
+    const full = /^#*\s*FULL ANSWER\s*:?\s*(.*)$/i.exec(line);
+    if (full) {
+      field = "full";
+      if (full[1]) fullLines.push(full[1]);
+      continue;
+    }
+    const m = /^(?:[-*•]\s*)?(MINE|BETTER|WHY)\s*:\s*(.*)$/i.exec(line);
+    if (m) {
+      const key = m[1].toLowerCase() as keyof ModelPart;
+      if (key === "mine" || parts.length === 0) parts.push({ mine: "", better: "", why: "" });
+      field = key;
+      parts[parts.length - 1][key] = m[2].trim();
+      continue;
+    }
+    if (!line || /^\[\d+\]$/.test(line) || /^\(then \[2\]/i.test(line)) continue;
+    if (/read aloud/i.test(line)) continue; // the reminder to listen, not part of the answer
+    if (field && parts.length) {
+      const last = parts[parts.length - 1];
+      last[field] = `${last[field]} ${line}`.trim();
+    }
+  }
+  return {
+    parts: parts.filter((p) => p.mine || p.better),
+    full: fullLines.join("\n").trim(),
+  };
 }
 
 /** Copies a message for the chat that is already open (no new tab). */
@@ -174,106 +313,6 @@ export async function copyOnly(text: string): Promise<boolean> {
   } catch {
     return false;
   }
-}
-
-/** Asks the tutor for a fresh practice question. */
-export function writingQuestionPrompt(task: 1 | 2, l: Learner): string {
-  if (task === 1) {
-    return [
-      "Give me one new IELTS Academic Writing Task 1 question for practice.",
-      "Describe the chart, table, map or process completely in text (for a chart, give the numbers in a table) so I can write without seeing a picture.",
-      `${aboutMe(l, "writing")} Give only the task, no model answer.`,
-    ].join("\n");
-  }
-  return [
-    "Give me one new IELTS Writing Task 2 question for practice, on a common exam topic.",
-    `${aboutMe(l, "writing")} Give only the question, no model answer.`,
-  ].join("\n");
-}
-
-export function writingFeedbackPrompt(
-  task: 0 | 1 | 2,
-  question: string,
-  answer: string,
-  words: number,
-  minutes: number,
-  l: Learner,
-): string {
-  const kind =
-    task === 1 ? "IELTS Academic Writing Task 1" : task === 2 ? "IELTS Writing Task 2" : "free writing";
-  const criteria =
-    task === 1
-      ? "TA (Task Achievement), CC (Coherence and Cohesion), LR (Lexical Resource), GRA (Grammatical Range and Accuracy)"
-      : "TR (Task Response), CC (Coherence and Cohesion), LR (Lexical Resource), GRA (Grammatical Range and Accuracy)";
-  const first = task === 1 ? "TA" : "TR";
-  return [
-    `You are an experienced IELTS writing teacher. Give feedback on my ${kind} answer. ${OPINION_NOTE}`,
-    aboutMe(l, "writing"),
-    "",
-    `The question:\n${question.trim() || "(I did not paste the question.)"}`,
-    "",
-    `My answer (${words} words, written in about ${minutes} minutes):`,
-    "<<<",
-    answer.trim(),
-    ">>>",
-    "",
-    "Reply in this order:",
-    `1. One line exactly like: AI OPINION: OVERALL 6.0 | ${first} 6.0 | CC 6.0 | LR 6.0 | GRA 6.0 — using half bands (criteria: ${criteria}).`,
-    "2. The three changes that would raise my band the most.",
-    `3. ${MISTAKES_FORMAT}`,
-    `4. A better version of my answer that keeps my ideas, at about band ${l.target.toFixed(1)}.`,
-    "5. Five useful words or phrases for this topic, each with its Arabic meaning.",
-    l.words.length
-      ? `If it fits naturally, show where I could have used some of the words I am learning: ${l.words.join(", ")}.`
-      : "",
-    language(l.explain),
-  ]
-    .filter((line) => line !== "")
-    .join("\n");
-}
-
-export function speakingQuestionPrompt(part: 1 | 2 | 3, l: Learner): string {
-  const ask =
-    part === 1
-      ? "Give me 4 IELTS Speaking Part 1 questions on one everyday topic."
-      : part === 2
-        ? "Give me one IELTS Speaking Part 2 cue card (the topic and the 3–4 points to talk about)."
-        : "Give me 4 IELTS Speaking Part 3 discussion questions on one common topic.";
-  return `${ask}\n${aboutMe(l, "speaking")} Give only the questions, no model answers.`;
-}
-
-export function speakingFeedbackPrompt(
-  part: 0 | 1 | 2 | 3,
-  question: string,
-  transcript: string,
-  seconds: number,
-  l: Learner,
-): string {
-  return [
-    `You are an IELTS speaking examiner and coach. Below is the transcript of my answer to ${part ? `Speaking Part ${part}` : "a speaking practice question"}. ${OPINION_NOTE}`,
-    "The transcript may come from voice typing, so ignore obvious recognition errors. You cannot hear me: do not judge my pronunciation.",
-    aboutMe(l, "speaking"),
-    "",
-    `The question:\n${question.trim() || "(I did not paste the question.)"}`,
-    "",
-    `My answer (spoken for about ${Math.round(seconds)} seconds):`,
-    "<<<",
-    transcript.trim(),
-    ">>>",
-    "",
-    "Reply in this order:",
-    "1. One line exactly like: AI OPINION: OVERALL 6.0 | FC 6.0 | LR 6.0 | GRA 6.0 (pronunciation not assessed) — using half bands.",
-    "2. What I did well, and the three changes that would help most (fluency, ideas, vocabulary, grammar).",
-    `3. ${MISTAKES_FORMAT}`,
-    `4. A better answer that keeps my ideas, at about band ${l.target.toFixed(1)}, in natural spoken English.`,
-    part === 2 ? "5. Three Part 3 questions an examiner could ask next." : "5. Two follow-up questions to practise next.",
-    l.words.length
-      ? `If it fits naturally, show where I could have used some of the words I am learning: ${l.words.join(", ")}.`
-      : "",
-    language(l.explain),
-  ]
-    .filter((line) => line !== "")
-    .join("\n");
 }
 
 /** What the app can read back from the tutor's reply: the overall opinion and the
@@ -317,6 +356,7 @@ export function readTutorScores(reply: string): Record<string, number> {
     [/\bLR\b\s*[:=]?\s*(\d(?:\.5)?)/i, "lexical"],
     [/\bGRA\b\s*[:=]?\s*(\d(?:\.5)?)/i, "grammar"],
     [/\bFC\b\s*[:=]?\s*(\d(?:\.5)?)/i, "fluency"],
+    [/(?:^|\n)\s*(?:P|PR|Pronunciation)\s*[:=]\s*(\d(?:\.5)?)/i, "pronunciation"],
   ];
   for (const [re, key] of map) {
     const m = re.exec(plain);

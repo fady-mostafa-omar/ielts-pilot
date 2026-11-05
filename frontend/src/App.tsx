@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { api, ApiError, onBackendFailure } from "./api";
 import { I18nProvider, useI18n } from "./i18n";
 import { BrandMark, Icon, type IconName } from "./icons";
+import { AnswersScreen } from "./screens/Answers";
 import { BootScreen, FailedScreen } from "./screens/Boot";
 import { FocusRunner } from "./screens/Focus";
 import { HomeScreen } from "./screens/Home";
@@ -35,6 +36,7 @@ type Page =
   | { kind: "focus" }
   | { kind: "library"; skill?: ResourceSkill }
   | { kind: "progress" }
+  | { kind: "answers" } // v0.0.17
   | { kind: "settings"; tab?: SettingsTab }
   | { kind: "study"; study: StudyTarget; back: Page }
   | { kind: "test"; test: PlacementTest; back: Page };
@@ -181,6 +183,7 @@ export function App() {
             {page.kind === "progress" && (
               <ProgressScreen profile={phase.profile} onLevelsChanged={() => void refreshLevels()} />
             )}
+            {page.kind === "answers" && <AnswersScreen />}
             {page.kind === "library" && (
               <LibraryScreen
                 initialFilter={page.skill}
@@ -235,10 +238,14 @@ export function App() {
   );
 }
 
-const NAV: { kind: "home" | "plan" | "progress" | "library" | "settings"; icon: IconName }[] = [
+const NAV: {
+  kind: "home" | "plan" | "progress" | "answers" | "library" | "settings";
+  icon: IconName;
+}[] = [
   { kind: "home", icon: "home" },
   { kind: "plan", icon: "route" },
   { kind: "progress", icon: "trend" },
+  { kind: "answers", icon: "file" },
   { kind: "library", icon: "library" },
   { kind: "settings", icon: "settings" },
 ];

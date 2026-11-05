@@ -423,6 +423,9 @@ class WritingAttempt(Base):
     scores_json: Mapped[str] = mapped_column(Text, default="{}", server_default="{}")
     level_id: Mapped[int | None] = mapped_column(Integer)
     test_key: Mapped[str | None] = mapped_column(String(200))  # 0012: the named question
+    # 0013 (D-048): the tutor's model answer (the owner's ideas at his target band) and the PDF
+    model_answer: Mapped[str] = mapped_column(Text, default="", server_default="")
+    pdf_file: Mapped[str | None] = mapped_column(String(200))
     plan_task_id: Mapped[int | None] = mapped_column(
         ForeignKey("plan_tasks.id", ondelete="SET NULL")
     )
@@ -454,6 +457,10 @@ class SpeakingAttempt(Base):
     scores_json: Mapped[str] = mapped_column(Text, default="{}", server_default="{}")  # 0011
     level_id: Mapped[int | None] = mapped_column(Integer)  # 0011: the level entry it made
     test_key: Mapped[str | None] = mapped_column(String(200))  # 0012: the named test
+    # 0013 (D-048): the model answer, the owner's recording of it, the PDF it was saved to
+    model_answer: Mapped[str] = mapped_column(Text, default="", server_default="")
+    model_recording: Mapped[str | None] = mapped_column(String(100))
+    pdf_file: Mapped[str | None] = mapped_column(String(200))
     plan_task_id: Mapped[int | None] = mapped_column(
         ForeignKey("plan_tasks.id", ondelete="SET NULL")
     )

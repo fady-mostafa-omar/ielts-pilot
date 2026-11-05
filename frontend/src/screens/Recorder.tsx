@@ -15,10 +15,11 @@ export type RecState = "idle" | "recording" | "done" | "error";
 
 /** Records from the microphone up to `limit` seconds; the file is kept in the data folder
  *  (the desktop app saves it and gives back its name). */
-export function useRecorder(limit: number, kind: "speaking" | "shadow" = "speaking") {
+export function useRecorder(limit: number, kind: "speaking" | "shadow" | "model" = "speaking") {
   const [state, setState] = useState<RecState>("idle");
   const [left, setLeft] = useState(limit);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
+  const [blob, setBlob] = useState<Blob | null>(null); // v0.0.17: for "download the recording"
   const [fileName, setFileName] = useState<string | null>(null);
   const [seconds, setSeconds] = useState(0);
   const recorder = useRef<MediaRecorder | null>(null);
@@ -69,6 +70,7 @@ export function useRecorder(limit: number, kind: "speaking" | "shadow" = "speaki
         const blob = new Blob(chunks.current, { type: rec.mimeType || "audio/webm" });
         setSeconds(Math.round((Date.now() - startedAt.current) / 1000));
         setAudioUrl(URL.createObjectURL(blob));
+        setBlob(blob);
         setState("done");
         setFileName(null);
         void blob
@@ -90,12 +92,13 @@ export function useRecorder(limit: number, kind: "speaking" | "shadow" = "speaki
   const reset = useCallback(() => {
     setState("idle");
     setAudioUrl(null);
+    setBlob(null);
     setFileName(null);
     setSeconds(0);
     setLeft(limit);
   }, [limit]);
 
-  return { state, left, audioUrl, fileName, seconds, start, stop, reset };
+  return { state, left, audioUrl, blob, fileName, seconds, start, stop, reset };
 }
 
 export function SpeakingRecorder(props: { continueLabel: string; onContinue: () => void }) {

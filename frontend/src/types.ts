@@ -143,6 +143,9 @@ export interface WritingAttempt {
   scores: Record<string, number>; // v0.0.13: the tutor's marks per criterion
   level_id: number | null;
   test_key: string | null; // v0.0.14: the named question (D-044)
+  test_title: string | null; // v0.0.17
+  model_answer: string; // v0.0.17: the tutor's model answer (editable)
+  pdf_file: string | null; // v0.0.17: the PDF saved in Documents/IELTS Band Up/إجاباتي
   plan_task_id: number | null;
   submitted_at: string | null;
   created_at: string;
@@ -163,6 +166,10 @@ export interface SpeakingAttempt {
   scores: Record<string, number>;
   level_id: number | null;
   test_key: string | null; // v0.0.14: the named test (D-044)
+  test_title: string | null; // v0.0.17
+  model_answer: string; // v0.0.17
+  model_recording: string | null; // v0.0.17: the learner reading the model answer aloud
+  pdf_file: string | null; // v0.0.17
   plan_task_id: number | null;
   created_at: string;
   updated_at: string;
@@ -426,7 +433,7 @@ export interface Bridge {
   podcastFeed(feed: PodcastFeed): Promise<string>;
   openExternal(url: string): Promise<boolean>;
   /** v0.0.10: keeps a speaking recording in the data folder; returns its file name */
-  saveRecording?(data: ArrayBuffer, kind?: "speaking" | "shadow"): Promise<string>;
+  saveRecording?(data: ArrayBuffer, kind?: "speaking" | "shadow" | "model"): Promise<string>;
   /** v0.0.12: a recording this app wrote, to play it again */
   readRecording?(name: string): Promise<ArrayBuffer>;
   deleteRecording?(name: string): Promise<boolean>;
@@ -436,7 +443,9 @@ export interface Bridge {
   dalilkPage?(which: "words" | "phrases", rendered: boolean): Promise<string>;
   setFullScreen(on: boolean): Promise<boolean>;
   updates: UpdateBridge;
-  openFolder(which: "data" | "backups"): Promise<boolean>;
+  openFolder(which: "data" | "backups" | "answers"): Promise<boolean>;
+  /** v0.0.17: answers kept as PDF and WAV in Documents/IELTS Band Up/إجاباتي */
+  answers?: AnswersBridge;
   importBackup(): Promise<string | null>;
   exportBackup(name: string): Promise<boolean>;
   activity(): Promise<{ idleSeconds: number; audible: boolean }>;
@@ -604,6 +613,43 @@ export interface ProgressData {
     created_at: string;
   }[];
   tests_done: number;
+  counts: ProgressCount[]; // v0.0.17: "done of total" for each kind of work
+}
+
+export type ProgressCountKey =
+  | "podcast"
+  | "novels"
+  | "technique_videos"
+  | "practice_videos"
+  | "phrase_videos"
+  | "words"
+  | "phrases"
+  | "samples"
+  | "full_tests"
+  | "writing_t1"
+  | "writing_t2"
+  | "speaking"
+  | "hours";
+
+export interface ProgressCount {
+  key: ProgressCountKey;
+  done: number;
+  total: number;
+}
+
+export interface AnswerFile {
+  name: string;
+  size: number;
+  modified: number; // ms since 1970
+}
+
+export interface AnswersBridge {
+  name(stem: string, current?: string | null): Promise<string>;
+  savePdf(stem: string, html: string): Promise<string>;
+  saveAudio(stem: string, label: "mine" | "model", wav: ArrayBuffer): Promise<string>;
+  list(): Promise<AnswerFile[]>;
+  open(name: string): Promise<boolean>;
+  exportAudio(wav: ArrayBuffer, suggested: string): Promise<string | null>;
 }
 
 export interface ContentItem {

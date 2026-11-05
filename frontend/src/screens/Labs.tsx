@@ -1,10 +1,14 @@
 // v0.0.12 (PRD F6/F7/F8, D-026, D-042): the writing lab, the speaking lab and the AI tutor.
-// The tutor works through a prompt the app copies; the owner pastes it into the site and
-// pastes the reply back. The reply's marks are an opinion only and never change the levels;
-// its mistakes can go to the mistakes notebook (cards reviewed with "Today's words").
+// v0.0.17 (owner, 2026-11-05, D-048): one opening message sets the whole ChatGPT chat — a
+// question, wait, mark it like IELTS, then a model answer at the learner's own target band
+// that keeps his ideas — always under the same headings. The learner pastes the reply into
+// one box and the app splits it: marks into the score boxes, mistakes for the notebook, the
+// model answer into its own box. No API: copy and paste only. Each answer can be kept as a
+// PDF (with its recordings) in Documents/IELTS Band Up/إجاباتي.
 
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { api } from "../api";
+import { answerStem, saveAnswer, toWav, type AnswerDoc } from "../answers";
 import { useI18n } from "../i18n";
 import { LINUX } from "../platform";
 import { Icon } from "../icons";
@@ -13,15 +17,16 @@ import {
   copyAndOpen,
   copyOnly,
   ERROR_CODES,
+  readModelAnswer,
   readTutorReply,
   readTutorScores,
   speakingAnswerMessage,
-  speakingStarterPrompt,
-  speakingTestPrompt,
+  speakingSessionPrompt,
+  splitTutorReply,
+  textDir,
   TUTOR_SITES,
   writingAnswerMessage,
-  writingStarterPrompt,
-  writingTestPrompt,
+  writingSessionPrompt,
   type Learner,
 } from "../tutor";
 import type {
@@ -42,7 +47,7 @@ export function countWords(text: string): number {
   return text.trim() ? text.trim().split(/\s+/).length : 0;
 }
 
-/** What the tutor needs to know: level, target, language of the explanations, words. */
+/** What the tutor needs to know: level, the skill's target, language of the explanations. */
 export function useLearner(skill: "writing" | "speaking") {
   const [learner, setLearner] = useState<Learner | null>(null);
   const [site, setSite] = useState<TutorSite>("chatgpt");
@@ -58,7 +63,10 @@ export function useLearner(skill: "writing" | "speaking") {
       setSite(settings.tutor ?? "chatgpt");
       setLearner({
         band: levels.current[skill]?.band ?? null,
-        target: profile.target_overall,
+        // v0.0.17: the model answer aims at the target set for this skill in the setup
+        target:
+          (skill === "writing" ? profile.target_writing : profile.target_speaking) ??
+          profile.target_overall,
         explain: profile.explanation_language,
         examFormat: settings.exam_format,
         words: words.map((w) => w.front).slice(0, 8),
@@ -71,7 +79,174 @@ export function useLearner(skill: "writing" | "speaking") {
   return { learner, site };
 }
 
-/* ---------- the tutor ---------- */
+/** Saves a value a moment after the last change, and on leaving. */
+function useSaveLater<T>(save: (value: T) => void, ms = 900) {
+  const timer = useRef<number | null>(null);
+  const pending = useRef<{ value: T } | null>(null);
+  const saveRef = useRef(save);
+  saveRef.current = save;
+  useEffect(
+    () => () => {
+      if (timer.current) window.clearTimeout(timer.current);
+      if (pending.current) saveRef.current(pending.current.value);
+    },
+    [],
+  );
+  return useCallback(
+    (value: T) => {
+      pending.current = { value };
+      if (timer.current) window.clearTimeout(timer.current);
+      timer.current = window.setTimeout(() => {
+        pending.current = null;
+        saveRef.current(value);
+      }, ms);
+    },
+    [ms],
+  );
+}
+
+/** The reply split under its headings, and what the app reads from each part. Without the
+ *  headings, the whole reply is read as before (marks and WRONG/RIGHT lines). */
+function useReply(reply: string) {
+  return useMemo(() => {
+    const parts = splitTutorReply(reply);
+    const headed = Object.keys(parts).length > 0;
+    const scoresText = parts.scores ?? (headed ? "" : reply);
+    const mistakesText = parts.mistakes ?? (headed ? "" : reply);
+    return {
+      parts,
+      headed,
+      scores: readTutorScores(scoresText),
+      overall: readTutorReply(scoresText).overall,
+      mistakes: readTutorReply(mistakesText).mistakes,
+    };
+  }, [reply]);
+}
+
+/* ---------- the steps ---------- */
+
+function StepLabel(props: { no?: number; children: ReactNode }) {
+  return (
+    <span className="field-label">
+      {props.no !== undefined && <span className="step-no">{props.no}</span>} {props.children}
+    </span>
+  );
+}
+
+/** The opening message: ChatGPT keeps its steps and headings for the whole chat. */
+function SessionCard(props: {
+  no: number;
+  site: TutorSite;
+  prompt: () => string | null;
+  hint: string;
+}) {
+  const { t } = useI18n();
+  const [copied, setCopied] = useState<boolean | null>(null);
+  const name = TUTOR_SITES[props.site].name;
+  return (
+    <section className="lab-card stack-xs">
+      <StepLabel no={props.no}>{t("lab_step_session", { site: name })}</StepLabel>
+      <p className="muted small">{props.hint}</p>
+      <button
+        className="btn primary self-start"
+        onClick={async () => {
+          const text = props.prompt();
+          if (text) setCopied(await copyAndOpen(text, props.site));
+        }}
+      >
+        <Icon name="external" size={14} /> {t("lab_copy_starter", { site: name })}
+      </button>
+      {copied === true && <p className="ok small">✓ {t("lab_starter_copied", { site: name })}</p>}
+      {copied === false && <p className="error-box small">{t("tutor_copy_failed")}</p>}
+    </section>
+  );
+}
+
+/** The question: a named test's question opens beside the lab and is copied in here;
+ *  otherwise ChatGPT's question is pasted here. */
+function QuestionStep(props: {
+  no?: number;
+  test: ContentItem | null;
+  testTitle: string | null;
+  hint: string;
+  onShow?: () => void;
+  value: string;
+  onChange: (value: string) => void;
+  readOnly: boolean;
+  placeholder: string;
+}) {
+  const { t } = useI18n();
+  return (
+    <section className="lab-card stack-xs">
+      <StepLabel no={props.no}>{t("lab_question")}</StepLabel>
+      {props.testTitle && (
+        <strong dir="ltr" className="small">
+          {props.testTitle}
+        </strong>
+      )}
+      {!props.readOnly && <p className="muted small">{props.hint}</p>}
+      {!props.readOnly && props.test && props.onShow && (
+        <button className="btn self-start" onClick={props.onShow}>
+          <Icon name="globe" size={14} /> {t("lab_open_question")}
+        </button>
+      )}
+      <textarea
+        className="lab-question"
+        dir="ltr"
+        lang="en"
+        value={props.value}
+        readOnly={props.readOnly}
+        placeholder={props.placeholder}
+        onChange={(e) => props.onChange(e.target.value)}
+      />
+    </section>
+  );
+}
+
+/** One box for ChatGPT's whole reply; the app says what it found in it. */
+function ReplyStep(props: {
+  no: number;
+  site: TutorSite;
+  speaking: boolean;
+  reply: string;
+  onReply: (value: string) => void;
+  info: ReturnType<typeof useReply>;
+}) {
+  const { t } = useI18n();
+  const name = TUTOR_SITES[props.site].name;
+  const { parts, headed, mistakes } = props.info;
+  const found: [boolean, string][] = [
+    ...(props.speaking ? [[!!parts.my_answer, t("reply_part_answer")] as [boolean, string]] : []),
+    [!!parts.scores, t("reply_part_scores")],
+    [!!parts.mistakes, t("reply_part_mistakes", { n: mistakes.length })],
+    [!!parts.model_answer, t("reply_part_model")],
+  ];
+  return (
+    <section className="lab-card stack-xs">
+      <StepLabel no={props.no}>{t("tutor_paste_reply", { site: name })}</StepLabel>
+      <p className="muted small">{t("reply_hint", { site: name })}</p>
+      <textarea
+        className="tutor-reply"
+        dir="auto"
+        value={props.reply}
+        placeholder={t("tutor_reply_ph")}
+        onChange={(e) => props.onReply(e.target.value)}
+      />
+      {props.reply.trim() !== "" &&
+        (headed ? (
+          <ul className="reply-found">
+            {found.map(([ok, label]) => (
+              <li key={label} className={ok ? "ok" : "muted"}>
+                {ok ? "✓" : "—"} {label}
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="note small">{t("reply_no_headings")}</p>
+        ))}
+    </section>
+  );
+}
 
 function MistakeForm(props: { onAdd: (m: MistakeInput) => void }) {
   const { t } = useI18n();
@@ -123,34 +298,31 @@ function MistakeForm(props: { onAdd: (m: MistakeInput) => void }) {
   );
 }
 
-export function TutorPanel(props: {
+/** The reply's mistakes: the ticked ones go to the mistakes notebook (cards). */
+function MistakesStep(props: {
+  no: number;
   site: TutorSite;
   skill: "writing" | "speaking";
-  prompt?: () => string; // v0.0.13: optional; the starter prompt now opens the chat
-  reply: string;
-  onReply: (text: string, overall: number | null) => void;
-  disabledReason?: string | null;
+  mistakes: MistakeInput[];
 }) {
   const { t } = useI18n();
-  const [copied, setCopied] = useState<boolean | null>(null);
   const [picked, setPicked] = useState<Set<number>>(new Set());
   const [manual, setManual] = useState<MistakeInput[]>([]);
   const [added, setAdded] = useState(0);
   const [busy, setBusy] = useState(false);
-  const parsed = readTutorReply(props.reply);
-  const all = [...parsed.mistakes, ...manual];
+  const all = [...props.mistakes, ...manual];
   const name = TUTOR_SITES[props.site].name;
+  const key = JSON.stringify(props.mistakes);
 
   useEffect(() => {
     // every mistake read from a new reply starts ticked
-    setPicked(new Set(parsed.mistakes.map((_, i) => i)));
+    setPicked(new Set((JSON.parse(key) as MistakeInput[]).map((_, i) => i)));
     setAdded(0);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [props.reply]);
+  }, [key]);
 
   const save = async () => {
     const items = all
-      .map((m, i) => (picked.has(i) || i >= parsed.mistakes.length ? m : null))
+      .map((m, i) => (picked.has(i) || i >= props.mistakes.length ? m : null))
       .filter((m): m is MistakeInput => m !== null)
       .map((m) => ({ ...m, skill: props.skill }));
     if (items.length === 0) return;
@@ -165,57 +337,21 @@ export function TutorPanel(props: {
   };
 
   return (
-    <section className="lab-card stack">
-      <h3>
-        <Icon name="flag" size={16} /> {t("lab_mistakes_title")}
-      </h3>
-      <p className="muted small">{t("lab_mistakes_hint", { site: name })}</p>
-      <ol className="tutor-steps">
-        {props.prompt && (
-          <li>
-            <button
-              className="btn primary"
-              disabled={!!props.disabledReason}
-              onClick={async () => setCopied(await copyAndOpen(props.prompt!(), props.site))}
-            >
-              <Icon name="external" size={14} /> {t("tutor_copy_open", { site: name })}
-            </button>
-            {props.disabledReason && <p className="muted small">{props.disabledReason}</p>}
-            {copied === true && <p className="ok small">✓ {t("tutor_copied", { site: name })}</p>}
-            {copied === false && <p className="error-box small">{t("tutor_copy_failed")}</p>}
-          </li>
-        )}
-        <li>
-          <span className="field-label">{t("tutor_paste_reply", { site: name })}</span>
-          <textarea
-            className="tutor-reply"
-            dir="auto"
-            value={props.reply}
-            placeholder={t("tutor_reply_ph")}
-            onChange={(e) => props.onReply(e.target.value, readTutorReply(e.target.value).overall)}
-          />
-        </li>
-      </ol>
-      {parsed.overall !== null && (
-        <p className="opinion">
-          <strong>{t("tutor_opinion", { band: parsed.overall.toFixed(1) })}</strong>{" "}
-          <span className="muted small">{t("tutor_opinion_note")}</span>
-        </p>
-      )}
-      {props.reply.trim() && parsed.mistakes.length === 0 && (
-        <p className="note small">{t("tutor_no_mistakes_found")}</p>
-      )}
-      {all.length > 0 && (
-        <div className="stack-xs">
-          <span className="field-label">{t("tutor_mistakes_found", { n: all.length })}</span>
+    <section className="lab-card stack-xs">
+      <StepLabel no={props.no}>{t("lab_mistakes_step")}</StepLabel>
+      {all.length === 0 ? (
+        <p className="muted small">{t("lab_mistakes_none")}</p>
+      ) : (
+        <>
+          <p className="muted small">{t("lab_mistakes_pick")}</p>
           <ul className="mistake-list">
             {all.map((m, i) => (
               <li key={i}>
                 <label dir="ltr">
                   <input
                     type="checkbox"
-                    checked={i >= parsed.mistakes.length || picked.has(i)}
-                    disabled={i >= parsed.mistakes.length}
+                    checked={i >= props.mistakes.length || picked.has(i)}
+                    disabled={i >= props.mistakes.length}
                     onChange={(e) => {
                       const next = new Set(picked);
                       if (e.target.checked) next.add(i);
@@ -233,7 +369,7 @@ export function TutorPanel(props: {
                   {m.code && <span className="pill">{m.code}</span>}
                 </label>
                 {m.why && (
-                  <p className="muted small" dir="auto">
+                  <p className="muted small" dir={textDir(m.why)}>
                     {m.why}
                   </p>
                 )}
@@ -244,7 +380,7 @@ export function TutorPanel(props: {
             <Icon name="cards" size={14} /> {t("tutor_save_mistakes")}
           </button>
           {added > 0 && <p className="ok small">✓ {t("tutor_mistakes_saved", { n: added })}</p>}
-        </div>
+        </>
       )}
       <details className="manual-mistake">
         <summary>{t("lab_mistake_manual")}</summary>
@@ -254,31 +390,273 @@ export function TutorPanel(props: {
   );
 }
 
-/* ---------- v0.0.13: the tutor's chat and the marks typed in by the owner ---------- */
-
-/** Step 1: one short prompt opens the chat; the tutor sends a question only and waits. */
-function StarterCard(props: { site: TutorSite; prompt: () => string | null; hint: string }) {
+/** The model answer: the learner's own answer at his target band, part by part. Shown
+ *  tidily when it follows the agreed format; editable at any time. */
+function ModelStep(props: {
+  no: number;
+  site: TutorSite;
+  target: number;
+  value: string;
+  onChange: (value: string) => void;
+  children?: ReactNode;
+}) {
   const { t } = useI18n();
-  const [copied, setCopied] = useState<boolean | null>(null);
+  const model = useMemo(() => readModelAnswer(props.value), [props.value]);
+  const tidy = model.parts.length > 0;
+  const [editing, setEditing] = useState(false);
   const name = TUTOR_SITES[props.site].name;
   return (
     <section className="lab-card stack-xs">
-      <span className="field-label">
-        <span className="step-no">1</span> {t("lab_step_start", { site: name })}
-      </span>
-      <p className="muted small">{props.hint}</p>
-      <button
-        className="btn primary self-start"
-        onClick={async () => {
-          const text = props.prompt();
-          if (text) setCopied(await copyAndOpen(text, props.site));
-        }}
-      >
-        <Icon name="external" size={14} /> {t("lab_copy_starter", { site: name })}
-      </button>
-      {copied === true && <p className="ok small">✓ {t("lab_starter_copied", { site: name })}</p>}
-      {copied === false && <p className="error-box small">{t("tutor_copy_failed")}</p>}
+      <div className="row wrap">
+        <StepLabel no={props.no}>{t("lab_model_title")}</StepLabel>
+        <span className="spacer" />
+        {props.value.trim() !== "" && tidy && (
+          <button className="btn subtle small" onClick={() => setEditing((e) => !e)}>
+            <Icon name={editing ? "check" : "pen"} size={12} />{" "}
+            {editing ? t("lab_model_done") : t("lab_model_edit")}
+          </button>
+        )}
+      </div>
+      <p className="muted small">
+        {t("lab_model_hint", { site: name, band: props.target.toFixed(1) })}
+      </p>
+      {tidy && !editing ? (
+        <div className="model-view">
+          {model.parts.map((p, i) => (
+            <div key={i} className="model-part">
+              <p className="mine" dir="ltr" lang="en">
+                {p.mine}
+              </p>
+              <p className="better" dir="ltr" lang="en">
+                {p.better}
+              </p>
+              {p.why && (
+                <p className="why muted small" dir={textDir(p.why)}>
+                  {p.why}
+                </p>
+              )}
+            </div>
+          ))}
+          {model.full && (
+            <>
+              <span className="field-label">{t("pdf_full_answer")}</span>
+              <p className="model-full" dir="ltr" lang="en">
+                {model.full}
+              </p>
+            </>
+          )}
+        </div>
+      ) : (
+        <textarea
+          className="lab-answer short"
+          dir="ltr"
+          lang="en"
+          value={props.value}
+          placeholder={t("lab_model_ph")}
+          onChange={(e) => props.onChange(e.target.value)}
+        />
+      )}
+      {props.children}
     </section>
+  );
+}
+
+/** Speaking: the learner reads the model answer aloud and keeps his best try. */
+function ModelVoice(props: {
+  text: string;
+  saved: string | null;
+  onSaved: (name: string) => void;
+}) {
+  const { t } = useI18n();
+  const rec = useRecorder(MODEL_LIMIT, "model");
+  const [again, setAgain] = useState(false);
+  const { fileName } = rec;
+  const onSaved = props.onSaved;
+  const last = useRef<string | null>(null);
+  useEffect(() => {
+    if (fileName && fileName !== last.current) {
+      last.current = fileName;
+      onSaved(fileName);
+    }
+  }, [fileName, onSaved]);
+  const recording = rec.state === "recording";
+  return (
+    <div className="stack-xs model-voice">
+      <span className="field-label">
+        <Icon name="mic" size={14} /> {t("lab_model_voice")}
+      </span>
+      <p className="muted small">{t("lab_model_voice_hint")}</p>
+      {recording && props.text && (
+        <p className="read-aloud" dir="ltr" lang="en">
+          {props.text}
+        </p>
+      )}
+      {recording ? (
+        <div className="row wrap">
+          <span className="rec-clock small-clock" dir="ltr">
+            {formatClock(Math.max(0, MODEL_LIMIT - rec.left))}
+          </span>
+          <button className="btn danger" onClick={rec.stop}>
+            <Icon name="stop" size={14} /> {t("rec_stop")}
+          </button>
+        </div>
+      ) : rec.state === "done" && rec.audioUrl ? (
+        <>
+          <audio className="rec-audio" controls src={rec.audioUrl} />
+          {rec.fileName && <span className="muted small">{t("rec_saved")}</span>}
+          <button className="btn self-start" onClick={() => rec.reset()}>
+            <Icon name="mic" size={14} /> {t("lab_model_voice_again")}
+          </button>
+        </>
+      ) : props.saved && !again ? (
+        <div className="row wrap">
+          <PlayRecording name={props.saved} />
+          <button className="btn small" onClick={() => setAgain(true)}>
+            <Icon name="mic" size={12} /> {t("lab_model_voice_again")}
+          </button>
+        </div>
+      ) : (
+        <button
+          className="btn primary self-start"
+          disabled={!props.text.trim()}
+          onClick={() => void rec.start()}
+        >
+          <Icon name="mic" size={14} /> {t("lab_model_voice")}
+        </button>
+      )}
+      {rec.state === "error" && (
+        <p className="error-box">{t(LINUX ? "rec_no_mic_linux" : "rec_no_mic")}</p>
+      )}
+    </div>
+  );
+}
+
+/** "احفظ PDF": the whole answer in one file in Documents/IELTS Band Up/إجاباتي. */
+function PdfStep(props: {
+  no: number;
+  current: string | null;
+  build: () => { doc: AnswerDoc; recordings: { label: "mine" | "model"; name: string }[] } | null;
+  onSaved: (pdf: string) => void;
+}) {
+  const i18n = useI18n();
+  const { t } = i18n;
+  const bridge = window.ipBridge?.answers;
+  const [busy, setBusy] = useState(false);
+  const [saved, setSaved] = useState<string | null>(null);
+  const [failed, setFailed] = useState(false);
+  const save = async () => {
+    const input = props.build();
+    if (!input) return;
+    setBusy(true);
+    setFailed(false);
+    try {
+      const result = await saveAnswer(input.doc, input.recordings, props.current, i18n);
+      setSaved(result.pdf);
+      props.onSaved(result.pdf);
+    } catch {
+      setFailed(true);
+    } finally {
+      setBusy(false);
+    }
+  };
+  const name = saved ?? props.current;
+  return (
+    <section className="lab-card stack-xs">
+      <StepLabel no={props.no}>{t("pdf_step")}</StepLabel>
+      <p className="muted small">{t("pdf_where")}</p>
+      {!bridge ? (
+        <p className="note small">{t("pdf_desktop_only")}</p>
+      ) : (
+        <>
+          <button className="btn primary self-start" disabled={busy} onClick={() => void save()}>
+            <Icon name="file" size={14} />{" "}
+            {busy ? t("pdf_saving") : props.current ? t("pdf_save_again") : t("pdf_save")}
+          </button>
+          {failed && <p className="error-box small">{t("pdf_failed")}</p>}
+          {name && !busy && (
+            <div className="stack-xs">
+              {saved && <p className="ok small">✓ {t("pdf_saved")}</p>}
+              <span className="small" dir="auto">
+                {name}
+              </span>
+              <div className="row wrap">
+                <button className="btn small" onClick={() => void bridge.open(name)}>
+                  <Icon name="external" size={12} /> {t("answers_open")}
+                </button>
+                <button
+                  className="btn subtle small"
+                  onClick={() => void window.ipBridge?.openFolder("answers")}
+                >
+                  <Icon name="library" size={12} /> {t("answers_open_folder")}
+                </button>
+              </div>
+            </div>
+          )}
+        </>
+      )}
+    </section>
+  );
+}
+
+/** Speaking: the recording as a file for ChatGPT, and the message that goes with it. */
+function SendRecording(props: {
+  blob: Blob | null;
+  seconds: number;
+  part: number;
+  site: TutorSite;
+  named: { title: string; question: string; part: number } | null;
+}) {
+  const { t } = useI18n();
+  const bridge = window.ipBridge?.answers;
+  const name = TUTOR_SITES[props.site].name;
+  const [exported, setExported] = useState<string | null>(null);
+  const [failed, setFailed] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [copied, setCopied] = useState<boolean | null>(null);
+  return (
+    <div className="stack-xs send-recording">
+      <p className="muted small">{t("lab_send_hint", { site: name })}</p>
+      <div className="row wrap">
+        {bridge && (
+          <button
+            className="btn primary"
+            disabled={!props.blob || busy}
+            onClick={async () => {
+              if (!props.blob) return;
+              setBusy(true);
+              setFailed(false);
+              try {
+                const wav = await toWav(await props.blob.arrayBuffer());
+                const file = await bridge.exportAudio(
+                  wav,
+                  answerStem(new Date(), `Speaking Part ${props.part}`, props.named?.title ?? null),
+                );
+                if (file) setExported(file);
+              } catch {
+                setFailed(true);
+              } finally {
+                setBusy(false);
+              }
+            }}
+          >
+            <Icon name="download" size={14} /> {t("lab_download_recording")}
+          </button>
+        )}
+        <button
+          className="btn"
+          onClick={async () =>
+            setCopied(await copyOnly(speakingAnswerMessage(props.seconds, props.named)))
+          }
+        >
+          <Icon name="cards" size={14} /> {t("lab_copy_send_message")}
+        </button>
+      </div>
+      {exported && <p className="ok small">✓ {t("lab_recording_exported", { file: exported, site: name })}</p>}
+      {failed && <p className="error-box small">{t("lab_recording_export_failed")}</p>}
+      {copied === true && <p className="ok small">✓ {t("lab_send_copied", { site: name })}</p>}
+      {copied === false && <p className="error-box small">{t("tutor_copy_failed")}</p>}
+      <p className="note small">{t("lab_send_fallback", { site: name })}</p>
+    </div>
   );
 }
 
@@ -305,35 +683,6 @@ export function useLabTest(
   return { test, reload };
 }
 
-/** Step 1 with a named question: open it beside the lab and copy it in. */
-function QuestionCard(props: {
-  test: ContentItem;
-  hint: string;
-  onShow?: () => void;
-  extra?: ReactNode;
-}) {
-  const { t } = useI18n();
-  return (
-    <section className="lab-card stack-xs">
-      <span className="field-label">
-        <span className="step-no">1</span> {t("lab_step_question")}
-      </span>
-      <strong dir="ltr" className="small">
-        {props.test.title}
-      </strong>
-      <p className="muted small">{props.hint}</p>
-      <div className="row wrap">
-        {props.onShow && (
-          <button className="btn primary" onClick={props.onShow}>
-            <Icon name="globe" size={14} /> {t("lab_open_question")}
-          </button>
-        )}
-        {props.extra}
-      </div>
-    </section>
-  );
-}
-
 const BANDS = Array.from({ length: 19 }, (_, i) => i / 2);
 
 export function overallOf(values: number[]): number | null {
@@ -344,6 +693,7 @@ export function overallOf(values: number[]): number | null {
 
 /** The tutor's marks, typed in by the owner; saving them updates his level (D-043). */
 function ScoreBoxes(props: {
+  no: number;
   criteria: { key: string; label: string }[];
   scores: Record<string, number>;
   overall: number | null;
@@ -364,9 +714,7 @@ function ScoreBoxes(props: {
   const value = overall ?? suggested;
   return (
     <section className="lab-card stack-xs">
-      <span className="field-label">
-        <span className="step-no">4</span> {t("lab_scores_title")}
-      </span>
+      <StepLabel no={props.no}>{t("lab_scores_title")}</StepLabel>
       <p className="muted small">{props.note}</p>
       <div className="score-grid">
         {props.criteria.map((c) => (
@@ -469,16 +817,19 @@ export function WritingLab(props: {
   const [running, setRunning] = useState(false);
   const [submittedCount, setSubmittedCount] = useState(0);
   const [reply, setReply] = useState("");
+  const [model, setModel] = useState("");
   const [checks, setChecks] = useState<string[]>([]);
   const [answerCopied, setAnswerCopied] = useState<boolean | null>(null);
   const creating = useRef<Promise<WritingAttempt> | null>(null);
   const submitted = attempt?.status === "submitted";
   const test = props.test ?? null;
-  const named = !!test && task !== 0;
+  // the named question: the answer's own once it exists, otherwise the next one
+  const testTitle = attempt ? attempt.test_title : task !== 0 ? (test?.title ?? null) : null;
   const limit = LIMITS[task] ?? 0;
   const words = countWords(text);
   const min = MIN_WORDS[task] ?? 0;
   const name = TUTOR_SITES[site].name;
+  const info = useReply(reply);
 
   const show = useCallback((a: WritingAttempt | null) => {
     setAttempt(a);
@@ -486,6 +837,7 @@ export function WritingLab(props: {
     setText(a?.text ?? "");
     setSeconds(a?.seconds_used ?? 0);
     setReply(a?.tutor_reply ?? "");
+    setModel(a?.model_answer ?? "");
     setChecks(a?.checklist ?? []);
     setRunning(false);
     setAnswerCopied(null);
@@ -516,10 +868,12 @@ export function WritingLab(props: {
   const ensure = useCallback(async (): Promise<WritingAttempt> => {
     if (attempt) return attempt;
     if (!creating.current) {
-      creating.current = api.writingNew(task, prompt, props.planTaskId, test?.key ?? null).then((a) => {
-        setAttempt(a);
-        return a;
-      });
+      creating.current = api
+        .writingNew(task, prompt, props.planTaskId, task !== 0 ? (test?.key ?? null) : null)
+        .then((a) => {
+          setAttempt(a);
+          return a;
+        });
     }
     return creating.current;
   }, [attempt, task, prompt, props.planTaskId, test]);
@@ -551,23 +905,54 @@ export function WritingLab(props: {
     props.onNextQuestion?.();
   };
 
-  const saveReview = (patch: { checklist?: string[]; reply?: string }) => {
+  const patch = (p: Parameters<typeof api.writingPatch>[1]) => {
     if (!attempt) return;
-    void api
-      .writingPatch(attempt.id, {
-        ...(patch.checklist ? { checklist: patch.checklist } : {}),
-        ...(patch.reply !== undefined ? { tutor_reply: patch.reply } : {}),
-      })
-      .then((a) => {
-        setAttempt(a);
-        props.onChanged?.();
-      });
+    void api.writingPatch(attempt.id, p).then((a) => {
+      setAttempt(a);
+      props.onChanged?.();
+    });
+  };
+  const saveModelLater = useSaveLater((value: string) => patch({ model_answer: value }));
+
+  const onReply = (value: string) => {
+    setReply(value);
+    const found = splitTutorReply(value).model_answer;
+    if (found) setModel(found);
+    patch({ tutor_reply: value, ...(found ? { model_answer: found } : {}) });
   };
 
   const left = limit ? limit - seconds : 0;
   const number = Math.min(props.count, submittedCount + (submitted ? 0 : 1));
   const first = task === 1 ? "TA" : "TR";
-  const pastedScores = readTutorScores(reply);
+  const scores = attempt && Object.keys(attempt.scores ?? {}).length ? attempt.scores : info.scores;
+  const criteria = [
+    { key: "task", label: first, name: task === 1 ? "Task Achievement" : "Task Response" },
+    { key: "coherence", label: "CC", name: "Coherence and Cohesion" },
+    { key: "lexical", label: "LR", name: "Lexical Resource" },
+    { key: "grammar", label: "GRA", name: "Grammatical Range and Accuracy" },
+  ];
+  const tutor = task !== 0;
+
+  const pdf = () => {
+    if (!attempt || !learner) return null;
+    const marks = criteria.map((c) => scores[c.key]).filter((v) => v !== undefined);
+    const doc: AnswerDoc = {
+      skill: "writing",
+      label: `Writing Task ${task}`,
+      testTitle: attempt.test_title,
+      day: new Date(attempt.submitted_at ?? attempt.created_at),
+      target: learner.target,
+      question: prompt,
+      answer: text,
+      answerNote: t("pdf_words_minutes", { w: words, m: Math.round(seconds / 60) }),
+      criteria: criteria.map((c) => ({ short: c.label, name: c.name, band: scores[c.key] ?? null })),
+      overall: attempt.tutor_overall ?? info.overall ?? overallOf(marks),
+      mistakes: info.mistakes,
+      model,
+      site: name,
+    };
+    return { doc, recordings: [] };
+  };
 
   return (
     <div className="lab">
@@ -607,41 +992,42 @@ export function WritingLab(props: {
         )}
       </header>
 
-      {!submitted && named && test && (
-        <QuestionCard
-          test={test}
-          hint={task === 1 ? t(LINUX ? "lab_question_hint_t1_linux" : "lab_question_hint_t1") : t("lab_question_hint_t2")}
-          onShow={props.onShowQuestion}
-        />
-      )}
-      {!submitted && task !== 0 && !named && (
-        <StarterCard
+      {!submitted && tutor && (
+        <SessionCard
+          no={1}
           site={site}
-          hint={t("lab_starter_hint_writing", { site: name })}
-          prompt={() => (learner ? writingStarterPrompt(task as 1 | 2, learner) : null)}
+          hint={
+            testTitle
+              ? t("lab_session_hint_named", { site: name })
+              : t("lab_session_hint_writing", { site: name, task })
+          }
+          prompt={() =>
+            learner ? writingSessionPrompt(task as 1 | 2, learner, testTitle) : null
+          }
         />
       )}
 
-      <section className="lab-card stack-xs">
-        <span className="field-label">
-          {task !== 0 && <span className="step-no">2</span>} {t("lab_question")}
-        </span>
-        <textarea
-          className="lab-question"
-          dir="ltr"
-          lang="en"
-          value={prompt}
-          readOnly={submitted}
-          placeholder={named ? t("lab_question_copy_ph") : t("lab_question_paste_ph", { site: name })}
-          onChange={(e) => setPrompt(e.target.value)}
-        />
-      </section>
+      <QuestionStep
+        no={tutor ? 2 : undefined}
+        test={!attempt || attempt.test_key ? test : null}
+        testTitle={testTitle}
+        hint={
+          testTitle
+            ? task === 1
+              ? t(LINUX ? "lab_question_hint_t1_linux" : "lab_question_hint_t1")
+              : t("lab_question_hint_t2")
+            : t("lab_question_paste_hint", { site: name })
+        }
+        onShow={props.onShowQuestion}
+        value={prompt}
+        onChange={setPrompt}
+        readOnly={submitted}
+        placeholder={testTitle ? t("lab_question_copy_ph") : t("lab_question_paste_ph", { site: name })}
+      />
 
       <section className="lab-card stack-xs">
         <div className="row wrap">
-          <span className="field-label">
-            {task !== 0 && <span className="step-no">3</span>} {t("lab_answer")}
-          </span>
+          <StepLabel no={tutor ? 3 : undefined}>{t("lab_answer")}</StepLabel>
           <span className="spacer" />
           {min > 0 && (
             <span className={`pill ${words >= min ? "pill-ok" : ""}`} dir="ltr">
@@ -675,128 +1061,103 @@ export function WritingLab(props: {
             <p className="ok small">
               ✓ {t("lab_submitted", { w: attempt?.words ?? words, m: Math.round(seconds / 60) })}
             </p>
-            {task !== 0 && (
+            {tutor && (
               <>
-                {named && test ? (
-                  <>
-                    <button
-                      className="btn primary self-start"
-                      disabled={!learner}
-                      onClick={async () =>
-                        learner &&
-                        setAnswerCopied(
-                          await copyAndOpen(
-                            writingTestPrompt(
-                              task as 1 | 2,
-                              test.title,
-                              prompt,
-                              text,
-                              words,
-                              Math.round(seconds / 60),
-                              learner,
-                            ),
-                            site,
-                          ),
-                        )
-                      }
-                    >
-                      <Icon name="external" size={14} /> {t("lab_copy_marking", { site: name })}
-                    </button>
-                    {task === 1 && <p className="note small">{t("lab_t1_screenshot")}</p>}
-                    {test.meta?.answer_url && (
-                      <button
-                        className="btn subtle small self-start"
-                        onClick={() => void window.ipBridge?.openExternal(test.meta!.answer_url!)}
-                      >
-                        <Icon name="book" size={12} /> {t("lab_examiner_answers")}
-                      </button>
-                    )}
-                  </>
-                ) : (
-                  <button
-                    className="btn primary self-start"
-                    onClick={async () =>
-                      setAnswerCopied(
-                        await copyOnly(writingAnswerMessage(text, words, Math.round(seconds / 60))),
-                      )
-                    }
-                  >
-                    <Icon name="cards" size={14} /> {t("lab_copy_answer")}
-                  </button>
-                )}
+                <button
+                  className="btn primary self-start"
+                  onClick={async () =>
+                    setAnswerCopied(
+                      await copyOnly(
+                        writingAnswerMessage(
+                          text,
+                          words,
+                          Math.round(seconds / 60),
+                          testTitle ? { title: testTitle, question: prompt, task } : null,
+                        ),
+                      ),
+                    )
+                  }
+                >
+                  <Icon name="cards" size={14} /> {t("lab_copy_answer")}
+                </button>
                 {answerCopied === true && (
-                  <p className="ok small">
-                    ✓ {named ? t("lab_marking_copied", { site: name }) : t("lab_answer_copied", { site: name })}
-                  </p>
+                  <p className="ok small">✓ {t("lab_answer_copied", { site: name })}</p>
                 )}
                 {answerCopied === false && <p className="error-box small">{t("tutor_copy_failed")}</p>}
+                {testTitle && task === 1 && <p className="note small">{t("lab_t1_screenshot")}</p>}
+                {test?.meta?.answer_url && attempt?.test_key === test.key && (
+                  <button
+                    className="btn subtle small self-start"
+                    onClick={() => void window.ipBridge?.openExternal(test.meta!.answer_url!)}
+                  >
+                    <Icon name="book" size={12} /> {t("lab_examiner_answers")}
+                  </button>
+                )}
               </>
             )}
           </>
         )}
       </section>
 
-      {submitted && task !== 0 && attempt && (
-        <ScoreBoxes
-          criteria={[
-            { key: "task", label: first },
-            { key: "coherence", label: "CC" },
-            { key: "lexical", label: "LR" },
-            { key: "grammar", label: "GRA" },
-          ]}
-          scores={Object.keys(attempt.scores ?? {}).length ? attempt.scores : pastedScores}
-          overall={attempt.tutor_overall}
-          saved={attempt.tutor_overall !== null}
-          note={t("lab_scores_note", { site: name })}
-          onSave={async (scores, overall) => {
-            const a = await api.writingPatch(attempt.id, { scores, tutor_overall: overall });
-            setAttempt(a);
-            props.onChanged?.();
-          }}
-        />
-      )}
-
-      {submitted && task !== 0 && (
-        <details className="lab-card">
-          <summary>{t("chk_title")}</summary>
-          <p className="muted small">{t("chk_note")}</p>
-          {(CHECKLIST[task] ?? []).map((g) => (
-            <div key={g.group} className="chk-group">
-              <strong className="small">{t(g.group as "chk_g_task")}</strong>
-              {g.items.map((id) => (
-                <label key={id} className="chk-item">
-                  <input
-                    type="checkbox"
-                    checked={checks.includes(id)}
-                    onChange={(e) => {
-                      const next = e.target.checked
-                        ? [...checks, id]
-                        : checks.filter((x) => x !== id);
-                      setChecks(next);
-                      saveReview({ checklist: next });
-                    }}
-                  />{" "}
-                  {t(id as "chk_paragraphs")}
-                </label>
-              ))}
-            </div>
-          ))}
-        </details>
-      )}
-
-      {submitted && (
-        <details className="lab-card">
-          <summary>{t("lab_mistakes_optional")}</summary>
-          <TutorPanel
-            site={site}
-            skill="writing"
-            reply={reply}
-            onReply={(value) => {
-              setReply(value);
-              saveReview({ reply: value });
+      {submitted && tutor && attempt && (
+        <>
+          <ReplyStep no={4} site={site} speaking={false} reply={reply} onReply={onReply} info={info} />
+          <ScoreBoxes
+            no={5}
+            criteria={criteria}
+            scores={scores}
+            overall={attempt.tutor_overall ?? info.overall}
+            saved={attempt.tutor_overall !== null}
+            note={t("lab_scores_note", { site: name })}
+            onSave={async (s, overall) => {
+              const a = await api.writingPatch(attempt.id, { scores: s, tutor_overall: overall });
+              setAttempt(a);
+              props.onChanged?.();
             }}
           />
-        </details>
+          <MistakesStep no={6} site={site} skill="writing" mistakes={info.mistakes} />
+          <ModelStep
+            no={7}
+            site={site}
+            target={learner?.target ?? 7}
+            value={model}
+            onChange={(value) => {
+              setModel(value);
+              saveModelLater(value);
+            }}
+          />
+          <PdfStep
+            no={8}
+            current={attempt.pdf_file}
+            build={pdf}
+            onSaved={(file) => patch({ pdf_file: file })}
+          />
+          <details className="lab-card">
+            <summary>{t("chk_title")}</summary>
+            <p className="muted small">{t("chk_note")}</p>
+            {(CHECKLIST[task] ?? []).map((g) => (
+              <div key={g.group} className="chk-group">
+                <strong className="small">{t(g.group as "chk_g_task")}</strong>
+                {g.items.map((id) => (
+                  <label key={id} className="chk-item">
+                    <input
+                      type="checkbox"
+                      checked={checks.includes(id)}
+                      onChange={(e) => {
+                        const next = e.target.checked
+                          ? [...checks, id]
+                          : checks.filter((x) => x !== id);
+                        setChecks(next);
+                        patch({ checklist: next });
+                      }}
+                    />{" "}
+                    {t(id as "chk_paragraphs")}
+                  </label>
+                ))}
+              </div>
+            ))}
+          </details>
+        </>
       )}
 
       {submitted && (
@@ -846,6 +1207,13 @@ export function WritingHistory(props: {
 const CRITERIA: SpeakingCriterion[] = ["fluency", "lexical", "grammar", "pronunciation"];
 const PREP_SECONDS = 60;
 const SPEAK_LIMIT = 120;
+const MODEL_LIMIT = 240; // reading the model answer aloud
+const SPEAKING_CRITERIA = [
+  { key: "fluency", label: "FC", name: "Fluency and Coherence" },
+  { key: "lexical", label: "LR", name: "Lexical Resource" },
+  { key: "grammar", label: "GRA", name: "Grammatical Range and Accuracy" },
+  { key: "pronunciation", label: "P", name: "Pronunciation" },
+];
 
 export function SpeakingLab(props: {
   planTaskId: number | null;
@@ -866,11 +1234,14 @@ export function SpeakingLab(props: {
   const [notes, setNotes] = useState("");
   const [attempt, setAttempt] = useState<SpeakingAttempt | null>(null);
   const [reply, setReply] = useState("");
-  const [copied, setCopied] = useState<boolean | null>(null);
+  const [model, setModel] = useState("");
+  const creating = useRef<Promise<SpeakingAttempt> | null>(null);
   const rec = useRecorder(SPEAK_LIMIT, "speaking");
   const recStart = rec.start;
   const name = TUTOR_SITES[site].name;
   const test = props.test ?? null;
+  const testTitle = attempt ? attempt.test_title : (test?.title ?? null);
+  const info = useReply(reply);
 
   // Part 2: one minute to prepare, then the recording starts by itself
   useEffect(() => {
@@ -891,43 +1262,119 @@ export function SpeakingLab(props: {
 
   const again = () => {
     rec.reset();
+    creating.current = null;
     setAttempt(null);
     setTranscript("");
     ratingRef.current = {};
     setRating({});
     setNotes("");
     setReply("");
-    setCopied(null);
+    setModel("");
   };
 
-  const save = async (): Promise<SpeakingAttempt> => {
+  /** The answer is kept from the first thing worth keeping (a reply, marks, a recording). */
+  const ensure = async (): Promise<SpeakingAttempt> => {
     if (attempt) return attempt;
-    const a = await api.speakingNew({
-      part,
-      prompt,
-      recording: rec.fileName,
-      seconds: rec.seconds,
-      transcript,
-      self_rating: rating,
-      notes,
-      plan_task_id: props.planTaskId,
-      test_key: test?.key ?? null,
-    });
-    setAttempt(a);
-    props.onChanged?.();
-    return a;
+    creating.current ??= api
+      .speakingNew({
+        part,
+        prompt,
+        recording: rec.fileName,
+        seconds: rec.seconds,
+        transcript,
+        self_rating: ratingRef.current as Record<string, number>,
+        notes,
+        plan_task_id: props.planTaskId,
+        test_key: test?.key ?? null,
+      })
+      .then((a) => {
+        setAttempt(a);
+        props.onChanged?.();
+        return a;
+      });
+    return creating.current;
   };
 
   const patch = (p: Parameters<typeof api.speakingPatch>[1]) => {
-    if (!attempt) return;
-    void api.speakingPatch(attempt.id, p).then((a) => {
-      setAttempt(a);
-      props.onChanged?.();
+    void ensure()
+      .then((a) => api.speakingPatch(a.id, p))
+      .then((a) => {
+        setAttempt(a);
+        props.onChanged?.();
+      });
+  };
+  const saveLater = useSaveLater((p: Parameters<typeof api.speakingPatch>[1]) => {
+    if (attempt || creating.current) patch(p);
+  });
+
+  // a recording made after the answer was opened (the reply pasted first) joins it
+  useEffect(() => {
+    if (attempt && rec.fileName && !attempt.recording) {
+      void api
+        .speakingPatch(attempt.id, { recording: rec.fileName, seconds: rec.seconds })
+        .then(setAttempt);
+    }
+  }, [attempt, rec.fileName, rec.seconds]);
+
+  const onReply = (value: string) => {
+    setReply(value);
+    const split = splitTutorReply(value);
+    if (split.my_answer) setTranscript(split.my_answer);
+    if (split.model_answer) setModel(split.model_answer);
+    if (!value.trim() && !attempt) return;
+    patch({
+      tutor_reply: value,
+      ...(split.my_answer ? { transcript: split.my_answer } : {}),
+      ...(split.model_answer ? { model_answer: split.model_answer } : {}),
     });
   };
 
+  const onModelVoice = useCallback(
+    (file: string) => {
+      const old = attempt?.model_recording;
+      patch({ model_recording: file });
+      if (old && old !== file) void window.ipBridge?.deleteRecording?.(old).catch(() => false);
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [attempt?.model_recording, attempt?.id],
+  );
+
   const recording = rec.state === "recording";
   const done = rec.state === "done";
+  const answered = reply.trim() !== "";
+  const seconds = attempt?.seconds || rec.seconds;
+  const scores = attempt && Object.keys(attempt.scores ?? {}).length ? attempt.scores : info.scores;
+  const named = testTitle ? { title: testTitle, question: prompt, part } : null;
+  const fullModel = readModelAnswer(model).full || model;
+
+  const pdf = () => {
+    if (!attempt || !learner) return null;
+    const marks = SPEAKING_CRITERIA.map((c) => scores[c.key]).filter((v) => v !== undefined);
+    const doc: AnswerDoc = {
+      skill: "speaking",
+      label: `Speaking Part ${attempt.part || part}`,
+      testTitle: attempt.test_title,
+      day: new Date(attempt.created_at),
+      target: learner.target,
+      question: prompt,
+      answer: transcript,
+      answerNote: t("pdf_spoken", { d: formatClock(seconds) }),
+      criteria: SPEAKING_CRITERIA.map((c) => ({
+        short: c.label,
+        name: c.name,
+        band: scores[c.key] ?? null,
+      })),
+      overall: attempt.tutor_overall ?? info.overall ?? overallOf(marks),
+      mistakes: info.mistakes,
+      model,
+      site: name,
+    };
+    const recordings = [
+      ...(attempt.recording ? [{ label: "mine" as const, name: attempt.recording }] : []),
+      ...(attempt.model_recording ? [{ label: "model" as const, name: attempt.model_recording }] : []),
+    ];
+    return { doc, recordings };
+  };
 
   return (
     <div className="lab">
@@ -939,7 +1386,7 @@ export function SpeakingLab(props: {
               role="radio"
               aria-checked={part === n}
               className={part === n ? "on" : ""}
-              disabled={recording || prep !== null}
+              disabled={recording || prep !== null || !!attempt}
               onClick={() => setPart(n)}
             >
               Part {n}
@@ -952,37 +1399,39 @@ export function SpeakingLab(props: {
         </span>
       </header>
 
-      {test ? (
-        <QuestionCard
-          test={test}
-          hint={t("lab_question_hint_speaking", { part })}
-          onShow={props.onShowQuestion}
-        />
-      ) : (
-        <StarterCard
-          site={site}
-          hint={t("lab_starter_hint_speaking", { site: name, part })}
-          prompt={() => (learner ? speakingStarterPrompt(part, learner) : null)}
-        />
-      )}
+      <SessionCard
+        no={1}
+        site={site}
+        hint={
+          testTitle
+            ? t("lab_session_hint_named_speaking", { site: name, part })
+            : t("lab_session_hint_speaking", { site: name, part })
+        }
+        prompt={() => (learner ? speakingSessionPrompt(part, learner, testTitle) : null)}
+      />
 
-      <section className="lab-card stack-xs">
-        <span className="field-label">
-          <span className="step-no">2</span> {t("lab_question")}
-        </span>
-        <textarea
-          className="lab-question"
-          dir="ltr"
-          lang="en"
-          value={prompt}
-          placeholder={test ? t("lab_question_copy_ph") : t("lab_question_paste_ph", { site: name })}
-          onChange={(e) => setPrompt(e.target.value)}
-        />
-      </section>
+      <QuestionStep
+        no={2}
+        test={test}
+        testTitle={testTitle}
+        hint={
+          testTitle
+            ? t("lab_question_hint_speaking", { part })
+            : t("lab_question_paste_hint", { site: name })
+        }
+        onShow={props.onShowQuestion}
+        value={prompt}
+        onChange={(value) => {
+          setPrompt(value);
+          saveLater({ prompt: value });
+        }}
+        readOnly={false}
+        placeholder={testTitle ? t("lab_question_copy_ph") : t("lab_question_paste_ph", { site: name })}
+      />
 
       <section className="lab-card stack-xs lab-rec">
-        <span className="field-label self-start">
-          <span className="step-no">3</span> {t("lab_step_record")}
+        <span className="self-start">
+          <StepLabel no={3}>{t("lab_step_record")}</StepLabel>
         </span>
         {prep !== null && (
           <>
@@ -1015,123 +1464,114 @@ export function SpeakingLab(props: {
           <>
             <audio className="rec-audio" controls src={rec.audioUrl} />
             {rec.fileName && <span className="muted small">{t("rec_saved")}</span>}
+            <SendRecording
+              blob={rec.blob}
+              seconds={rec.seconds}
+              part={part}
+              site={site}
+              named={named}
+            />
+            <details className="self-stretch">
+              <summary className="small">{t("lab_self_rating")}</summary>
+              {CRITERIA.map((c) => (
+                <div key={c} className="rating-row">
+                  <span>{t(`lab_crit_${c}`)}</span>
+                  <div className="stars">
+                    {[1, 2, 3, 4, 5].map((n) => (
+                      <button
+                        key={n}
+                        className={(rating[c] ?? 0) >= n ? "on" : ""}
+                        onClick={() => {
+                          const next = { ...ratingRef.current, [c]: n };
+                          ratingRef.current = next;
+                          setRating(next);
+                          saveLater({ self_rating: next as Record<string, number> });
+                        }}
+                      >
+                        {n}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ))}
+              <input
+                dir="auto"
+                placeholder={t("lab_notes_ph")}
+                value={notes}
+                maxLength={5000}
+                onChange={(e) => {
+                  setNotes(e.target.value);
+                  saveLater({ notes: e.target.value });
+                }}
+              />
+            </details>
           </>
         )}
       </section>
 
-      {done && (
-        <section className="lab-card stack-xs">
-          <span className="field-label">{t("lab_transcript")}</span>
-          <p className="muted small">{t(LINUX ? "lab_transcript_hint_linux" : "lab_transcript_hint")}</p>
-          <textarea
-            className="lab-answer short"
-            dir="ltr"
-            lang="en"
-            value={transcript}
-            onChange={(e) => {
-              setTranscript(e.target.value);
-              if (attempt) patch({ transcript: e.target.value });
-            }}
-          />
-          <button
-            className="btn primary self-start"
-            disabled={!transcript.trim() || (!!test && !learner)}
-            onClick={async () => {
-              await save();
-              if (test && learner) {
-                setCopied(
-                  await copyAndOpen(
-                    speakingTestPrompt(part, test.title, prompt, transcript, rec.seconds, learner),
-                    site,
-                  ),
-                );
-              } else {
-                setCopied(await copyOnly(speakingAnswerMessage(transcript, rec.seconds)));
-              }
-            }}
-          >
-            <Icon name={test ? "external" : "cards"} size={14} />{" "}
-            {test ? t("lab_copy_marking", { site: name }) : t("lab_copy_transcript")}
-          </button>
-          {copied === true && (
-            <p className="ok small">
-              ✓ {test ? t("lab_marking_copied", { site: name }) : t("lab_answer_copied", { site: name })}
-            </p>
-          )}
-          {copied === false && <p className="error-box small">{t("tutor_copy_failed")}</p>}
-          <details>
-            <summary className="small">{t("lab_self_rating")}</summary>
-            {CRITERIA.map((c) => (
-              <div key={c} className="rating-row">
-                <span>{t(`lab_crit_${c}`)}</span>
-                <div className="stars">
-                  {[1, 2, 3, 4, 5].map((n) => (
-                    <button
-                      key={n}
-                      className={(rating[c] ?? 0) >= n ? "on" : ""}
-                      onClick={() => {
-                        const next = { ...ratingRef.current, [c]: n };
-                        ratingRef.current = next;
-                        setRating(next);
-                        if (attempt) patch({ self_rating: next as Record<string, number> });
-                      }}
-                    >
-                      {n}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            ))}
-            <input
-              dir="auto"
-              placeholder={t("lab_notes_ph")}
-              value={notes}
-              maxLength={5000}
+      <ReplyStep no={4} site={site} speaking reply={reply} onReply={onReply} info={info} />
+
+      {answered && (
+        <>
+          <section className="lab-card stack-xs">
+            <StepLabel no={5}>{t("lab_what_you_said")}</StepLabel>
+            <p className="muted small">{t("lab_what_you_said_hint", { site: name })}</p>
+            <textarea
+              className="lab-answer short"
+              dir="ltr"
+              lang="en"
+              value={transcript}
               onChange={(e) => {
-                setNotes(e.target.value);
-                if (attempt) patch({ notes: e.target.value });
+                setTranscript(e.target.value);
+                saveLater({ transcript: e.target.value });
               }}
             />
-          </details>
-        </section>
-      )}
+          </section>
 
-      {done && (
-        <ScoreBoxes
-          criteria={[
-            { key: "fluency", label: "FC" },
-            { key: "lexical", label: "LR" },
-            { key: "grammar", label: "GRA" },
-          ]}
-          scores={attempt && Object.keys(attempt.scores ?? {}).length ? attempt.scores : readTutorScores(reply)}
-          overall={attempt?.tutor_overall ?? null}
-          saved={!!attempt && attempt.tutor_overall !== null}
-          note={t("lab_scores_note_speaking", { site: name })}
-          onSave={async (scores, overall) => {
-            const a = await save();
-            const updated = await api.speakingPatch(a.id, { scores, tutor_overall: overall });
-            setAttempt(updated);
-            props.onChanged?.();
-          }}
-        />
-      )}
-
-      {done && (
-        <details className="lab-card">
-          <summary>{t("lab_mistakes_optional")}</summary>
-          <TutorPanel
-            site={site}
-            skill="speaking"
-            reply={reply}
-            onReply={(value) => {
-              setReply(value);
-              if (attempt) patch({ tutor_reply: value });
+          <ScoreBoxes
+            no={6}
+            criteria={SPEAKING_CRITERIA}
+            scores={scores}
+            overall={attempt?.tutor_overall ?? info.overall}
+            saved={!!attempt && attempt.tutor_overall !== null}
+            note={t("lab_scores_note_speaking", { site: name })}
+            onSave={async (s, overall) => {
+              const a = await ensure();
+              const updated = await api.speakingPatch(a.id, { scores: s, tutor_overall: overall });
+              setAttempt(updated);
+              props.onChanged?.();
             }}
           />
-        </details>
+
+          <MistakesStep no={7} site={site} skill="speaking" mistakes={info.mistakes} />
+
+          <ModelStep
+            no={8}
+            site={site}
+            target={learner?.target ?? 7}
+            value={model}
+            onChange={(value) => {
+              setModel(value);
+              saveLater({ model_answer: value });
+            }}
+          >
+            <ModelVoice
+              text={fullModel}
+              saved={attempt?.model_recording ?? null}
+              onSaved={onModelVoice}
+            />
+          </ModelStep>
+
+          <PdfStep
+            no={9}
+            current={attempt?.pdf_file ?? null}
+            build={pdf}
+            onSaved={(file) => patch({ pdf_file: file })}
+          />
+        </>
       )}
 
-      {done && (
+      {(done || answered) && (
         <button className="btn self-start" onClick={again}>
           <Icon name="mic" size={14} /> {t("lab_new_attempt")}
         </button>
@@ -1192,7 +1632,9 @@ export function SpeakingHistory(props: { refresh: number }) {
             title={t("lab_delete")}
             onClick={async () => {
               const r = await api.speakingDelete(a.id);
-              if (r.recording) await window.ipBridge?.deleteRecording?.(r.recording).catch(() => false);
+              for (const file of [r.recording, r.model_recording]) {
+                if (file) await window.ipBridge?.deleteRecording?.(file).catch(() => false);
+              }
               load();
             }}
           >

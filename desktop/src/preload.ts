@@ -23,7 +23,7 @@ contextBridge.exposeInMainWorld("ipBridge", {
       return () => ipcRenderer.removeListener("ip:update-state", handler);
     },
   },
-  openFolder: (which: "data" | "backups"): Promise<boolean> =>
+  openFolder: (which: "data" | "backups" | "answers"): Promise<boolean> =>
     ipcRenderer.invoke("ip:open-folder", which),
   importBackup: (): Promise<string | null> => ipcRenderer.invoke("ip:import-backup"),
   exportBackup: (name: string): Promise<boolean> => ipcRenderer.invoke("ip:export-backup", name),
@@ -36,13 +36,26 @@ contextBridge.exposeInMainWorld("ipBridge", {
   openExternal: (url: string): Promise<boolean> => ipcRenderer.invoke("ip:open-external", url),
   dalilkPage: (which: "words" | "phrases", rendered: boolean): Promise<string> =>
     ipcRenderer.invoke("ip:dalilk-page", which, rendered),
-  saveRecording: (data: ArrayBuffer, kind?: "speaking" | "shadow"): Promise<string> =>
+  saveRecording: (data: ArrayBuffer, kind?: "speaking" | "shadow" | "model"): Promise<string> =>
     ipcRenderer.invoke("ip:save-recording", data, kind ?? "speaking"),
   readRecording: (name: string): Promise<ArrayBuffer> =>
     ipcRenderer.invoke("ip:read-recording", name),
   deleteRecording: (name: string): Promise<boolean> =>
     ipcRenderer.invoke("ip:delete-recording", name),
   copyText: (text: string): Promise<boolean> => ipcRenderer.invoke("ip:copy-text", text),
+  answers: {
+    name: (stem: string, current?: string | null): Promise<string> =>
+      ipcRenderer.invoke("ip:answer-name", stem, current ?? null),
+    savePdf: (stem: string, html: string): Promise<string> =>
+      ipcRenderer.invoke("ip:save-answer-pdf", stem, html),
+    saveAudio: (stem: string, label: "mine" | "model", wav: ArrayBuffer): Promise<string> =>
+      ipcRenderer.invoke("ip:save-answer-audio", stem, label, wav),
+    list: (): Promise<{ name: string; size: number; modified: number }[]> =>
+      ipcRenderer.invoke("ip:list-answers"),
+    open: (name: string): Promise<boolean> => ipcRenderer.invoke("ip:open-answer", name),
+    exportAudio: (wav: ArrayBuffer, suggested: string): Promise<string | null> =>
+      ipcRenderer.invoke("ip:export-audio", wav, suggested),
+  },
   panel: {
     open: (target: PanelTarget, keepSignIn: boolean): Promise<unknown> =>
       ipcRenderer.invoke("ip:panel-open", target, keepSignIn),

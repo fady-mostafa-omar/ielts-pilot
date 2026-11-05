@@ -65,7 +65,8 @@ def test_speaking_attempts_and_recording_names(client: TestClient) -> None:
     assert r.json()["notes"] == "too many 'umm'" and r.json()["self_rating"]["grammar"] == 4
     assert client.get("/api/v1/speaking").json()[0]["seconds"] == 118
     r = client.delete(f"/api/v1/speaking/{a['id']}")
-    assert r.json() == {"deleted": a["id"], "recording": "speaking-20261103-150202.webm"}
+    assert r.json() == {"deleted": a["id"], "recording": "speaking-20261103-150202.webm",
+                        "model_recording": None}
 
 
 def test_mistakes_become_cards_and_same_code_comes_back(client: TestClient) -> None:
@@ -115,3 +116,37 @@ def test_speaking_mark_counts_in_the_level(client: TestClient) -> None:
     assert level["band"] == 5.5 and level["source_note"] == "ChatGPT · Speaking Part 1"
     client.delete(f"/api/v1/speaking/{a['id']}")
     assert client.get("/api/v1/skill-levels").json()["current"]["speaking"] is None
+
+
+def test_model_answer_and_its_recording(client: TestClient) -> None:
+    """v0.0.17 (D-048): the tutor's model answer, the owner reading it, the saved PDF."""
+    w = client.post("/api/v1/writing", json={"task": 2, "prompt": "Q"}).json()
+    r = client.patch(f"/api/v1/writing/{w['id']}",
+                     json={"model_answer": "A better essay.",
+                           "pdf_file": "2026-11-05 · Task 2.pdf"})
+    assert r.json()["model_answer"] == "A better essay." and r.json()["pdf_file"].endswith(".pdf")
+    assert client.patch(f"/api/v1/writing/{w['id']}",
+                        json={"pdf_file": "../x.pdf"}).status_code == 422
+    s = client.post("/api/v1/speaking",
+                    json={"part": 2, "recording": "speaking-20261105-101010.webm"})
+    sid = s.json()["id"]
+    r = client.patch(f"/api/v1/speaking/{sid}",
+                     json={"model_answer": "I'd like to talk about…",
+                           "model_recording": "model-20261105-101500.webm"})
+    assert r.json()["model_recording"] == "model-20261105-101500.webm"
+    assert client.patch(f"/api/v1/speaking/{sid}",
+                        json={"model_recording": "x.webm"}).status_code == 422
+    assert client.patch(f"/api/v1/speaking/{sid}",
+                        json={"recording": "../x.webm"}).status_code == 422
+    r = client.patch(f"/api/v1/speaking/{sid}",
+                     json={"recording": "speaking-20261105-101200.webm", "seconds": 64})
+    assert r.json()["recording"] == "speaking-20261105-101200.webm" and r.json()["seconds"] == 64
+    r = client.delete(f"/api/v1/speaking/{sid}")
+    assert r.json()["model_recording"] == "model-20261105-101500.webm"
+    # the named test's title comes with the answer, for the PDF's name and heading
+    assert w["test_title"] is None
+    named = client.post("/api/v1/writing", json={
+        "task": 2, "test_key": "eng:cambridge-ielts-21-academic-writing-test-1"}).json()
+    assert named["test_title"] == "Cambridge IELTS 21 Academic — Writing Test 1"
+    listed = client.get("/api/v1/writing", params={"limit": 1}).json()[0]
+    assert listed["test_title"] == named["test_title"]

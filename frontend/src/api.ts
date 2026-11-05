@@ -252,6 +252,8 @@ export const api = {
       tutor_reply: string;
       tutor_overall: number | null;
       scores: Record<string, number>;
+      model_answer: string;
+      pdf_file: string | null;
       submit: boolean;
     }>,
   ) => request<WritingAttempt>(`writing/${id}`, json("PATCH", patch)),
@@ -278,10 +280,15 @@ export const api = {
       tutor_reply: string;
       tutor_overall: number | null;
       scores: Record<string, number>;
+      model_answer: string;
+      model_recording: string | null;
+      pdf_file: string | null;
+      recording: string;
+      seconds: number;
     }>,
   ) => request<SpeakingAttempt>(`speaking/${id}`, json("PATCH", patch)),
   speakingDelete: (id: number) =>
-    request<{ deleted: number; recording: string | null }>(`speaking/${id}`, {
+    request<{ deleted: number; recording: string | null; model_recording: string | null }>(`speaking/${id}`, {
       method: "DELETE",
     }),
   phraseShown: (id: number) => request<Card>(`cards/${id}/shown`, { method: "POST" }),

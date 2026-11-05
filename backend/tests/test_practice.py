@@ -149,3 +149,20 @@ def test_progress_lists_levels_and_marked_answers(client: TestClient) -> None:
     assert [lv["source_type"] for lv in p["levels"]] == ["self_estimate", "ai_tutor"]
     assert p["labs"][0]["test_title"] == "Official sample — Academic Writing Task 2 (computer)"
     assert p["results"] == [] and p["tests_done"] == 0
+
+
+def test_progress_counts_how_many_of_how_many(client: TestClient) -> None:
+    """v0.0.17 (owner, 2026-11-05): every kind of work as "done of total"."""
+    counts = {c["key"]: c for c in client.get("/api/v1/progress").json()["counts"]}
+    tech = counts["technique_videos"]
+    assert tech["done"] == 0 and 40 <= tech["total"] < 60
+    assert counts["practice_videos"]["total"] > 0
+    assert counts["phrase_videos"]["total"] == 10
+    assert counts["words"]["total"] == 350 and counts["phrases"]["total"] == 150
+    assert counts["samples"]["total"] == 18
+    sample = _queue(client, skills="listening", series="samples", limit=1)[0]
+    client.post("/api/v1/practice-results", json={"content_id": sample["id"], "correct": 3,
+                                                  "total": 4})
+    counts = {c["key"]: c for c in client.get("/api/v1/progress").json()["counts"]}
+    assert counts["samples"]["done"] == 1 and counts["full_tests"]["done"] == 0
+    assert all(c["done"] <= c["total"] for c in counts.values())

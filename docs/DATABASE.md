@@ -262,6 +262,8 @@ Index `(kind, due)`. Read on the owner's computer from Dalilk's two pages (D-041
 | scores_json | TEXT | 0011: the tutor's marks per criterion (`task`, `coherence`, `lexical`, `grammar`) |
 | level_id | INTEGER NULL | 0011: the `skill_levels` row the mark made |
 | test_key | TEXT NULL | 0012: the named question (a test's key), e.g. `eng:cambridge-ielts-21-academic-writing-test-1` |
+| model_answer | TEXT | 0013: the tutor's model answer (MINE / BETTER / WHY parts, then FULL ANSWER), editable (D-048) |
+| pdf_file | VARCHAR(200) NULL | 0013: the PDF's file name in `Documents/IELTS Band Up/إجاباتي/` (a name only, no folders) |
 | plan_task_id | INTEGER FK NULL | `ON DELETE SET NULL` |
 | submitted_at, created_at, updated_at | DATETIME | |
 
@@ -273,12 +275,15 @@ Index `(kind, due)`. Read on the owner's computer from Dalilk's two pages (D-041
 | prompt | TEXT | the question or cue card |
 | recording | TEXT NULL | file name in `recordings\` (only names this app writes); the UI deletes the file with the attempt |
 | seconds | INTEGER | |
-| transcript | TEXT | typed by the owner or with Windows voice typing (Win+H) |
+| transcript | TEXT | since 0.0.17 filled from the tutor's `### MY ANSWER`; editable (before: typed or voice typing) |
 | self_rating_json | TEXT | 1–5 for fluency, lexical, grammar, pronunciation |
 | notes, tutor_reply | TEXT | |
 | tutor_overall | REAL NULL | the tutor's overall mark; a level entry since 0011 (D-043) |
 | scores_json, level_id | TEXT, INTEGER NULL | 0011: marks per criterion (`fluency`, `lexical`, `grammar`); the level entry |
 | test_key | TEXT NULL | 0012: the named test whose questions were answered |
+| model_answer | TEXT | 0013: the tutor's model answer (D-048) |
+| model_recording | VARCHAR(100) NULL | 0013: the learner reading the model answer aloud (`model-….webm` in `recordings\`); deleted with the attempt |
+| pdf_file | VARCHAR(200) NULL | 0013: as in writing; the WAV copies of both recordings sit beside the PDF |
 | plan_task_id | INTEGER FK NULL | `ON DELETE SET NULL` |
 | created_at, updated_at | DATETIME | |
 

@@ -3257,3 +3257,154 @@ details.lab-card > summary {
     gap: 4px;
   }
 }
+
+/* ---------- v0.0.17: the reply split, the model answer, PDF, «إجاباتي», counts ---------- */
+
+.self-stretch {
+  align-self: stretch;
+}
+
+.reply-found {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  font-size: 0.85rem;
+}
+
+.reply-found .ok {
+  color: var(--ok);
+  font-weight: 600;
+}
+
+.model-view {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.model-part {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.model-part p {
+  margin: 0;
+  padding: 6px 12px;
+}
+
+.model-part .mine {
+  color: var(--muted);
+  background: var(--soft-2);
+}
+
+.model-part .better {
+  color: var(--ok-ink);
+  background: #f0fdf4;
+  font-weight: 600;
+}
+
+.model-part .why {
+  border-top: 1px dashed var(--border);
+}
+
+.model-full {
+  margin: 0;
+  white-space: pre-wrap;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #f0fdf4;
+  border-inline-start: 4px solid var(--ok);
+  line-height: 1.7;
+}
+
+.model-voice {
+  margin-top: 6px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+
+.read-aloud {
+  margin: 0;
+  white-space: pre-wrap;
+  font-size: 1.15rem;
+  line-height: 1.8;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: var(--soft);
+}
+
+.rec-clock.small-clock {
+  font-size: 1.4rem;
+}
+
+.send-recording {
+  align-self: stretch;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--soft-2);
+}
+
+.count-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 10px 24px;
+}
+
+.count-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 4px 8px;
+  align-items: center;
+}
+
+.count-row .meter {
+  grid-column: 1 / -1;
+  height: 8px;
+}
+
+.count-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.count-figures {
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+}
+
+.answer-list,
+.answer-audio {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.answer-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.answer-item {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 10px 12px;
+}
+
+.answer-name {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.answer-audio {
+  margin-top: 6px;
+  padding-inline-start: 26px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}

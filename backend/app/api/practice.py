@@ -11,22 +11,25 @@
 
 import json
 import re
-from datetime import datetime
+from datetime import date, datetime
 from typing import Annotated, Literal
 
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
-from sqlalchemy import select
+from sqlalchemy import func, select
 
-from app import content
+from app import content, planner
+from app.api.cards import learned_counts
 from app.api.content import ContentOut, _out
-from app.api.plan import _stored
+from app.api.plan import _content_totals, _inputs, _stored
 from app.context import Ctx
 from app.db import utcnow
 from app.models import (
     SKILLS,
+    Card,
     ContentItem,
     PlanTask,
+    PodcastEpisode,
     PracticeResult,
     SkillLevel,
     SpeakingAttempt,
@@ -263,6 +266,72 @@ def next_lab_test(
 
 # ------------------------------------------------------------------ the progress page
 
+TECHNIQUE_GROUPS = ("dev", "core", "low", "high")
+
+
+def _done_of(session) -> list[dict]:
+    """v0.0.17 (owner, 2026-11-05): "how many of how many" for each kind of work. The total
+    is what was done plus what the plan still holds up to the exam (or the whole series, for
+    a fixed set such as Dalilk's words)."""
+    def scalar(q) -> int:
+        return int(session.scalar(q) or 0)
+
+    try:
+        inputs = _inputs(session, date.today())
+        planned = _content_totals(session, inputs)
+        est = planner.estimate(inputs)
+    except HTTPException:  # no profile yet
+        planned, est = {}, None
+    exam_format = _stored(session).get("exam_format") or "computer"
+    groups = [*TECHNIQUE_GROUPS, "computer" if exam_format == "computer" else "paper"]
+    video = select(func.count()).select_from(ContentItem).where(
+        ContentItem.kind == "video", ContentItem.active.is_(True))
+    tech = video.where(ContentItem.grp.in_(groups))
+    phr = video.where(ContentItem.grp == "phrases")
+    worked = video.where(ContentItem.grp == "practice")  # worked practice questions
+    episodes = scalar(select(func.count()).select_from(PodcastEpisode).where(
+        PodcastEpisode.listened_at.is_not(None)))
+    novels = scalar(select(func.count()).select_from(ContentItem).where(
+        ContentItem.kind == "novel", ContentItem.completed_at.is_not(None)))
+    novels_all = scalar(select(func.count()).select_from(ContentItem).where(
+        ContentItem.kind == "novel", ContentItem.active.is_(True)))
+    learned = learned_counts(session)
+    words_all = scalar(select(func.count()).select_from(Card).where(Card.kind == "word"))
+    phrases_all = scalar(select(func.count()).select_from(Card).where(Card.kind == "phrase"))
+    sample = select(func.count()).select_from(ContentItem).where(
+        ContentItem.kind == "test", ContentItem.provider == "official", ContentItem.grp == "sample",
+        ContentItem.skill.in_(("listening", "reading")), ContentItem.active.is_(True))
+    tests_done = scalar(select(func.count()).select_from(ContentItem).where(
+        ContentItem.kind == "test", ContentItem.completed_at.is_not(None),
+        ~((ContentItem.provider == "official") & (ContentItem.grp == "sample"))))
+    w1 = scalar(select(func.count()).select_from(WritingAttempt).where(
+        WritingAttempt.task == 1, WritingAttempt.status == "submitted"))
+    w2 = scalar(select(func.count()).select_from(WritingAttempt).where(
+        WritingAttempt.task == 2, WritingAttempt.status == "submitted"))
+    sp = scalar(select(func.count()).select_from(SpeakingAttempt))
+    rows = [
+        ("podcast", episodes, episodes + planned.get("episodes", 0)),
+        ("novels", novels, min(novels_all, novels + planned.get("novels", 0))),
+        ("technique_videos", scalar(tech.where(ContentItem.completed_at.is_not(None))),
+         scalar(tech)),
+        ("practice_videos", scalar(worked.where(ContentItem.completed_at.is_not(None))),
+         scalar(worked)),
+        ("phrase_videos", scalar(phr.where(ContentItem.completed_at.is_not(None))), scalar(phr)),
+        ("words", learned["words"], max(words_all, 350)),
+        ("phrases", learned["phrases"], max(phrases_all, 150)),
+        ("samples", scalar(sample.where(ContentItem.completed_at.is_not(None))), scalar(sample)),
+        ("full_tests", tests_done,
+         tests_done + planned.get("tests", 0) + planned.get("full_tests", 0)),
+        ("writing_t1", w1, w1 + planned.get("writing_t1", 0)),
+        ("writing_t2", w2, w2 + planned.get("writing_t2", 0)),
+        ("speaking", sp, sp + planned.get("speaking", 0)),
+    ]
+    out = [{"key": k, "done": int(d), "total": int(max(d, t))} for k, d, t in rows]
+    if est is not None and est.total_hours:
+        out.append({"key": "hours", "done": round(est.hours_done, 1),
+                    "total": round(max(est.hours_done, est.total_hours), 1)})
+    return out
+
 
 @router.get("/progress")
 def progress(ctx: Ctx) -> dict:
@@ -323,4 +392,5 @@ def progress(ctx: Ctx) -> dict:
             "results": [_result_out(r).model_dump() for r in results[:30]],
             "labs": sorted(writing + speaking, key=lambda x: x["created_at"], reverse=True)[:20],
             "tests_done": len({r.test_key for r in results}),
+            "counts": _done_of(session),
         }

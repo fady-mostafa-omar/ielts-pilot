@@ -225,8 +225,19 @@ The owner's screenshot showed Daily English Listening (DLK-11) opening the old p
 - [x] A video watched for a minute (or half of a short one) counts as seen when the task moves on, is skipped or the screen closes; the time credit counts the part watched
 - [x] v0.0.16 published (2026-11-04)
 
+## v0.0.17 — One ChatGPT chat, the model answer, PDF, «إجاباتي» (D-048)
+- [x] One opening message per chat for the writing and the speaking lab: a question (or "I will send it" for a named test), wait, mark like IELTS, a model answer with the learner's own ideas at his skill target, part by part; the same headings in every reply (MY ANSWER, SCORES, MISTAKES, MODEL ANSWER). No API (owner)
+- [x] One box for the whole reply; the app fills the score boxes, the mistakes, the model answer (its own editable box) and, in speaking, what was said; by hand when the headings are missing
+- [x] Speaking: "download the recording" (WAV) and the message to paste with it; "record the model answer in your voice"
+- [x] "Save as PDF" in `Documents/IELTS Band Up/إجاباتي/`, the recordings beside it; the page «إجاباتي»
+- [x] «تقدّمي»: every kind of work as "done of total" with a bar (migration 0013)
+- [ ] v0.0.17 published
+
+## v0.0.18 — Exam warm-ups in the development hour (approved 2026-11-05)
+- The 5-minute writing and 5-minute speaking of the development hour become warm-ups in the exam's own format, simpler at first and closer to the exam every few weeks: stage A (first half of the development weeks), B (second half), C (exam weeks), as in docs/research/labs_pdf_progress_plan.md §6; each says which exam part it warms up for. Same times; the phrase videos stay a task of their own
+
 ## Sprint 4 — Exam preparation and progress · v0.1
-- Introduction video first, before anything else, on the first start, with skip and "watch again" in Settings (D-040, owner 2026-11-03): Eng. Fady Mostafa made the app free to help people; the app explained from the first step until the target band, on the final screens
+- Introduction video first, before anything else, on the first start, with skip and "watch again" in Settings (D-040, owner 2026-11-03): Eng. Fady Mostafa made the app free to help people; the app explained from the first step until the target band, on the final screens — **on hold until the owner asks** (2026-11-05); the first cut and its sources stay in `media/intro/`
 - Content-policy review before the app is given to the public (the personal-use rules change, D-045)
 - Weekly report; the plan adapts to test results
 - Optional: AI method B (official API keys, provider switch, key stored encrypted)

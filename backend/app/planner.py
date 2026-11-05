@@ -1091,7 +1091,7 @@ def content_minutes(inputs: PlanInputs, max_days: int = 400) -> dict:
     end = inputs.exam_date - timedelta(days=1) if inputs.exam_date else last
     out = {"podcast": 0, "novel": 0, "video": 0, "phrase_videos": 0, "tests": 0,
            "test_minutes": 0, "writing_t1": 0, "writing_t2": 0, "full_tests": 0,
-           "samples": 0, "days": 0}
+           "samples": 0, "speaking": 0, "days": 0}
     day = inputs.today
     for _ in range(max_days):
         if day > end:
@@ -1122,5 +1122,7 @@ def content_minutes(inputs: PlanInputs, max_days: int = 400) -> dict:
                     out["test_minutes"] += b.minutes
             elif ck == "writing" and c.get("task") in (1, 2):
                 out[f"writing_t{c['task']}"] += c.get("count", 1)
+            elif ck == "speaking":
+                out["speaking"] += 1
         day += timedelta(days=1)
     return out

@@ -21,7 +21,8 @@ from app.models import ContentItem, PlanTask, SkillLevel, SpeakingAttempt, Writi
 
 router = APIRouter(prefix="/api/v1")
 
-RECORDING = re.compile(r"^(speaking|shadow)-[0-9]{8}-[0-9]{6}(-[0-9]+)?\.webm$")
+RECORDING = re.compile(r"^(speaking|shadow|model)-[0-9]{8}-[0-9]{6}(-[0-9]+)?\.webm$")
+PDF_FILE = re.compile(r"^[^/\\:*?\"<>|]{1,180}\.pdf$")  # a file name only, no folders
 CRITERIA = Literal["task", "coherence", "lexical", "grammar", "fluency", "pronunciation"]
 TUTOR_NAMES = {"chatgpt": "ChatGPT", "claude": "Claude", "gemini": "Gemini"}
 
@@ -33,12 +34,16 @@ def _scores(value: dict[str, float] | None) -> dict[str, float] | None:
     return value
 
 
+def _test_title(session, row) -> str | None:
+    if not getattr(row, "test_key", None):
+        return None
+    return session.scalars(select(ContentItem.title).where(
+        ContentItem.kind == "test", ContentItem.key == row.test_key)).first()
+
+
 def _label(session, row, label: str) -> str:
     """v0.0.14: the named question in the level's note, e.g. "Cambridge 21 … · Task 1"."""
-    if not getattr(row, "test_key", None):
-        return label
-    title = session.scalars(select(ContentItem.title).where(
-        ContentItem.kind == "test", ContentItem.key == row.test_key)).first()
+    title = _test_title(session, row)
     return f"{title} · {label}" if title else label
 
 
@@ -60,6 +65,12 @@ def _sync_level(session, row, skill: str, label: str) -> None:
         row.level_id = level.id
     else:
         level.band, level.source_note = row.tutor_overall, note
+
+
+def _pdf_name(value: str | None) -> str | None:
+    if value is not None and not PDF_FILE.match(value):
+        raise ValueError("a PDF file name only")
+    return value
 
 
 def count_words(text: str) -> int:
@@ -96,6 +107,10 @@ class WritingPatch(BaseModel):
     # 0011: the tutor's marks per criterion, typed in by the owner
     scores: dict[Literal["task", "coherence", "lexical", "grammar"], float] | None = None
     submit: bool | None = None
+    model_answer: str | None = Field(default=None, max_length=30000)  # 0013
+    pdf_file: str | None = Field(default=None, max_length=200)
+
+    _pdf = field_validator("pdf_file")(classmethod(lambda cls, v: _pdf_name(v)))
 
     _overall = field_validator("tutor_overall")(classmethod(lambda cls, v: _band(v)))
     _criteria = field_validator("scores")(classmethod(lambda cls, v: _scores(v)))
@@ -115,14 +130,18 @@ class WritingOut(BaseModel):
     scores: dict[str, float]
     level_id: int | None
     test_key: str | None
+    test_title: str | None = None  # v0.0.17: the named test's title, for the PDF
+    model_answer: str
+    pdf_file: str | None
     plan_task_id: int | None
     submitted_at: datetime | None
     created_at: datetime
     updated_at: datetime
 
 
-def _writing_out(row: WritingAttempt) -> WritingOut:
+def _writing_out(row: WritingAttempt, session) -> WritingOut:
     data = {c: getattr(row, c) for c in WritingOut.model_fields if hasattr(row, c)}
+    data["test_title"] = _test_title(session, row)
     data["checklist"] = json.loads(row.checklist_json or "[]")
     data["scores"] = json.loads(row.scores_json or "{}")
     return WritingOut(**data)
@@ -149,7 +168,7 @@ def new_writing(body: WritingIn, ctx: Ctx) -> WritingOut:
                              test_key=body.test_key, created_at=now, updated_at=now)
         session.add(row)
         session.flush()
-        return _writing_out(row)
+        return _writing_out(row, session)
 
 
 @router.get("/writing", response_model=list[WritingOut])
@@ -167,7 +186,7 @@ def list_writing(
             q = q.where(WritingAttempt.task == task)
         rows = session.scalars(q.order_by(WritingAttempt.created_at.desc(),
                                           WritingAttempt.id.desc()).limit(limit))
-        return [_writing_out(r) for r in rows]
+        return [_writing_out(r, session) for r in rows]
 
 
 def _writing(session, attempt_id: int) -> WritingAttempt:
@@ -197,6 +216,10 @@ def patch_writing(attempt_id: int, body: WritingPatch, ctx: Ctx) -> WritingOut:
             row.tutor_overall = body.tutor_overall
         if body.scores is not None:
             row.scores_json = json.dumps(body.scores)
+        if body.model_answer is not None:
+            row.model_answer = body.model_answer
+        if body.pdf_file is not None:
+            row.pdf_file = body.pdf_file
         if body.submit:
             row.status = "submitted"
             row.submitted_at = row.submitted_at or now
@@ -207,7 +230,7 @@ def patch_writing(attempt_id: int, body: WritingPatch, ctx: Ctx) -> WritingOut:
             _sync_level(session, row, "writing", label)
         row.updated_at = now
         session.flush()
-        return _writing_out(row)
+        return _writing_out(row, session)
 
 
 @router.delete("/writing/{attempt_id}", status_code=204)
@@ -258,9 +281,23 @@ class SpeakingPatch(BaseModel):
     tutor_reply: str | None = Field(default=None, max_length=60000)
     tutor_overall: float | None = None
     scores: dict[Literal["fluency", "lexical", "grammar", "pronunciation"], float] | None = None
+    model_answer: str | None = Field(default=None, max_length=30000)  # 0013
+    model_recording: str | None = Field(default=None, max_length=100)
+    pdf_file: str | None = Field(default=None, max_length=200)
+    # v0.0.17: a recording made after the answer was opened (the reply pasted first)
+    recording: str | None = Field(default=None, max_length=100)
+    seconds: int | None = Field(default=None, ge=0, le=3600)
 
     _overall = field_validator("tutor_overall")(classmethod(lambda cls, v: _band(v)))
     _criteria = field_validator("scores")(classmethod(lambda cls, v: _scores(v)))
+    _pdf = field_validator("pdf_file")(classmethod(lambda cls, v: _pdf_name(v)))
+
+    @field_validator("model_recording", "recording")
+    @classmethod
+    def _model_recording(cls, value: str | None) -> str | None:
+        if value is not None and not RECORDING.match(value):
+            raise ValueError("not a recording of this app")
+        return value
 
     @field_validator("self_rating")
     @classmethod
@@ -284,13 +321,18 @@ class SpeakingOut(BaseModel):
     scores: dict[str, float]
     level_id: int | None
     test_key: str | None
+    test_title: str | None = None  # v0.0.17: the named test's title, for the PDF
+    model_answer: str
+    model_recording: str | None
+    pdf_file: str | None
     plan_task_id: int | None
     created_at: datetime
     updated_at: datetime
 
 
-def _speaking_out(row: SpeakingAttempt) -> SpeakingOut:
+def _speaking_out(row: SpeakingAttempt, session) -> SpeakingOut:
     data = {c: getattr(row, c) for c in SpeakingOut.model_fields if hasattr(row, c)}
+    data["test_title"] = _test_title(session, row)
     data["self_rating"] = json.loads(row.self_rating_json or "{}")
     data["scores"] = json.loads(row.scores_json or "{}")
     return SpeakingOut(**data)
@@ -317,7 +359,7 @@ def new_speaking(body: SpeakingIn, ctx: Ctx) -> SpeakingOut:
         )
         session.add(row)
         session.flush()
-        return _speaking_out(row)
+        return _speaking_out(row, session)
 
 
 @router.get("/speaking", response_model=list[SpeakingOut])
@@ -327,14 +369,15 @@ def list_speaking(
     with ctx.session_factory() as session:
         rows = session.scalars(select(SpeakingAttempt).order_by(
             SpeakingAttempt.created_at.desc(), SpeakingAttempt.id.desc()).limit(limit))
-        return [_speaking_out(r) for r in rows]
+        return [_speaking_out(r, session) for r in rows]
 
 
 @router.patch("/speaking/{attempt_id}", response_model=SpeakingOut)
 def patch_speaking(attempt_id: int, body: SpeakingPatch, ctx: Ctx) -> SpeakingOut:
     with ctx.session_factory.begin() as session:
         row = _speaking(session, attempt_id)
-        for field in ("prompt", "transcript", "notes", "tutor_reply"):
+        for field in ("prompt", "transcript", "notes", "tutor_reply", "model_answer",
+                      "model_recording", "pdf_file", "recording", "seconds"):
             value = getattr(body, field)
             if value is not None:
                 setattr(row, field, value)
@@ -348,7 +391,7 @@ def patch_speaking(attempt_id: int, body: SpeakingPatch, ctx: Ctx) -> SpeakingOu
             _sync_level(session, row, "speaking", label)
         row.updated_at = utcnow()
         session.flush()
-        return _speaking_out(row)
+        return _speaking_out(row, session)
 
 
 @router.delete("/speaking/{attempt_id}")
@@ -356,8 +399,8 @@ def delete_speaking(attempt_id: int, ctx: Ctx) -> dict:
     """Deletes the attempt; the answer names its audio file for the desktop app to delete."""
     with ctx.session_factory.begin() as session:
         row = _speaking(session, attempt_id)
-        recording = row.recording
+        recording, model = row.recording, row.model_recording
         row.tutor_overall = None
         _sync_level(session, row, "speaking", "")
         session.delete(row)
-    return {"deleted": attempt_id, "recording": recording}
+    return {"deleted": attempt_id, "recording": recording, "model_recording": model}
