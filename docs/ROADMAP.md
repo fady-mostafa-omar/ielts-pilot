@@ -240,7 +240,7 @@ The owner's screenshot showed Daily English Listening (DLK-11) opening the old p
 - Introduction video first, before anything else, on the first start, with skip and "watch again" in Settings (D-040, owner 2026-11-03): Eng. Fady Mostafa made the app free to help people; the app explained from the first step until the target band, on the final screens — **on hold until the owner asks** (2026-11-05); the first cut and its sources stay in `media/intro/`
 - Content-policy review before the app is given to the public (the personal-use rules change, D-045)
 - Weekly report; the plan adapts to test results
-- Optional: AI method B (official API keys, provider switch, key stored encrypted)
+- ~~Optional: AI method B (official API keys)~~ — removed: no API, ever (owner, 2026-11-05; D-048)
 
 **Exit = v0.1:** every PRD acceptance criterion passes on the baseline laptop.
 
@@ -257,6 +257,6 @@ Interactive Listening/Reading practice with in-app question sets (original, or o
 
 ## v0.4+ — Optional
 
-AI feedback provider interface; local speech-to-text add-on; report export.
+Report export. (Removed by the owner, 2026-11-05: an AI provider interface and speech-to-text inside the app — the tutor stays ChatGPT by copy and paste, D-048.)
 
 "Pro" add-on (D-029): a local open-source model for simple tasks (word meanings, example sentences, grammar hints), only if a speed test on the owner's laptop is acceptable.
