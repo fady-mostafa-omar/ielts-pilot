@@ -231,7 +231,7 @@ The owner's screenshot showed Daily English Listening (DLK-11) opening the old p
 - [x] Speaking: "download the recording" (WAV) and the message to paste with it; "record the model answer in your voice"
 - [x] "Save as PDF" in `Documents/IELTS Band Up/إجاباتي/`, the recordings beside it; the page «إجاباتي»
 - [x] «تقدّمي»: every kind of work as "done of total" with a bar (migration 0013)
-- [ ] v0.0.17 published
+- [x] v0.0.17 published (2026-11-05): Windows and Linux CI green, the .deb installed and started on Ubuntu 22.04 and 24.04
 
 ## v0.0.18 — Exam warm-ups in the development hour (approved 2026-11-05)
 - The 5-minute writing and 5-minute speaking of the development hour become warm-ups in the exam's own format, simpler at first and closer to the exam every few weeks: stage A (first half of the development weeks), B (second half), C (exam weeks), as in docs/research/labs_pdf_progress_plan.md §6; each says which exam part it warms up for. Same times; the phrase videos stay a task of their own
